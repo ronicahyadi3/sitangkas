@@ -219,6 +219,10 @@ Kondisi saat ini:
   menghapus secret/pending secret/recovery codes, memutar remember token,
   mengisi `sessions_invalidated_at`, menghapus session database target bila
   session driver database, dan mencatat audit `mfa_reset`;
+- `App\Services\Auth\SensitiveAuthenticationResponseHeaders` sudah tersedia
+  untuk memberi header `Cache-Control: no-store`, `Pragma: no-cache`,
+  `Expires: 0`, dan `Surrogate-Control: no-store` pada response autentikasi
+  yang membawa recovery codes mentah;
 - `App\Http\Controllers\Auth\MfaChallengeController` sudah menyediakan
   `GET/POST /login/mfa` untuk challenge TOTP atau recovery code;
 - `App\Http\Requests\Auth\VerifyMfaChallengeRequest` sudah memvalidasi
@@ -230,7 +234,7 @@ Kondisi saat ini:
   authenticator dan memastikan real active position dari session masih valid;
 - `resources/views/auth/mfa-setup.blade.php` sudah menampilkan QR jika tersedia,
   fallback manual key/provisioning URI, form kode TOTP, dan recovery codes sekali
-  setelah setup berhasil;
+  setelah setup berhasil. Response setup berhasil sudah memakai header no-store;
 - `resources/views/auth/mfa-challenge.blade.php` sudah menampilkan form
   challenge TOTP dan form recovery code satu kali untuk user yang sudah enroll
   MFA;
@@ -271,8 +275,11 @@ Aturan penting:
 - view profile security sudah menampilkan status MFA, metode aktif, waktu MFA
   terakhir dipakai, waktu recovery codes dibuat, jumlah recovery codes tersisa,
   ringkasan session MFA, dan konteks real user;
+- view profile security sudah menampilkan tombol `Aktifkan MFA` atau
+  `Lanjutkan Setup MFA` untuk user non-Admin Super yang belum enroll MFA ketika
+  policy `config('auth.mfa.non_admin.available')` aktif;
 - `App\Http\Requests\Profile\RegenerateMfaRecoveryCodesRequest` sudah dibuat
-  untuk route POST regeneration masa depan. Request ini memastikan user valid,
+  untuk route POST regeneration. Request ini memastikan user valid,
   route yang dipakai adalah `profile.security.mfa.recovery_codes.regenerate`,
   dan real active position tersedia;
 - `App\Http\Controllers\Profile\MfaRecoveryCodeController` sudah dibuat dengan
@@ -281,8 +288,12 @@ Aturan penting:
 - route POST `/profile/security/mfa/recovery-codes` dengan name
   `profile.security.mfa.recovery_codes.regenerate` sudah dibuat dan terhubung
   ke `Profile\MfaRecoveryCodeController@store`;
-- UI/form untuk menjalankan route POST dan menampilkan raw recovery codes baru
-  satu kali belum dibuat pada status ini.
+- view profile security sudah memiliki form regenerate recovery codes dan panel
+  flash untuk menampilkan raw recovery codes baru satu kali setelah POST
+  berhasil. Response profile security yang sedang menampilkan raw recovery codes
+  dari flash data sudah memakai header no-store;
+- layout internal sudah menampilkan link "Keamanan Akun" di dropdown akun
+  navbar dan sidebar dengan target route `profile.security`;
 - reset MFA dari browser belum boleh dibuat tanpa decision permission/approval
   baru; jalur resmi saat ini adalah command Artisan `auth:mfa-reset`.
 - route setup MFA tidak boleh dianggap sebagai pengganti challenge MFA; user

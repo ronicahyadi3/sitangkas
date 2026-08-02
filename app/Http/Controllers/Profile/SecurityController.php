@@ -8,24 +8,33 @@ use App\Models\UserPosition;
 use App\Services\Auth\CurrentUserContext;
 use App\Services\Auth\MfaPolicy;
 use App\Services\Auth\MfaSession;
+use App\Services\Auth\SensitiveAuthenticationResponseHeaders;
 use DateTimeInterface;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 
 class SecurityController extends Controller
 {
     public function __construct(
         private CurrentUserContext $currentUserContext,
         private MfaPolicy $mfaPolicy,
-        private MfaSession $mfaSession
+        private MfaSession $mfaSession,
+        private SensitiveAuthenticationResponseHeaders $sensitiveResponseHeaders
     ) {}
 
-    public function __invoke(Request $request): View
+    public function __invoke(Request $request): View|Response
     {
-        return view('profile.security', [
+        $viewData = [
             ...$this->currentUserContext->viewData($request),
             'mfaStatus' => $this->mfaStatus($request),
-        ]);
+        ];
+
+        if ($this->hasRegeneratedRecoveryCodes($request)) {
+            return $this->sensitiveResponseHeaders->noStoreView('profile.security', $viewData);
+        }
+
+        return view('profile.security', $viewData);
     }
 
     /**
@@ -45,7 +54,13 @@ class SecurityController extends Controller
      *     has_pending_enrollment: bool,
      *     is_required: bool,
      *     is_available: bool,
-     *     is_verified_with_totp: bool
+     *     is_verified_with_totp: bool,
+     *     is_admin_super_position: bool,
+     *     can_start_enrollment: bool,
+     *     can_continue_enrollment: bool,
+     *     enrollment_action_label: string,
+     *     enrollment_action_icon: string,
+     *     enrollment_action_help: string
      * }
      */
     private function mfaStatus(Request $request): array
@@ -60,11 +75,14 @@ class SecurityController extends Controller
         $isAvailable = $this->mfaPolicy->availableFor($realActiveUserPosition);
         $isRequired = $this->mfaPolicy->requiredFor($realActiveUserPosition, $user);
         $isVerifiedWithTotp = $this->mfaSession->isVerifiedFor($request, $user, $realActiveUserPosition, MfaPolicy::METHOD_TOTP);
+        $isAdminSuperPosition = $this->currentUserContext->isAdminSuperPosition($realActiveUserPosition);
         $sessionState = $this->mfaSession->state($request);
         $statusPresentation = $this->statusPresentation($isEnrolled, $hasPendingEnrollment, $isRequired, $isAvailable);
+        $enrollmentAction = $this->enrollmentActionPresentation($isAvailable, $isEnrolled, $hasPendingEnrollment, $isAdminSuperPosition);
 
         return [
             ...$statusPresentation,
+            ...$enrollmentAction,
             'method_label' => $isEnrolled ? $this->methodLabel($this->mfaPolicy->method()) : 'Belum aktif',
             'policy_label' => $this->policyLabel($isRequired, $isAvailable),
             'last_used_at_label' => $this->dateTimeLabel($user->mfa_last_used_at, 'Belum pernah'),
@@ -78,6 +96,7 @@ class SecurityController extends Controller
             'is_required' => $isRequired,
             'is_available' => $isAvailable,
             'is_verified_with_totp' => $isVerifiedWithTotp,
+            'is_admin_super_position' => $isAdminSuperPosition,
         ];
     }
 
@@ -143,6 +162,48 @@ class SecurityController extends Controller
         return $isAvailable ? 'Optional' : 'Nonaktif';
     }
 
+    /**
+     * @return array{can_start_enrollment: bool, can_continue_enrollment: bool, enrollment_action_label: string, enrollment_action_icon: string, enrollment_action_help: string}
+     */
+    private function enrollmentActionPresentation(
+        bool $isAvailable,
+        bool $isEnrolled,
+        bool $hasPendingEnrollment,
+        bool $isAdminSuperPosition
+    ): array {
+        $canManageOptionalEnrollment = $isAvailable && ! $isAdminSuperPosition && ! $isEnrolled;
+        $canContinueEnrollment = $canManageOptionalEnrollment && $hasPendingEnrollment;
+        $canStartEnrollment = $canManageOptionalEnrollment && ! $hasPendingEnrollment;
+
+        if ($canContinueEnrollment) {
+            return [
+                'can_start_enrollment' => false,
+                'can_continue_enrollment' => true,
+                'enrollment_action_label' => 'Lanjutkan Setup MFA',
+                'enrollment_action_icon' => 'fa-arrow-right',
+                'enrollment_action_help' => 'Setup authenticator masih pending.',
+            ];
+        }
+
+        if ($canStartEnrollment) {
+            return [
+                'can_start_enrollment' => true,
+                'can_continue_enrollment' => false,
+                'enrollment_action_label' => 'Aktifkan MFA',
+                'enrollment_action_icon' => 'fa-mobile-screen-button',
+                'enrollment_action_help' => 'MFA optional tersedia untuk akun ini.',
+            ];
+        }
+
+        return [
+            'can_start_enrollment' => false,
+            'can_continue_enrollment' => false,
+            'enrollment_action_label' => '',
+            'enrollment_action_icon' => '',
+            'enrollment_action_help' => '',
+        ];
+    }
+
     private function dateTimeLabel(?DateTimeInterface $dateTime, string $emptyLabel): string
     {
         if (! $dateTime instanceof DateTimeInterface) {
@@ -162,5 +223,22 @@ class SecurityController extends Controller
             $recoveryCodes,
             static fn (mixed $recoveryCode): bool => is_string($recoveryCode) && $recoveryCode !== ''
         ));
+    }
+
+    private function hasRegeneratedRecoveryCodes(Request $request): bool
+    {
+        $regeneratedRecoveryCodes = $request->session()->get('mfa_recovery_codes_regenerated');
+
+        if (! is_array($regeneratedRecoveryCodes) || ! is_array($regeneratedRecoveryCodes['codes'] ?? null)) {
+            return false;
+        }
+
+        foreach ($regeneratedRecoveryCodes['codes'] as $recoveryCode) {
+            if (is_string($recoveryCode) && $recoveryCode !== '') {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

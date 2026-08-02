@@ -1,9 +1,67 @@
+@php
+    $regeneratedRecoveryCodes = session('mfa_recovery_codes_regenerated');
+    $regeneratedRecoveryCodeList = is_array($regeneratedRecoveryCodes) && is_array($regeneratedRecoveryCodes['codes'] ?? null)
+        ? array_values(array_filter(
+            $regeneratedRecoveryCodes['codes'],
+            static fn (mixed $recoveryCode): bool => is_string($recoveryCode) && $recoveryCode !== ''
+        ))
+        : [];
+    $canRegenerateRecoveryCodes = $mfaStatus['is_enrolled'] && $mfaStatus['is_verified_with_totp'];
+    $canShowMfaEnrollmentAction = $mfaStatus['can_start_enrollment'] || $mfaStatus['can_continue_enrollment'];
+@endphp
+
 @extends('layouts.app')
 
 @section('title', 'Keamanan Akun - SITANGKAS')
 
 @section('content')
     <div class="profile-security-page">
+        @if (session('status'))
+            <div class="alert alert-success text-white" role="alert">
+                <i class="fa-solid fa-circle-check me-2"></i>
+                {{ session('status') }}
+            </div>
+        @endif
+
+        @error('recovery_codes')
+            <div class="alert alert-danger text-white" role="alert">
+                <i class="fa-solid fa-triangle-exclamation me-2"></i>
+                {{ $message }}
+            </div>
+        @enderror
+
+        @if ($regeneratedRecoveryCodeList !== [])
+            <div class="card shadow-sm border-0 mb-3">
+                <div class="card-body p-4">
+                    <div class="d-flex flex-column flex-lg-row align-items-lg-start justify-content-between gap-3 mb-3">
+                        <div>
+                            <span class="badge bg-gradient-warning mb-3">
+                                <i class="fa-solid fa-key me-1"></i>
+                                Recovery Codes Baru
+                            </span>
+                            <h2 class="h5 font-weight-bolder mb-2">Simpan recovery codes ini</h2>
+                            <p class="text-sm text-secondary mb-0">
+                                Codes lama sudah dicabut dan codes baru hanya ditampilkan pada halaman ini.
+                            </p>
+                        </div>
+                        <span class="badge bg-gradient-dark">
+                            {{ count($regeneratedRecoveryCodeList) }} codes
+                        </span>
+                    </div>
+
+                    <div class="row g-2">
+                        @foreach ($regeneratedRecoveryCodeList as $recoveryCode)
+                            <div class="col-lg-3 col-md-4 col-sm-6">
+                                <div class="border rounded-3 bg-gray-100 px-3 py-2">
+                                    <code class="text-dark font-weight-bold">{{ $recoveryCode }}</code>
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
+            </div>
+        @endif
+
         <div class="row">
             <div class="col-12">
                 <div class="card shadow-sm border-0">
@@ -160,6 +218,41 @@
                             </p>
                             <p class="text-sm text-secondary mb-0">
                                 {{ $realActiveUserPosition?->instansi?->nama ?? '-' }}
+                            </p>
+                        </div>
+
+                        <hr class="horizontal dark">
+
+                        @if ($canShowMfaEnrollmentAction)
+                            <div>
+                                <p class="text-xs text-uppercase text-secondary font-weight-bolder mb-2">Authenticator</p>
+                                <a href="{{ route('login.mfa.setup') }}" class="btn btn-primary w-100 mb-2">
+                                    <i class="fa-solid {{ $mfaStatus['enrollment_action_icon'] }} me-2"></i>
+                                    {{ $mfaStatus['enrollment_action_label'] }}
+                                </a>
+                                <p class="text-xs text-secondary mb-0">
+                                    {{ $mfaStatus['enrollment_action_help'] }}
+                                </p>
+                            </div>
+
+                            <hr class="horizontal dark">
+                        @endif
+
+                        <div>
+                            <p class="text-xs text-uppercase text-secondary font-weight-bolder mb-2">Recovery Codes</p>
+                            <form method="POST" action="{{ route('profile.security.mfa.recovery_codes.regenerate') }}" class="mb-0">
+                                @csrf
+                                <button type="submit" class="btn btn-warning w-100 mb-2" {{ $canRegenerateRecoveryCodes ? '' : 'disabled' }}>
+                                    <i class="fa-solid fa-rotate me-2"></i>
+                                    Regenerate Codes
+                                </button>
+                            </form>
+                            <p class="text-xs text-secondary mb-0">
+                                @if ($canRegenerateRecoveryCodes)
+                                    Membuat codes baru akan mencabut semua recovery codes lama.
+                                @else
+                                    Regenerate membutuhkan MFA aktif dan session TOTP valid.
+                                @endif
                             </p>
                         </div>
                     </div>

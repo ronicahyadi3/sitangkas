@@ -14,6 +14,9 @@ sudah memakai `App\Http\Controllers\Profile\SecurityController`.
 `resources/views/profile/security.blade.php`. View sudah menampilkan status
 MFA, metode aktif, waktu MFA terakhir dipakai, waktu recovery codes dibuat,
 jumlah recovery codes tersisa, ringkasan session MFA, dan konteks real user.
+View juga sudah menampilkan tombol `Aktifkan MFA` atau `Lanjutkan Setup MFA`
+untuk user non-Admin Super yang belum enroll MFA ketika policy
+`config('auth.mfa.non_admin.available')` aktif.
 Route POST `/profile/security/mfa/recovery-codes` dengan name
 `profile.security.mfa.recovery_codes.regenerate` sudah dibuat dan terhubung ke
 `Profile\MfaRecoveryCodeController@store`. Action
@@ -23,8 +26,11 @@ controller tersebut. Request
 untuk route POST regeneration. Controller
 `App\Http\Controllers\Profile\MfaRecoveryCodeController` sudah dibuat dengan
 method `store()` yang memanggil action dan menyiapkan flash data recovery codes
-satu request. UI/form untuk menjalankan route POST dan menampilkan raw recovery
-codes baru satu kali belum dibuat pada status ini.
+satu request. View profile security sudah memiliki form regenerate recovery
+codes dan panel flash untuk menampilkan raw recovery codes baru satu kali
+setelah POST berhasil. Response yang menampilkan raw recovery codes sudah
+memakai header no-store melalui
+`App\Services\Auth\SensitiveAuthenticationResponseHeaders`.
 
 ## Tujuan
 
@@ -38,6 +44,8 @@ Scope awal halaman ini:
 - menampilkan waktu terakhir MFA dipakai;
 - menampilkan waktu recovery codes terakhir dibuat;
 - menampilkan jumlah recovery codes tersisa;
+- menyediakan aksi mulai/lanjut setup MFA optional untuk user non-Admin Super
+  yang belum enroll;
 - menyediakan aksi regenerate recovery codes.
 
 Halaman ini tidak menggantikan flow login, MFA challenge, MFA setup pertama,
@@ -159,6 +167,9 @@ Yang boleh dilakukan:
 - tampilkan codes baru pada response langsung setelah POST berhasil;
 - atau tampilkan codes baru melalui flash data satu request setelah redirect ke
   `profile.security`;
+- response yang menampilkan raw recovery codes wajib memakai header no-store:
+  `Cache-Control: no-store, no-cache, must-revalidate, max-age=0, private`,
+  `Pragma: no-cache`, `Expires: 0`, dan `Surrogate-Control: no-store`;
 - beri peringatan agar user menyimpan codes dengan aman;
 - tampilkan jumlah codes tersisa di halaman status;
 - catat audit non-secret lewat `login_events`.
@@ -235,10 +246,17 @@ Jika Admin Super verified via recovery code:
    `profile.security.mfa.recovery_codes.regenerate` sudah dibuat.
 10. POST route sudah terhubung ke `RegenerateMfaRecoveryCodes` melalui
     `Profile\MfaRecoveryCodeController@store`.
-11. Tampilkan raw recovery codes baru satu kali setelah POST berhasil.
-12. Tambahkan item navigasi internal "Keamanan Akun" ke layout/navbar/sidebar.
-13. Update docs current implementation setelah route/controller/view selesai.
-14. Jalankan verifikasi non-test saja: lint PHP, Pint dirty, route list, dan
+11. Raw recovery codes baru sudah ditampilkan satu kali setelah POST berhasil
+    melalui flash data `mfa_recovery_codes_regenerated`.
+12. Item navigasi internal "Keamanan Akun" sudah ditambahkan ke dropdown akun
+    navbar dan sidebar.
+13. Tombol `Aktifkan MFA` atau `Lanjutkan Setup MFA` untuk user non-Admin Super
+    yang belum enroll sudah ditambahkan ke view profile security.
+14. Header no-store untuk response yang menampilkan raw recovery codes sudah
+    ditambahkan melalui `SensitiveAuthenticationResponseHeaders`.
+15. Docs current implementation sudah diupdate setelah route/controller/view
+    selesai.
+16. Jalankan verifikasi non-test saja: lint PHP, Pint dirty, route list, dan
     view cache/clear.
 
 Test suite tidak boleh dibuat, dimodifikasi, atau dijalankan tanpa konfirmasi

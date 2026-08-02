@@ -464,20 +464,41 @@ Pada saat dokumen ini ditulis:
 - Admin Super yang sudah enroll MFA tetapi session MFA belum valid diarahkan ke
   `login.mfa` sebelum `login.post`.
 
-## Urutan implementasi yang direkomendasikan
+## Status implementasi dan urutan lanjutan
 
-1. Pastikan migration storage MFA sudah dijalankan pada environment target.
-2. Review flow manual di browser dengan user Admin Super yang belum enroll MFA.
-3. Review flow manual di browser dengan user Admin Super yang sudah enroll MFA.
-4. Baca `MFA_RECOMMENDATIONS.md` sebelum menambah recovery code, reset MFA,
-   WebAuthn, security key, device-bound authenticator, atau push MFA.
-5. Implementasikan halaman profile/security sesuai
-   `PROFILE_SECURITY_DECISIONS.md`.
-6. Tambahkan recovery-code regeneration UI hanya di halaman profile/security
-   dengan middleware `mfa.verified` dan action
-   `RegenerateMfaRecoveryCodes`.
-7. Perluas enforcement ke route internal baru dengan middleware `mfa.verified`
-   bila route tersebut dapat diakses Admin Super.
+Kondisi runtime saat ini:
+
+1. Storage MFA dan `remember_token_expires_at` sudah tersedia di migration dan
+   database lokal aktif.
+2. Setup TOTP, branded QR, manual key, konfirmasi kode pertama, dan recovery
+   codes awal sudah diimplementasikan.
+3. Challenge MFA sudah mendukung TOTP dan recovery code satu kali pakai.
+4. Admin Super wajib MFA sebelum `login.post`, dashboard, profile security, dan
+   endpoint internal yang memakai `mfa.verified`.
+5. Halaman `/profile/security` sudah tersedia sebagai rumah status MFA dan
+   recovery-code regeneration.
+6. Recovery-code regeneration sudah tersedia melalui
+   `RegenerateMfaRecoveryCodes` dan hanya boleh berjalan jika session MFA
+   verified via TOTP.
+7. Reset MFA resmi sudah tersedia melalui command operator
+   `php artisan auth:mfa-reset`.
+8. Tombol `Aktifkan MFA` atau `Lanjutkan Setup MFA` untuk user non-Admin Super
+   yang belum enroll sudah tersedia di `/profile/security`.
+9. Response yang menampilkan raw recovery codes setelah setup pertama atau
+   regenerate sudah memakai header no-store melalui
+   `SensitiveAuthenticationResponseHeaders`.
+
+Urutan lanjutan yang direkomendasikan setelah review manual:
+
+1. Pastikan migration storage MFA sudah dijalankan pada setiap environment
+   target, bukan hanya lokal.
+2. Evaluasi apakah flash session untuk raw recovery codes perlu diganti dengan
+   response langsung atau mekanisme one-time nonce yang lebih ketat.
+3. Perluas enforcement ke route internal baru dengan middleware `mfa.verified`
+   bila route tersebut dapat diakses Admin Super atau user non-Admin Super yang
+   sudah enroll MFA.
+4. Baca `MFA_RECOMMENDATIONS.md` sebelum menambah WebAuthn, security key,
+   device-bound authenticator, trusted device, atau push MFA.
 
 AI agent tidak boleh membuat, memodifikasi, atau menjalankan test suite/test
 command tanpa konfirmasi eksplisit user.

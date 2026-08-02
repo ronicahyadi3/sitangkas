@@ -21,6 +21,9 @@
         $navbarPasswordUrl = \Illuminate\Support\Facades\Route::has('password.change')
             ? route('password.change')
             : $navbarContextUrl;
+        $navbarSecurityUrl = \Illuminate\Support\Facades\Route::has('profile.security')
+            ? route('profile.security')
+            : $navbarContextUrl;
 
         $navbarProfileLabel = in_array($navbarRoleId, [12, 13], true) ? 'Konteks Akun' : 'Profile';
 
@@ -55,6 +58,8 @@
             'dashboard' => ['Dashboard'],
             'dashboard.anggaran.index' => ['Dashboard', 'Anggaran'],
             'users.index' => ['Users'],
+            'profile.security' => ['Akun', 'Keamanan Akun'],
+            'profile.security.mfa.recovery_codes.regenerate' => ['Akun', 'Keamanan Akun'],
             'positions.page' => ['Akun', 'Ganti Jabatan'],
             'password.change' => ['Akun', 'Ganti Password'],
             'bank.sp2d.index' => ['Bank', 'SP2D'],
@@ -765,6 +770,15 @@
                                         <i class="fa fa-key"></i>
                                     </span>
                                     <span>Ganti Password</span>
+                                </a>
+                            </li>
+
+                            <li>
+                                <a class="dropdown-item navbar-dropdown-item" href="{{ $navbarSecurityUrl }}">
+                                    <span class="navbar-menu-icon">
+                                        <i class="fa fa-shield-halved"></i>
+                                    </span>
+                                    <span>Keamanan Akun</span>
                                 </a>
                             </li>
 

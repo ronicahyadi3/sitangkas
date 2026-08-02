@@ -447,7 +447,16 @@ Sudah ada:
 - referensi project lama di `C:\Apache24\htdocs\sitangkas`;
 - policy MFA tersedia di `config('auth.mfa')`;
 - migration file storage MFA dan `remember_token_expires_at` tersedia untuk
-  tabel `users`.
+  tabel `users`;
+- runtime MFA sudah diimplementasikan melalui route `login.mfa`,
+  `login.mfa.setup`, middleware `mfa.verified`, action TOTP/recovery code, dan
+  audit `login_events`;
+- Admin Super tanpa MFA verified sudah ditahan sebelum `login.post`, dashboard,
+  dan route internal yang memakai middleware `mfa.verified`;
+- halaman `/profile/security` sudah menjadi halaman status keamanan akun dan
+  recovery-code regeneration;
+- reset MFA resmi sudah tersedia melalui command operator
+  `php artisan auth:mfa-reset`.
 
 Perlu diperhatikan untuk iterasi berikutnya:
 
@@ -459,12 +468,17 @@ Perlu diperhatikan untuk iterasi berikutnya:
   eksplisit apakah yang dibutuhkan adalah real Admin Super atau acting context;
 - jangan mengaktifkan remember-me untuk real position Admin Super atau acting
   context Admin Super tanpa decision baru;
-- runtime MFA belum diimplementasikan. Jika mulai implementasi MFA, baca
-  `MFA_DECISIONS.md` lebih dulu dan lindungi Admin Super sebelum `login.post`;
+- runtime MFA sudah aktif. AI agent tidak boleh membuat flow MFA kedua,
+  `config/mfa.php` terpisah, atau mengarahkan Admin Super ke `login.post`
+  sebelum session MFA valid;
 - runtime server-side expiry remember-me sudah diimplementasikan melalui
   `EnforceSingleDeviceAuthentication`, `RememberMePolicy`, dan
   `EnsureSingleDeviceSession`, termasuk marker session
-  `auth_remember_session_expires_at`.
+  `auth_remember_session_expires_at`;
+- non-Admin Super sudah didukung secara policy untuk enrollment MFA optional
+  dan UI aktivasi eksplisit di `/profile/security` sudah tersedia;
+- halaman yang menampilkan raw recovery codes sudah diberi hardening
+  cache/no-store melalui `SensitiveAuthenticationResponseHeaders`.
 
 ## Related docs
 

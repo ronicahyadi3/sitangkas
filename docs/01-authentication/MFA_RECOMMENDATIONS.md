@@ -282,19 +282,20 @@ app resmi atau provider MFA enterprise.
 
 ## Rekomendasi 8 - Urutan Implementasi Lanjutan
 
-Urutan paling proper setelah kondisi sekarang:
+Kondisi runtime MFA saat ini sudah mencakup setup TOTP, branded QR, challenge
+TOTP, recovery-code challenge, reset MFA Artisan, halaman profile/security,
+recovery-code regeneration, dan tombol aktivasi MFA optional untuk user
+non-Admin Super yang belum enroll. Response yang menampilkan raw recovery codes
+juga sudah memakai header no-store.
 
-1. Review manual flow MFA Admin Super yang belum enroll dan sudah enroll.
-2. Recovery-code challenge di halaman `login.mfa` sudah diimplementasikan.
-3. Command Artisan reset MFA untuk operator sudah diimplementasikan.
-4. Decision `MFA-11` dan action `RegenerateMfaRecoveryCodes` sudah
-   diimplementasikan.
-5. Implementasikan halaman profile/security sesuai
-   `PROFILE_SECURITY_DECISIONS.md` sebagai rumah status MFA user.
-6. Tambahkan route/controller/view recovery-code regeneration di halaman
-   profile/security dengan middleware `mfa.verified` dan action
-   `RegenerateMfaRecoveryCodes`.
-7. Evaluasi WebAuthn/security key untuk Admin Super tingkat tinggi.
+Urutan paling proper setelah review manual:
+
+1. Evaluasi penggantian flash session raw recovery codes dengan response
+   langsung atau one-time nonce jika requirement keamanan dinaikkan.
+2. Pertimbangkan limiter khusus profile security jika traffic regenerate
+   recovery codes perlu dipisah dari limiter `auth-mfa`.
+3. Perluas middleware `mfa.verified` ke route internal baru yang sensitif.
+4. Evaluasi WebAuthn/security key untuk Admin Super tingkat tinggi.
 
 Catatan penting: jangan membuat, memodifikasi, atau menjalankan test suite/test
 command tanpa konfirmasi eksplisit dari user.
@@ -304,6 +305,7 @@ command tanpa konfirmasi eksplisit dari user.
 - `config/auth.php` pada key `mfa`;
 - `app/Services/Auth/MfaPolicy.php`;
 - `app/Services/Auth/MfaSession.php`;
+- `app/Services/Auth/SensitiveAuthenticationResponseHeaders.php`;
 - `app/Services/Auth/TotpAuthenticator.php`;
 - `app/Actions/Auth/StartTotpEnrollment.php`;
 - `app/Actions/Auth/ConfirmTotpEnrollment.php`;
@@ -317,11 +319,15 @@ command tanpa konfirmasi eksplisit dari user.
 - `docs/01-authentication/PROFILE_SECURITY_DECISIONS.md`;
 - `app/Http/Controllers/Auth/TotpEnrollmentController.php`;
 - `app/Http/Controllers/Auth/MfaChallengeController.php`;
+- `app/Http/Controllers/Profile/SecurityController.php`;
+- `app/Http/Controllers/Profile/MfaRecoveryCodeController.php`;
 - `app/Http/Requests/Auth/ConfirmTotpEnrollmentRequest.php`;
 - `app/Http/Requests/Auth/VerifyMfaChallengeRequest.php`;
+- `app/Http/Requests/Profile/RegenerateMfaRecoveryCodesRequest.php`;
 - `app/Http/Middleware/EnsureMfaVerified.php`;
 - `resources/views/auth/mfa-setup.blade.php`;
 - `resources/views/auth/mfa-challenge.blade.php`;
+- `resources/views/profile/security.blade.php`;
 - `public/assets/img/Logo_Kota_Malang_color.png`;
 - `routes/web.php`;
 - `app/Providers/AppServiceProvider.php`;

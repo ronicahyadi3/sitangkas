@@ -11,9 +11,11 @@ use App\Models\UserPosition;
 use App\Services\Auth\CurrentUserContext;
 use App\Services\Auth\MfaPolicy;
 use App\Services\Auth\MfaSession;
+use App\Services\Auth\SensitiveAuthenticationResponseHeaders;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Route;
 
 class TotpEnrollmentController extends Controller
@@ -21,7 +23,8 @@ class TotpEnrollmentController extends Controller
     public function __construct(
         private CurrentUserContext $currentUserContext,
         private MfaPolicy $mfaPolicy,
-        private MfaSession $mfaSession
+        private MfaSession $mfaSession,
+        private SensitiveAuthenticationResponseHeaders $sensitiveResponseHeaders
     ) {}
 
     public function create(Request $request, StartTotpEnrollment $startTotpEnrollment): View|RedirectResponse
@@ -56,7 +59,7 @@ class TotpEnrollmentController extends Controller
     public function store(
         ConfirmTotpEnrollmentRequest $request,
         ConfirmTotpEnrollment $confirmTotpEnrollment
-    ): View {
+    ): Response {
         $user = $request->user();
         $realActiveUserPosition = $request->realActiveUserPosition();
 
@@ -69,7 +72,7 @@ class TotpEnrollmentController extends Controller
             $request->oneTimePassword()
         );
 
-        return view('auth.mfa-setup', $this->setupViewData(
+        return $this->sensitiveResponseHeaders->noStoreView('auth.mfa-setup', $this->setupViewData(
             $request,
             $user,
             $realActiveUserPosition,

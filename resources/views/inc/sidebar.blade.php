@@ -131,6 +131,18 @@
                 </a>
             </li>
 
+            @if (\Illuminate\Support\Facades\Route::has('profile.security'))
+                <li class="nav-item">
+                    <a href="{{ route('profile.security') }}"
+                        class="nav-link {{ request()->routeIs('profile.security*') ? 'active' : '' }}">
+                        <div class="icon icon-shape icon-sm text-center d-flex align-items-center justify-content-center">
+                            <i class="fa-solid fa-shield-halved text-success text-sm"></i>
+                        </div>
+                        <span class="nav-link-text ms-1">Keamanan Akun</span>
+                    </a>
+                </li>
+            @endif
+
                             <li class="nav-item mt-3">
                     <hr class="horizontal dark mt-0 mb-2">
                     <h6 class="ps-3 ms-2 text-uppercase text-xs font-weight-bolder opacity-6">Pages</h6>
