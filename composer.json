@@ -11,10 +11,14 @@
     "require": {
         "php": "^8.3",
         "endroid/qr-code": "^6.1",
+        "geoip2/geoip2": "^3.4",
         "josiasmontag/laravel-recaptchav3": "^1.0",
         "laravel/framework": "^13.8",
+        "laravel/reverb": "^1.11",
         "laravel/tinker": "^3.0",
-        "pragmarx/google2fa-laravel": "^3.0"
+        "matomo/device-detector": "^6.5",
+        "pragmarx/google2fa-laravel": "^3.0",
+        "yajra/laravel-datatables-oracle": "^13.0"
     },
     "require-dev": {
         "fakerphp/faker": "^1.23",
@@ -50,7 +54,7 @@
         ],
         "dev": [
             "Composer\\Config::disableProcessTimeout",
-            "npx concurrently -c \"#93c5fd,#c4b5fd,#fdba74\" \"php artisan serve\" \"php artisan queue:listen --tries=1 --timeout=0\" \"npm run dev\" --names='server,queue,vite'"
+            "npx concurrently -c \"#93c5fd,#c4b5fd,#fdba74,#86efac\" \"php artisan serve\" \"php artisan queue:listen --tries=1 --timeout=0\" \"php artisan reverb:start --host=0.0.0.0\" \"npm run dev\" --names='server,queue,reverb,vite'"
         ],
         "test": [
             "@php artisan config:clear --ansi @no_additional_args",

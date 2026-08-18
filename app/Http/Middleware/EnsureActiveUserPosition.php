@@ -6,8 +6,8 @@ use App\Models\User;
 use App\Models\UserPosition;
 use App\Services\Auth\CurrentUserContext;
 use Closure;
-use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -29,6 +29,10 @@ class EnsureActiveUserPosition
         }
 
         if (! $this->currentUserContext->hasSessionContext($request)) {
+            if (! $this->currentUserContext->hasSelectablePositions($user)) {
+                return $this->redirectToNoActivePosition($request, 'Akun Anda belum memiliki posisi aktif.');
+            }
+
             return $this->redirectToContextSelection($request, 'Silakan pilih konteks kerja sebelum membuka dashboard.');
         }
 
@@ -36,6 +40,10 @@ class EnsureActiveUserPosition
 
         if (! $realActiveUserPosition instanceof UserPosition) {
             $this->currentUserContext->forgetActivePosition($request);
+
+            if (! $this->currentUserContext->hasSelectablePositions($user)) {
+                return $this->redirectToNoActivePosition($request, 'Akun Anda belum memiliki posisi aktif.');
+            }
 
             return $this->redirectToContextSelection($request, 'Konteks kerja sudah tidak aktif. Silakan pilih konteks kerja kembali.');
         }
@@ -87,6 +95,15 @@ class EnsureActiveUserPosition
         return $this->redirectToContextSelection($request, $message);
     }
 
+    private function redirectToNoActivePosition(Request $request, string $message): RedirectResponse
+    {
+        if (Route::has('login.no_active_position')) {
+            return redirect()->route('login.no_active_position')->with('status', $message);
+        }
+
+        return $this->redirectToContextSelection($request, $message);
+    }
+
     private function isAdminSuperActingRoute(Request $request): bool
     {
         return $request->routeIs(
@@ -95,6 +112,7 @@ class EnsureActiveUserPosition
             'login.post.options.*',
             'login.context',
             'login.context.store',
+            'login.no_active_position',
             'logout'
         );
     }

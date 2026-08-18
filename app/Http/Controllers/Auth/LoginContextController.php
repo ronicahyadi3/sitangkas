@@ -19,13 +19,17 @@ class LoginContextController extends Controller
 {
     public function __construct(private CurrentUserContext $currentUserContext) {}
 
-    public function create(Request $request): View
+    public function create(Request $request): View|RedirectResponse
     {
         $user = $this->currentUserContext->user($request);
 
         $userPositions = $user instanceof User
             ? $this->currentUserContext->selectablePositions($user)
             : collect();
+
+        if ($user instanceof User && $userPositions->isEmpty() && Route::has('login.no_active_position')) {
+            return redirect()->route('login.no_active_position');
+        }
 
         return view('auth.context', [
             'user' => $user,

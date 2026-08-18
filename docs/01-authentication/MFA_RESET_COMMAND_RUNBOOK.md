@@ -302,9 +302,9 @@ Jalankan ulang dengan `--force` setelah target dan alasan diverifikasi.
 - Jangan menjalankan command reset MFA tanpa instruksi eksplisit user/operator.
 - Jangan menebak NIK, user ID, atau actor user ID.
 - Jangan menjalankan reset massal tanpa decision/approval terpisah.
-- Jangan membuat UI reset MFA browser tanpa decision permission/approval baru.
+- Jangan memperluas UI reset MFA browser di luar Management Users Admin Super
+  tanpa decision permission/approval baru.
 - Jangan membuat, memodifikasi, atau menjalankan test suite tanpa konfirmasi
   eksplisit user.
 - Jangan menulis secret, OTP, recovery code mentah, token, atau session ID mentah
   ke dokumentasi, log, audit, atau output command.
-

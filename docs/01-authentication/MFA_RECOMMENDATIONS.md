@@ -188,16 +188,17 @@ Status implementasi saat ini:
   session database target bila session driver database, dan mencatat event
   `mfa_reset` dengan `source_channel = console`.
 
-Alasan lebih aman dari UI browser:
+Catatan jalur reset MFA:
 
-- akses server lebih terbatas daripada akses aplikasi web;
-- mengurangi risiko admin web salah reset user;
-- lebih mudah diaudit sebagai operasi operator;
-- cocok untuk fase awal saat belum ada role/permission admin internal yang
-  matang.
+- command operator tetap tersedia untuk kebutuhan server/operasional teknis;
+- Management Users sudah menyediakan reset MFA browser untuk Admin Super;
+- jalur browser harus tetap memakai permission ketat, alasan wajib, session
+  invalidation, dan audit `login_events`;
+- jangan memperluas reset MFA ke PA/KPA atau role lain tanpa decision baru.
 
-UI reset MFA boleh dibuat nanti setelah ada decision baru tentang permission,
-approval, audit, dan operator workflow.
+Jika user sudah tidak punya akses authenticator maupun recovery code, jalur
+resmi dapat memakai Management Users oleh Admin Super atau command operator
+sesuai SOP environment.
 
 ## Rekomendasi 7 - Alternatif Yang Pernah Dipertimbangkan
 
@@ -344,7 +345,8 @@ command tanpa konfirmasi eksplisit dari user.
 - Jangan melewati `TotpAuthenticator` untuk generate secret, provisioning URI,
   QR, atau verifikasi kode.
 - Jangan membuka akses `login.post` untuk Admin Super sebelum MFA valid.
-- Jangan membuat endpoint reset MFA browser tanpa decision permission dan audit.
+- Jangan menambah endpoint reset MFA browser baru atau memperluas permission
+  reset MFA tanpa decision permission dan audit.
 - Jangan menampilkan QR/setup ulang kepada user yang sudah enroll MFA kecuali
   setelah reset resmi.
 - Jangan memperlakukan remember-me sebagai MFA.

@@ -10,8 +10,8 @@ use App\Services\Auth\CurrentUserContext;
 use App\Services\Auth\MfaSession;
 use Closure;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -41,6 +41,14 @@ class EnsureMfaVerified
         }
 
         if (! $this->currentUserContext->hasSessionContext($request)) {
+            if (! $this->currentUserContext->hasSelectablePositions($user)) {
+                return $this->redirectOrJson(
+                    $request,
+                    'login.no_active_position',
+                    'Akun Anda belum memiliki posisi aktif.'
+                );
+            }
+
             return $this->redirectOrJson(
                 $request,
                 'login.context',
@@ -52,6 +60,14 @@ class EnsureMfaVerified
 
         if (! $realActiveUserPosition instanceof UserPosition) {
             $this->currentUserContext->forgetActivePosition($request);
+
+            if (! $this->currentUserContext->hasSelectablePositions($user)) {
+                return $this->redirectOrJson(
+                    $request,
+                    'login.no_active_position',
+                    'Akun Anda belum memiliki posisi aktif.'
+                );
+            }
 
             return $this->redirectOrJson(
                 $request,
@@ -91,6 +107,7 @@ class EnsureMfaVerified
             'login.mfa.setup.store',
             'login.context',
             'login.context.store',
+            'login.no_active_position',
             'logout'
         );
     }

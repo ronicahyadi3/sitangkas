@@ -149,6 +149,11 @@ class CurrentUserContext
         return $this->selectablePositionsQuery($user)->get();
     }
 
+    public function hasSelectablePositions(User $user): bool
+    {
+        return $this->selectablePositionsQuery($user)->exists();
+    }
+
     public function selectablePositionsQuery(User $user): Builder
     {
         return UserPosition::query()

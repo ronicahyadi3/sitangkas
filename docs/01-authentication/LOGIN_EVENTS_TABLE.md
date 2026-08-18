@@ -408,6 +408,13 @@ Autonomous System Number, misalnya `AS7713`.
 
 Nama organisasi jaringan/ISP.
 
+Sumber resmi saat enrichment aktif:
+
+- `App\Services\Auth\IpGeolocationContext`;
+- MaxMind GeoLite2 ASN local database;
+- path database dari
+  `config('auth.audit.login_events.enrichment.geoip.asn_database_path')`.
+
 #### `country_code`
 
 Kode negara ISO dua huruf.
@@ -416,13 +423,34 @@ Kode negara ISO dua huruf.
 
 Lokasi perkiraan dari IP.
 
+Sumber resmi saat enrichment aktif:
+
+- `App\Services\Auth\IpGeolocationContext`;
+- MaxMind GeoLite2 City local database;
+- path database dari
+  `config('auth.audit.login_events.enrichment.geoip.city_database_path')`.
+
 Data geolokasi IP bersifat perkiraan dan tidak boleh dianggap sebagai lokasi presisi pengguna.
 
 #### `is_vpn`, `is_proxy`, `is_tor`
 
 Hasil deteksi opsional dari sumber keamanan jaringan.
 
-Nullable berarti belum diperiksa, bukan berarti `false`.
+Sumber resmi:
+
+- `App\Services\Auth\IpRiskContext`;
+- `config('auth.audit.login_events.enrichment.ip_risk')`;
+- `docs/01-authentication/IP_RISK_DECISIONS.md`.
+
+Nullable berarti belum diperiksa, provider disabled, provider gagal, IP tidak
+public, allowlist dilewati, atau data tidak tersedia.
+
+Status saat ini: provider IP risk sengaja di-hold. Selama
+`AUTH_LOGIN_EVENT_IP_RISK_ENABLED=false` dan provider `none`, nilai `null`
+adalah kondisi yang benar.
+
+`false` hanya boleh tersimpan jika provider sudah memeriksa dan menyatakan
+tidak terdeteksi.
 
 #### `risk_score`
 
@@ -433,6 +461,9 @@ Skor risiko integer 0–100.
 - nullable: belum dihitung.
 
 Definisi skor harus terdokumentasi pada service keamanan. Jangan mencampur skala provider yang berbeda tanpa normalisasi.
+
+Saat ini `risk_score` tetap `null` karena provider IP risk di-hold dan belum
+ada provider/scoring resmi 0-100 yang disetujui.
 
 ---
 
@@ -526,6 +557,16 @@ Jangan simpan token CAPTCHA mentah.
 
 Versi aplikasi yang menghasilkan event.
 
+Sumber resmi:
+
+- `config('auth.audit.login_events.enrichment.application.version')`;
+- `config('auth.audit.login_events.enrichment.application.build_number')`;
+- `config('auth.audit.login_events.enrichment.application.build_commit')`.
+
+Nilai akhir dibentuk oleh `App\Services\Auth\ApplicationVersionContext`.
+Contoh hasil: `2026.08.04+build.17.sha.a1b2c3d4e5f6`.
+Jika metadata deploy belum tersedia, nilai boleh `null`.
+
 #### `environment`
 
 Contoh:
@@ -557,6 +598,21 @@ Hash/HMAC payload event yang sudah dinormalisasi.
 
 Digunakan untuk pemeriksaan integritas tambahan.
 
+Sumber resmi:
+
+- `App\Services\Auth\LoginEventIntegrity`;
+- `config('auth.audit.login_events.enrichment.integrity.event_hash_enabled')`;
+- `AUDIT_HASH_KEY`.
+
+Aturan payload:
+
+- dihitung sebelum insert;
+- memakai HMAC-SHA256;
+- mengecualikan `event_hash`;
+- mengecualikan `login_identifier` karena field itu memakai encrypted cast;
+- menyertakan `login_identifier_hash`;
+- menyertakan payload version `v1`.
+
 Tidak menggantikan:
 
 - permission database;
@@ -575,6 +631,14 @@ Menggunakan presisi mikrodetik.
 Tanggal event memenuhi syarat retensi/pengarsipan/penghapusan.
 
 Bukan perintah otomatis untuk menghapus tanpa kebijakan resmi.
+
+Sumber resmi:
+
+- `App\Services\Auth\LoginEventRetention`;
+- `config('auth.audit.login_events.enrichment.integrity.retention_days')`.
+
+Jika `AUTH_LOGIN_EVENT_RETENTION_DAYS` kosong atau bukan angka positif, nilai
+tetap `null`.
 
 #### `created_at`
 

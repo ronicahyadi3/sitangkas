@@ -455,8 +455,8 @@ Sudah ada:
   dan route internal yang memakai middleware `mfa.verified`;
 - halaman `/profile/security` sudah menjadi halaman status keamanan akun dan
   recovery-code regeneration;
-- reset MFA resmi sudah tersedia melalui command operator
-  `php artisan auth:mfa-reset`.
+- reset MFA resmi sudah tersedia melalui Management Users untuk Admin Super
+  dan command operator `php artisan auth:mfa-reset`.
 
 Perlu diperhatikan untuk iterasi berikutnya:
 

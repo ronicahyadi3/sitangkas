@@ -8,6 +8,7 @@ use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 #[Signature('auth:mfa-reset {--nik= : Target user NIK} {--user-id= : Target user ID} {--actor-user-id= : Operator user ID for audit} {--reason= : Reset reason stored in audit metadata} {--force : Required in production and skips interactive confirmation}')]
 #[Description('Reset a user MFA enrollment, revoke sessions, and write an authentication audit event.')]
@@ -38,11 +39,19 @@ class ResetUserMfaCommand extends Command
             return self::FAILURE;
         }
 
-        $result = $resetUserMfa->handle(
-            user: $target,
-            actor: $actor,
-            reason: $this->optionString('reason')
-        );
+        try {
+            $result = $resetUserMfa->handle(
+                user: $target,
+                actor: $actor,
+                reason: $this->optionString('reason')
+            );
+        } catch (ValidationException $exception) {
+            $message = collect($exception->errors())->flatten()->first() ?? $exception->getMessage();
+
+            $this->error((string) $message);
+
+            return self::FAILURE;
+        }
 
         $this->info('MFA user berhasil direset.');
         $this->table(

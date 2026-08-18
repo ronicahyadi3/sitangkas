@@ -2,15 +2,18 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\TracksUserAudit;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\DB;
 
 class UserPosition extends Model
 {
-    use SoftDeletes;
+    use SoftDeletes, TracksUserAudit;
 
     /**
      * @var list<string>
@@ -56,6 +59,28 @@ class UserPosition extends Model
     public function unitKerja(): BelongsTo
     {
         return $this->belongsTo(UnitKerja::class);
+    }
+
+    public function documents(): HasMany
+    {
+        return $this->hasMany(UserPositionDocument::class);
+    }
+
+    public function primaryDocument(): HasOne
+    {
+        return $this->hasOne(UserPositionDocument::class)
+            ->primary()
+            ->latestOfMany();
+    }
+
+    public function actedManagementAuditEvents(): HasMany
+    {
+        return $this->hasMany(UserManagementAuditEvent::class, 'actor_user_position_id');
+    }
+
+    public function targetManagementAuditEvents(): HasMany
+    {
+        return $this->hasMany(UserManagementAuditEvent::class, 'target_user_position_id');
     }
 
     public function activatedBy(): BelongsTo
@@ -143,13 +168,18 @@ class UserPosition extends Model
     public function markAsUsed(): bool
     {
         $usedAt = now();
+        $updates = ['last_used_at' => $usedAt];
+
+        if (auth()->id() !== null) {
+            $updates['updated_by_user_id'] = auth()->id();
+        }
 
         $updated = DB::table($this->getTable())
             ->where($this->getKeyName(), $this->getKey())
-            ->update(['last_used_at' => $usedAt]);
+            ->update($updates);
 
         if ($updated > 0) {
-            $this->forceFill(['last_used_at' => $usedAt]);
+            $this->forceFill($updates);
         }
 
         return $updated > 0;

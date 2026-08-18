@@ -8,9 +8,15 @@ use Illuminate\Support\Str;
 
 class LoginEvent extends Model
 {
+    public const EVENT_ACCOUNT_LOCKED = 'account_locked';
+
+    public const EVENT_ACCOUNT_UNLOCKED = 'account_unlocked';
+
     public const EVENT_LOCKOUT = 'lockout';
 
     public const EVENT_LOGIN = 'login';
+
+    public const EVENT_PASSWORD_CHANGE_FORCED = 'password_change_forced';
 
     public const EVENT_CONTEXT_SWITCHED = 'context_switched';
 

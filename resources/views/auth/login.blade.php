@@ -458,6 +458,8 @@
                                         @if ($recaptchaFacade)
                                             {!! $recaptchaFacade::field('login') !!}
                                         @endif
+                                        <input type="hidden" id="client_timezone" name="client_timezone"
+                                            value="{{ old('client_timezone') }}">
 
                                         <div class="mb-3">
                                             <label for="nik" class="form-label">NIK atau Email</label>
@@ -578,6 +580,20 @@
 
     <script>
         $(document).ready(function() {
+            const timezoneInput = document.getElementById('client_timezone');
+
+            if (
+                timezoneInput &&
+                window.Intl &&
+                typeof window.Intl.DateTimeFormat === 'function'
+            ) {
+                const timezone = window.Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+                if (typeof timezone === 'string' && timezone.length <= 100) {
+                    timezoneInput.value = timezone;
+                }
+            }
+
             $('#tahun').select2({
                 theme: 'bootstrap-5',
                 width: '100%',

@@ -7,6 +7,13 @@ Ini ringkasan aturan yang tidak boleh dilanggar lintas domain.
 - `users` menyimpan state akun saat ini, bukan histori lengkap.
 - Histori autentikasi ditulis ke `login_events`.
 - `login_events` bersifat append-only: tidak ada update/delete alur normal.
+- Enrichment `login_events` mengikuti
+  `../01-authentication/LOGIN_EVENTS_ENRICHMENT_POLICY.md`; `null` pada kolom
+  device, GeoIP, ASN, VPN/proxy/Tor, risk, timezone, fingerprint, integrity,
+  atau retention berarti data belum tersedia atau belum diperiksa, bukan bug.
+- IP risk enrichment untuk VPN/proxy/Tor sedang di-hold; jangan mengaktifkan
+  provider berbayar, free-tier, atau provider parsial tanpa persetujuan user
+  dan decision baru.
 - Password, token, cookie, session id mentah, passphrase, dan credential tidak boleh disimpan di metadata, notes, atau log.
 
 ## Master data

@@ -150,13 +150,14 @@ Regenerasi recovery codes tidak boleh dilakukan jika:
 - user lupa authenticator dan tidak punya recovery code.
 
 Jika user sudah tidak punya akses authenticator maupun recovery code, jalur
-resmi tetap command operator:
+resmi adalah reset MFA oleh Admin Super melalui Management Users atau command
+operator:
 
 ```bash
 php artisan auth:mfa-reset
 ```
 
-Runbook ada di `MFA_RESET_COMMAND_RUNBOOK.md`.
+Runbook command ada di `MFA_RESET_COMMAND_RUNBOOK.md`.
 
 ## Aturan Tampilan Raw Recovery Codes
 

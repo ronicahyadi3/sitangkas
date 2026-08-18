@@ -9,6 +9,7 @@ Cluster ini menjelaskan izin modifikasi data tahun historis dan event auditnya.
 | Konteks bisnis dan authorization tahun historis | `AI_AGENT_YEAR_PERMISSION_CONTEXT.md` |
 | Detail tabel permission | `2026_07_28_143000_USER_POSITION_YEAR_PERMISSIONS.md` |
 | Detail tabel event permission | `2026_07_28_143100_USER_POSITION_YEAR_PERMISSION_EVENTS.md` |
+| Snapshot integrasi grant/revoke dari Management Users | `../01-authentication/MANAGEMENT_USERS_CURRENT_STATE.md` |
 
 ## Aturan inti
 
@@ -18,6 +19,8 @@ Cluster ini menjelaskan izin modifikasi data tahun historis dan event auditnya.
 - Target tahun historis butuh permission aktif dan belum kedaluwarsa.
 - Target tahun mendatang tidak otomatis boleh.
 - Semua grant, use, deny, revoke, expire, reject, dan cancel harus memiliki jejak audit.
+- Modal Management Users untuk grant izin historis sudah membawa metadata
+  `reference_number`, `reference_date`, `valid_until`, dan `grant_notes`.
 
 ## Pakai cluster lain bila
 

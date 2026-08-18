@@ -16,6 +16,13 @@ Untuk auth context, urutan baca wajib tambahan:
 2. `../01-authentication/CURRENT_AUTH_CONTEXT_IMPLEMENTATION.md`
 3. `../03-user-positions/AI_AGENT_USER_POSITIONS_CONTEXT.md`
 
+Untuk Reverb, WebSocket, online monitoring, realtime notification, atau
+message helper realtime, urutan baca wajib tambahan:
+
+1. `../07-realtime/README.md`
+2. `../07-realtime/AI_AGENT_REVERB_REALTIME_CONTEXT.md`
+3. `../07-realtime/ONLINE_PRESENCE_DECISIONS.md`
+
 ## Jangan lakukan
 
 - Jangan membuka semua docs jika pekerjaan hanya menyentuh satu domain.
@@ -26,3 +33,5 @@ Untuk auth context, urutan baca wajib tambahan:
 - Jangan membuat atau menjalankan test suite/test command tanpa konfirmasi eksplisit dari user terlebih dahulu.
 - Jangan menganggap `CurrentUserContext::activePosition()` selalu real row
   `user_positions`; pada Admin Super acting context, itu adalah effective overlay.
+- Jangan menganggap session database yang masih aktif berarti user sedang
+  online realtime.

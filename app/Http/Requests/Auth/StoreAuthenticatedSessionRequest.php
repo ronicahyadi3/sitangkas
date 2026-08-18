@@ -6,6 +6,7 @@ use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Validator;
+use Lunaweb\RecaptchaV3\Facades\RecaptchaV3;
 
 class StoreAuthenticatedSessionRequest extends FormRequest
 {
@@ -30,6 +31,7 @@ class StoreAuthenticatedSessionRequest extends FormRequest
             'password' => ['required', 'string', 'max:255'],
             'tahun' => ['required', 'integer', 'between:'.$this->minimumSelectableYear().','.$this->maximumSelectableYear()],
             'remember' => ['sometimes', 'boolean'],
+            'client_timezone' => ['nullable', 'string', 'max:100'],
             'g-recaptcha-response' => $this->captchaRules(),
         ];
     }
@@ -92,6 +94,7 @@ class StoreAuthenticatedSessionRequest extends FormRequest
             'nik' => 'NIK atau email',
             'password' => 'password',
             'tahun' => 'tahun anggaran',
+            'client_timezone' => 'timezone perangkat',
         ];
     }
 
@@ -122,6 +125,13 @@ class StoreAuthenticatedSessionRequest extends FormRequest
         return $token === '' ? null : $token;
     }
 
+    public function clientTimezone(): ?string
+    {
+        $timezone = $this->string('client_timezone')->trim()->toString();
+
+        return $timezone === '' ? null : $timezone;
+    }
+
     public function captchaAction(): string
     {
         return self::CAPTCHA_ACTION;
@@ -148,7 +158,7 @@ class StoreAuthenticatedSessionRequest extends FormRequest
 
     public function captchaIsConfigured(): bool
     {
-        return class_exists(\Lunaweb\RecaptchaV3\Facades\RecaptchaV3::class)
+        return class_exists(RecaptchaV3::class)
             && filled(config('recaptchav3.sitekey'))
             && filled(config('recaptchav3.secret'));
     }
@@ -168,6 +178,7 @@ class StoreAuthenticatedSessionRequest extends FormRequest
             'login_identifier' => $normalizedIdentifier,
             'login_identifier_type' => $identifierType,
             'remember' => $this->boolean('remember'),
+            'client_timezone' => $this->clientTimezone(),
         ]);
     }
 

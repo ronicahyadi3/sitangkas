@@ -8,12 +8,13 @@ use App\Models\User;
 use App\Models\UserPosition;
 use App\Services\Auth\CurrentUserContext;
 use App\Services\Auth\RememberMePolicy;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
-use Illuminate\Support\Carbon;
 use Illuminate\Validation\ValidationException;
+use Lunaweb\RecaptchaV3\Facades\RecaptchaV3;
 use Throwable;
 
 class AuthenticateSession
@@ -104,17 +105,7 @@ class AuthenticateSession
         $userPosition = $this->resolveActivePosition($user);
 
         if (! $userPosition instanceof UserPosition) {
-            $this->recordAuthenticationEvent->handle($request, $user, null, [
-                'event_type' => LoginEvent::EVENT_LOGIN,
-                'result' => LoginEvent::RESULT_BLOCKED,
-                'failure_code' => 'no_active_position',
-                'message' => 'User belum memiliki posisi aktif yang bisa dipilih.',
-                'http_status' => 403,
-                'captcha_score' => $captchaResult['score'],
-                'captcha_success' => $captchaResult['configured'] ? true : null,
-            ]);
-
-            $this->throwLoginValidationException('Akun belum memiliki posisi aktif. Silakan hubungi administrator.');
+            return $this->authenticateWithoutSelectablePosition($request, $user, $captchaResult);
         }
 
         $remember = $this->rememberMePolicy->shouldRemember($request->remember(), $userPosition);
@@ -137,6 +128,35 @@ class AuthenticateSession
 
         DB::transaction(function () use ($request, $user, $userPosition, $captchaResult, $remember, $singleDeviceState): void {
             $this->recordSuccessfulLogin($request, $user, $userPosition, $captchaResult, $remember, $singleDeviceState);
+        }, attempts: 3);
+
+        RateLimiter::clear($request->throttleKey());
+        RateLimiter::clear($request->ipThrottleKey());
+
+        return $user;
+    }
+
+    /**
+     * @param  array{configured: bool, success: bool, score: float|null, error_codes: list<string>|null}  $captchaResult
+     */
+    private function authenticateWithoutSelectablePosition(
+        StoreAuthenticatedSessionRequest $request,
+        User $user,
+        array $captchaResult
+    ): User {
+        $singleDeviceState = $this->singleDeviceAuthentication->renew($request, $user, remember: false);
+
+        Auth::guard('web')->login($user, remember: false);
+        $request->session()->regenerate();
+        $this->singleDeviceAuthentication->markCurrentSession($request, $singleDeviceState['authenticated_at']);
+        $this->singleDeviceAuthentication->clearRememberedSession($request);
+        $this->singleDeviceAuthentication->forgetRememberCookie();
+
+        $this->currentUserContext->forgetActivePosition($request);
+        $request->session()->put(CurrentUserContext::ACTIVE_YEAR_SESSION_KEY, $request->selectedYear());
+
+        DB::transaction(function () use ($request, $user, $captchaResult, $singleDeviceState): void {
+            $this->recordSuccessfulLoginWithoutPosition($request, $user, $captchaResult, $singleDeviceState);
         }, attempts: 3);
 
         RateLimiter::clear($request->throttleKey());
@@ -171,7 +191,7 @@ class AuthenticateSession
         }
 
         try {
-            $score = \Lunaweb\RecaptchaV3\Facades\RecaptchaV3::verify(
+            $score = RecaptchaV3::verify(
                 $request->captchaToken(),
                 $request->captchaAction()
             );
@@ -266,10 +286,6 @@ class AuthenticateSession
 
         if (! $user->isActive()) {
             return 'account_not_active';
-        }
-
-        if ($user->hasExpiredPassword()) {
-            return 'password_expired';
         }
 
         return null;
@@ -368,8 +384,7 @@ class AuthenticateSession
         array $captchaResult,
         bool $remember,
         array $singleDeviceState
-    ): void
-    {
+    ): void {
         $updatedAttributes = [
             'last_login_at' => now(),
             'last_failed_login_at' => null,
@@ -398,6 +413,53 @@ class AuthenticateSession
                 'remember_me_allowed' => $this->rememberMePolicy->allows($userPosition),
                 'single_device_enforced' => $this->rememberMePolicy->singleDeviceEnabled(),
                 'remember_me_duration_minutes' => $remember ? $this->rememberMePolicy->durationMinutes() : null,
+                'remember_token_expires_at' => $singleDeviceState['remember_token_expires_at'] instanceof \DateTimeInterface
+                    ? $singleDeviceState['remember_token_expires_at']->format(DATE_ATOM)
+                    : null,
+                'revoked_session_count' => $singleDeviceState['revoked_session_count'],
+                'remember_token_rotated' => $singleDeviceState['remember_token_rotated'],
+            ],
+        ]);
+    }
+
+    /**
+     * @param  array{configured: bool, success: bool, score: float|null, error_codes: list<string>|null}  $captchaResult
+     * @param  array{authenticated_at: mixed, revoked_session_count: int, remember_token_rotated: bool, remember_token_expires_at: mixed}  $singleDeviceState
+     */
+    private function recordSuccessfulLoginWithoutPosition(
+        StoreAuthenticatedSessionRequest $request,
+        User $user,
+        array $captchaResult,
+        array $singleDeviceState
+    ): void {
+        $updatedAttributes = [
+            'last_login_at' => now(),
+            'last_failed_login_at' => null,
+            'consecutive_failed_login_count' => 0,
+            'tahun_aktif' => $request->selectedYear(),
+        ];
+
+        DB::table($user->getTable())
+            ->where($user->getKeyName(), $user->getKey())
+            ->update($updatedAttributes);
+
+        $user->forceFill($updatedAttributes);
+
+        $this->recordAuthenticationEvent->handle($request, $user, null, [
+            'event_type' => LoginEvent::EVENT_LOGIN,
+            'result' => LoginEvent::RESULT_SUCCESS,
+            'message' => 'Login berhasil, tetapi akun belum memiliki posisi aktif.',
+            'http_status' => 302,
+            'remember_me' => false,
+            'captcha_score' => $captchaResult['score'],
+            'captcha_success' => $captchaResult['configured'] ? true : null,
+            'session_id_hash' => $this->recordAuthenticationEvent->sessionIdHash($request),
+            'metadata' => [
+                'requires_position_setup' => true,
+                'remember_me_requested' => $request->remember(),
+                'remember_me_allowed' => false,
+                'single_device_enforced' => $this->rememberMePolicy->singleDeviceEnabled(),
+                'remember_me_duration_minutes' => null,
                 'remember_token_expires_at' => $singleDeviceState['remember_token_expires_at'] instanceof \DateTimeInterface
                     ? $singleDeviceState['remember_token_expires_at']->format(DATE_ATOM)
                     : null,

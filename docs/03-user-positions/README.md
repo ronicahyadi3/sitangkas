@@ -11,6 +11,7 @@ Cluster ini menjelaskan posisi pengguna, dokumen SK, dan aturan pemilihan posisi
 | Candidate key `(unit_kerjas.id, unit_kerjas.instansi_id)` | `2026_07_28_140000_CANDIDATE_KEY.md` |
 | Detail migration `user_positions` | `2026_07_28_140100_USER_POSITIONS.md` |
 | Detail migration `user_position_documents` | `2026_07_28_140200_USER_POSITION_DOCUMENTS.md` |
+| Snapshot integrasi Management Users dengan posisi, SK, dan security modal | `../01-authentication/MANAGEMENT_USERS_CURRENT_STATE.md` |
 
 ## Aturan inti
 
@@ -24,6 +25,9 @@ Cluster ini menjelaskan posisi pengguna, dokumen SK, dan aturan pemilihan posisi
   `CurrentUserContext::activePosition()->id`.
 - Dokumen SK berada di `user_position_documents`.
 - Perubahan dokumen utama harus dikelola dalam transaksi.
+- Halaman Management Users membuat akun terlebih dahulu, lalu menambahkan
+  posisi melalui modal posisi. Jangan membuat posisi awal otomatis saat create
+  user tanpa decision baru.
 
 ## Pakai cluster lain bila
 

@@ -216,6 +216,17 @@
                 <hr class="horizontal dark mt-0 mb-2" />
                 <h6 class="ps-3 ms-2 text-uppercase text-xs font-weight-bolder opacity-6">System</h6>
             </li>
+            @if ($sidebarContext->isRealActivePositionAdminSuper(request()) && \Illuminate\Support\Facades\Route::has('admin.realtime.online-users.index'))
+                <li class="nav-item">
+                    <a href="{{ route('admin.realtime.online-users.index') }}"
+                        class="nav-link {{ request()->routeIs('admin.realtime.online-users*') ? 'active' : '' }}">
+                        <div class="icon icon-shape icon-sm text-center d-flex align-items-center justify-content-center">
+                            <i class="fa-solid fa-users-viewfinder text-info text-sm"></i>
+                        </div>
+                        <span class="nav-link-text ms-1">Online Monitoring</span>
+                    </a>
+                </li>
+            @endif
             <li class="nav-item">
                 <a href="#" class="nav-link p-2" role="button" aria-expanded="false">
                     <div

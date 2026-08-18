@@ -222,7 +222,8 @@ Event yang digunakan:
 - `mfa_verified` saat kode/recovery code berhasil atau gagal diverifikasi;
 - `mfa_recovery_codes_regenerated` saat user yang sudah MFA verified membuat
   recovery codes baru;
-- `mfa_reset` saat operator/admin teknis mereset MFA via command Artisan.
+- `mfa_reset` saat Admin Super mereset MFA melalui Management Users atau saat
+  operator/admin teknis mereset MFA via command Artisan.
 
 Field penting:
 
@@ -382,8 +383,8 @@ Audit:
   code baru, real user position id, dan snapshot MFA session.
 
 Jika user sudah tidak punya akses authenticator maupun recovery code, jangan
-pakai regeneration. Jalur resmi tetap command operator
-`php artisan auth:mfa-reset`.
+pakai regeneration. Jalur resmi adalah reset MFA melalui Management Users oleh
+Admin Super atau command operator `php artisan auth:mfa-reset`.
 
 ## Status implementasi saat ini
 
@@ -421,7 +422,9 @@ Pada saat dokumen ini ditulis:
 - `App\Actions\Auth\ResetUserMfa` sudah dibuat untuk reset enrollment MFA,
   menghapus secret/pending secret/recovery codes, memutar remember token,
   mengisi `sessions_invalidated_at`, mencabut session database jika tersedia,
-  dan mencatat audit `mfa_reset`;
+  menolak target tanpa MFA aktif/pending, dan mencatat audit `mfa_reset`;
+- route Management Users `users.security.reset-mfa` sudah tersedia untuk Admin
+  Super yang berwenang mengelola target user;
 - `php artisan auth:mfa-reset` sudah dibuat untuk operator/admin teknis dengan
   opsi `--nik`, `--user-id`, `--actor-user-id`, `--reason`, dan `--force`;
 - runbook penggunaan command reset MFA tersedia di
@@ -480,8 +483,8 @@ Kondisi runtime saat ini:
 6. Recovery-code regeneration sudah tersedia melalui
    `RegenerateMfaRecoveryCodes` dan hanya boleh berjalan jika session MFA
    verified via TOTP.
-7. Reset MFA resmi sudah tersedia melalui command operator
-   `php artisan auth:mfa-reset`.
+7. Reset MFA resmi sudah tersedia melalui Management Users untuk Admin Super
+   dan command operator `php artisan auth:mfa-reset`.
 8. Tombol `Aktifkan MFA` atau `Lanjutkan Setup MFA` untuk user non-Admin Super
    yang belum enroll sudah tersedia di `/profile/security`.
 9. Response yang menampilkan raw recovery codes setelah setup pertama atau

@@ -1,6 +1,6 @@
 # Current Auth Context Implementation
 
-Last updated: 2026-08-02.
+Last updated: 2026-08-11.
 
 Dokumen ini menjelaskan kondisi implementasi login context SITANGKAS saat ini.
 AI agent harus membaca file ini setelah `AUTH_CONTEXT_DECISIONS.md` sebelum
@@ -17,9 +17,15 @@ Flow yang sudah ada:
 - pemilihan posisi nyata melalui `GET/POST /login/context`;
 - pemilihan acting context Admin Super melalui `GET/POST /login/post`;
 - endpoint options untuk postLogin di bawah `/login/post/options/*`;
-- dashboard internal memakai middleware `active.position`;
+- dashboard internal memakai middleware `has.position`, `mfa.verified`,
+  `active.position`, dan `password.fresh`;
+- route authenticated memakai middleware `account.accessible` dan
+  `single.device.session`;
 - layout, navbar, sidebar, dan dashboard membaca context melalui
   `App\Services\Auth\CurrentUserContext`.
+- enrichment awal `login_events` sudah aktif untuk parsing user-agent melalui
+  `matomo/device-detector`, client timezone dari form login, request network,
+  dan application version dari metadata deploy.
 
 AI agent tidak boleh menganggap `resources/views/auth/postLogin.blade.php`
 sebagai file usang. File itu adalah view resmi untuk Admin Super acting context.
@@ -37,6 +43,7 @@ Route penting:
 - `POST /login/mfa` -> `login.mfa.store`;
 - `GET /login/mfa/setup` -> `login.mfa.setup`;
 - `POST /login/mfa/setup` -> `login.mfa.setup.store`;
+- `GET /login/no-active-position` -> `login.no_active_position`;
 - `GET /profile/security` -> `profile.security`;
 - `POST /profile/security/mfa/recovery-codes` ->
   `profile.security.mfa.recovery_codes.regenerate`;
@@ -45,15 +52,20 @@ Route penting:
 - `GET /login/post/options/instansi` -> `login.post.options.instansi`;
 - `GET /login/post/options/unit-kerja` -> `login.post.options.unit_kerja`;
 - `GET /login/post/options/special-users` -> `login.post.options.special_users`;
-- route authenticated memakai middleware `web`, `auth`, dan
-  `single.device.session`;
-- `GET /dashboard` -> `dashboard`, tambahan middleware `mfa.verified` dan
-  `active.position`;
+- route authenticated memakai middleware `web`, `auth`, `account.accessible`,
+  dan `single.device.session`;
+- `GET /dashboard` -> `dashboard`, tambahan middleware `has.position`,
+  `mfa.verified`, `active.position`, dan `password.fresh`;
 - `GET /profile/security` -> `profile.security`, tambahan middleware
-  `mfa.verified` dan `active.position`;
+  `has.position`, `mfa.verified`, `active.position`, dan `password.fresh`;
 - `POST /profile/security/mfa/recovery-codes` ->
   `profile.security.mfa.recovery_codes.regenerate`, tambahan middleware
-  `mfa.verified`, `active.position`, dan `throttle:auth-mfa`;
+  `has.position`, `mfa.verified`, `active.position`, `password.fresh`, dan
+  `throttle:auth-mfa`;
+- route Management Users berada di prefix `users.*` dan memakai middleware
+  `user.management`;
+- route keamanan akun Management Users mencakup force password change,
+  lock/unlock, dan reset MFA browser untuk Admin Super;
 - `login.post`, `login.post.store`, dan `login.post.options.*` memakai
   middleware `mfa.verified`.
 
@@ -77,17 +89,23 @@ Console commands:
 - `app/Console/Commands/Auth/ResetUserMfaCommand.php` dengan command
   `php artisan auth:mfa-reset`;
 - runbook penggunaan command berada di `docs/01-authentication/MFA_RESET_COMMAND_RUNBOOK.md`.
+- `app/Console/Commands/Auth/GeoIpStatusCommand.php` dengan command
+  `php artisan auth:geoip-status`;
+- runbook penggunaan command berada di
+  `docs/01-authentication/GEOIP_MAXMIND_RUNBOOK.md`.
 
 Controllers:
 
 - `app/Http/Controllers/Auth/AuthenticatedSessionController.php`;
 - `app/Http/Controllers/Auth/LoginContextController.php`;
 - `app/Http/Controllers/Auth/AdminSuperActingContextController.php`;
+- `app/Http/Controllers/Auth/MissingActivePositionController.php`;
 - `app/Http/Controllers/Auth/MfaChallengeController.php`;
 - `app/Http/Controllers/Auth/TotpEnrollmentController.php`;
 - `app/Http/Controllers/DashboardController.php`;
 - `app/Http/Controllers/Profile/SecurityController.php`;
-- `app/Http/Controllers/Profile/MfaRecoveryCodeController.php`.
+- `app/Http/Controllers/Profile/MfaRecoveryCodeController.php`;
+- `app/Http/Controllers/Users/UserSecurityController.php`.
 
 Requests:
 
@@ -102,10 +120,23 @@ Services and middleware:
 
 - `app/Services/Auth/CurrentUserContext.php`;
 - `app/Services/Auth/AdminSuperPositionScope.php`;
+- `app/Services/Auth/AuthenticationEventContext.php`;
+- `app/Services/Auth/ApplicationVersionContext.php`;
+- `app/Services/Auth/IpGeolocationContext.php`;
+- `app/Services/Auth/IpRiskContext.php`;
+- `app/Services/Auth/LoginEventIntegrity.php`;
+- `app/Services/Auth/LoginEventRetention.php`;
+- `app/Services/Auth/RequestNetworkContext.php`;
+- `app/Services/Auth/UserAgentContext.php`;
+- `app/Services/Auth/ClientSignalContext.php`;
 - `app/Services/Auth/RememberMePolicy.php`;
 - `app/Http/Middleware/EnsureActiveUserPosition.php`;
 - `app/Http/Middleware/EnsureMfaVerified.php`;
-- `app/Http/Middleware/EnsureSingleDeviceSession.php`.
+- `app/Http/Middleware/EnsureAccountIsAccessible.php`;
+- `app/Http/Middleware/EnsurePasswordIsFresh.php`;
+- `app/Http/Middleware/EnsureSingleDeviceSession.php`;
+- `app/Http/Middleware/EnsureUserHasSelectablePosition.php`;
+- `app/Http/Middleware/EnsureUserManagementAccess.php`.
 
 Views:
 
@@ -118,6 +149,170 @@ Views:
 - `resources/views/inc/navbar.blade.php`;
 - `resources/views/inc/sidebar.blade.php`;
 - `resources/views/dashboard/index.blade.php`.
+
+## Login Events Enrichment Saat Ini
+
+Policy resmi enrichment audit login berada di
+`docs/01-authentication/LOGIN_EVENTS_ENRICHMENT_POLICY.md`.
+
+Status implementasi saat ini:
+
+- `config/auth.php` sudah memiliki policy nested
+  `config('auth.audit.login_events.enrichment')`;
+- `config('auth.audit.hash_key')` adalah sumber baru audit hash key;
+- `config('auth.audit_hash_key')` masih tersedia sebagai compatibility key;
+- `.env.example` sudah memuat placeholder config enrichment login events;
+- package `matomo/device-detector` sudah terpasang;
+- package `geoip2/geoip2` sudah terpasang untuk MaxMind local database lookup;
+- `App\Services\Auth\AuthenticationEventContext` menjadi aggregator awal
+  default context audit;
+- `App\Services\Auth\RequestNetworkContext` sudah menormalisasi request network
+  audit, termasuk `request_id`, `correlation_id`, `ip_address`,
+  `proxy_ip_address`, dan `forwarded_for`;
+- `config/trustedproxy.php` sudah tersedia dan membaca `TRUSTED_PROXIES`
+  untuk trusted proxy Laravel;
+- `App\Services\Auth\UserAgentContext` sudah mem-parse `user_agent` menjadi
+  kolom device/browser/platform;
+- `App\Services\Auth\ClientSignalContext` sudah mengambil `client_timezone`
+  dari form login atau header `X-Client-Timezone`;
+- `App\Services\Auth\ApplicationVersionContext` sudah membentuk
+  `application_version` dari config deploy metadata;
+- `App\Services\Auth\IpGeolocationContext` sudah menyiapkan enrichment
+  GeoIP/ASN dari MaxMind local DB, dengan default disabled dan fail-safe
+  `null`;
+- `App\Services\Auth\IpRiskContext` sudah menyiapkan enrichment IP risk
+  audit-only, dengan default disabled dan fail-safe `null`;
+- `App\Services\Auth\LoginEventRetention` sudah menyiapkan
+  `retention_until` dari config hari retensi;
+- `App\Services\Auth\LoginEventIntegrity` sudah menyiapkan `event_hash`
+  HMAC-SHA256 dari payload canonical event;
+- `App\Actions\Auth\RecordAuthenticationEvent` tetap menjadi action pencatat
+  event dan hanya mengambil enrichment dari service.
+
+Kolom yang mulai bisa terisi atau sudah disiapkan oleh enrichment saat ini:
+
+- `device_type`;
+- `device_name`;
+- `browser_name`;
+- `browser_version`;
+- `platform_name`;
+- `platform_version`;
+- `client_timezone`;
+- `request_id`;
+- `correlation_id`;
+- `ip_address`;
+- `proxy_ip_address`;
+- `forwarded_for`;
+- `application_version`;
+- `network_asn`;
+- `network_organization`;
+- `country_code`;
+- `region`;
+- `city`;
+- `is_vpn`;
+- `is_proxy`;
+- `is_tor`;
+- `risk_score`;
+- `event_hash`;
+- `retention_until`.
+
+Catatan `client_timezone`:
+
+- form `resources/views/auth/login.blade.php` mengisi hidden input
+  `client_timezone` dari
+  `Intl.DateTimeFormat().resolvedOptions().timeZone`;
+- request login hanya membatasi field sebagai string nullable maksimal 100
+  karakter supaya timezone invalid tidak menggagalkan login;
+- `ClientSignalContext` memvalidasi nilai terhadap daftar timezone PHP sebelum
+  menyimpannya ke `login_events`;
+- jika nilai kosong, dimanipulasi, tidak dikenal, atau collector browser gagal,
+  kolom tetap `null`.
+
+Catatan request network:
+
+- `request_id` hanya diisi dari header `X-Request-Id` jika nilainya UUID valid;
+- `correlation_id` hanya diisi dari header `X-Correlation-Id` jika nilainya
+  UUID valid;
+- `forwarded_for` hanya diisi dari `X-Forwarded-For` jika request berasal dari
+  trusted proxy, atau jika config audit
+  `capture_untrusted_forwarded_for` diaktifkan eksplisit;
+- `proxy_ip_address` hanya diisi dari `REMOTE_ADDR` jika request berasal dari
+  trusted proxy dan forwarded chain valid;
+- set `TRUSTED_PROXIES` di production sesuai IP/CIDR reverse proxy atau load
+  balancer resmi. Biarkan kosong untuk local/direct-to-app deployment.
+
+Catatan application version:
+
+- sumber resmi berada di
+  `config('auth.audit.login_events.enrichment.application')`;
+- env yang tersedia adalah `APP_VERSION`, `APP_BUILD_NUMBER`, dan
+  `APP_BUILD_COMMIT`;
+- format akhir di `login_events.application_version` dibuat oleh
+  `ApplicationVersionContext`, maksimal 50 karakter;
+- contoh hasil: `2026.08.04+build.17.sha.a1b2c3d4e5f6`;
+- jika metadata deploy belum diset, kolom tetap `null`;
+- AI agent tidak boleh hardcode versi aplikasi di controller, action, atau
+  seeder.
+
+Catatan GeoIP/ASN:
+
+- sumber resmi config berada di
+  `config('auth.audit.login_events.enrichment.geoip')`;
+- provider yang didukung saat ini adalah `maxmind` dengan local database;
+- env yang tersedia adalah `AUTH_LOGIN_EVENT_GEOIP_ENABLED`,
+  `AUTH_LOGIN_EVENT_GEOIP_CITY_DATABASE_PATH`,
+  `AUTH_LOGIN_EVENT_GEOIP_ASN_DATABASE_PATH`, dan
+  `AUTH_LOGIN_EVENT_GEOIP_CACHE_TTL_SECONDS`;
+- `AUTH_LOGIN_EVENT_GEOIP_DATABASE_PATH` tetap tersedia sebagai legacy fallback
+  untuk city database;
+- command status resmi adalah `php artisan auth:geoip-status`;
+- IP private, loopback, reserved, config disabled, database belum tersedia,
+  atau lookup gagal akan menghasilkan `null`;
+- GeoIP/ASN tidak boleh dipakai sebagai lokasi presisi user.
+
+Catatan IP risk/VPN/proxy/Tor:
+
+- decision resmi berada di `docs/01-authentication/IP_RISK_DECISIONS.md`;
+- sumber resmi config berada di
+  `config('auth.audit.login_events.enrichment.ip_risk')`;
+- mode resmi saat ini adalah `audit`;
+- blocking login berdasarkan IP risk belum boleh dibuat;
+- default env tetap `AUTH_LOGIN_EVENT_IP_RISK_ENABLED=false`;
+- provider resmi saat ini adalah `none`;
+- enrichment IP risk sengaja di-hold sampai ada persetujuan user terkait
+  provider, biaya, privacy, token, timeout/cache, dan mapping response;
+- provider teknis `maxmind_anonymous_ip` pernah disiapkan sebagai fondasi, tetapi
+  belum approved untuk diaktifkan karena MaxMind Anonymous IP tidak tersedia
+  sebagai GeoLite gratis;
+- `null` berarti belum diperiksa, provider disabled, provider gagal, IP tidak
+  public, allowlist dilewati, atau data tidak tersedia;
+- `false` hanya berarti provider sudah memeriksa dan tidak mendeteksi sinyal;
+- `is_vpn`, `is_proxy`, `is_tor`, dan `risk_score` yang bernilai `null` adalah
+  kondisi by design selama provider masih di-hold;
+- `risk_score` skala resmi 0-100, tetapi tetap `null` sampai ada
+  provider/scoring resmi.
+
+Catatan event integrity dan retention:
+
+- sumber resmi config berada di
+  `config('auth.audit.login_events.enrichment.integrity')`;
+- `event_hash` dihitung oleh `LoginEventIntegrity` sebelum insert jika
+  `AUTH_LOGIN_EVENT_HASH_ENABLED=true`;
+- `event_hash` memakai HMAC-SHA256 dengan `AUDIT_HASH_KEY`;
+- payload hash canonical mengecualikan `event_hash` dan `login_identifier`;
+- `login_identifier_hash` tetap masuk payload canonical;
+- `retention_until` dihitung oleh `LoginEventRetention` dari
+  `occurred_at + AUTH_LOGIN_EVENT_RETENTION_DAYS`;
+- jika `AUTH_LOGIN_EVENT_RETENTION_DAYS` kosong, nol, negatif, atau invalid,
+  `retention_until` tetap `null`;
+- tidak ada job penghapusan otomatis pada tahap ini.
+
+Kolom enrichment yang masih belum diimplementasikan:
+
+- `device_fingerprint_hash`.
+
+AI agent tidak boleh mengisi kolom-kolom tersebut dengan default palsu. Ikuti
+`LOGIN_EVENTS_ENRICHMENT_POLICY.md` sebelum implementasi tahap berikutnya.
 
 Config:
 
@@ -214,11 +409,12 @@ Kondisi saat ini:
   hash baru, update `mfa_recovery_codes_generated_at`, mengembalikan recovery
   code mentah hanya untuk ditampilkan sekali oleh caller, dan mencatat audit
   `mfa_recovery_codes_regenerated`;
-- `App\Actions\Auth\ResetUserMfa` dan command `php artisan auth:mfa-reset`
-  sudah tersedia untuk operator/admin teknis. Command ini reset enrollment MFA,
+- `App\Actions\Auth\ResetUserMfa` sudah tersedia untuk jalur Management Users
+  dan command `php artisan auth:mfa-reset`. Action ini reset enrollment MFA,
   menghapus secret/pending secret/recovery codes, memutar remember token,
   mengisi `sessions_invalidated_at`, menghapus session database target bila
-  session driver database, dan mencatat audit `mfa_reset`;
+  session driver database, menolak target tanpa MFA aktif/pending, dan mencatat
+  audit `mfa_reset`;
 - `App\Services\Auth\SensitiveAuthenticationResponseHeaders` sudah tersedia
   untuk memberi header `Cache-Control: no-store`, `Pragma: no-cache`,
   `Expires: 0`, dan `Surrogate-Control: no-store` pada response autentikasi
@@ -294,8 +490,9 @@ Aturan penting:
   dari flash data sudah memakai header no-store;
 - layout internal sudah menampilkan link "Keamanan Akun" di dropdown akun
   navbar dan sidebar dengan target route `profile.security`;
-- reset MFA dari browser belum boleh dibuat tanpa decision permission/approval
-  baru; jalur resmi saat ini adalah command Artisan `auth:mfa-reset`.
+- reset MFA dari browser sudah tersedia melalui Management Users dan dibatasi
+  untuk Admin Super. Jalur command Artisan `auth:mfa-reset` tetap tersedia untuk
+  operator/server.
 - route setup MFA tidak boleh dianggap sebagai pengganti challenge MFA; user
   yang sudah enroll MFA tetap perlu melewati `login.mfa` jika session MFA belum
   valid.

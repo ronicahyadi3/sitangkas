@@ -206,6 +206,21 @@
         </script>
     @endif
 
+    @auth
+        @if (\Illuminate\Support\Facades\Route::has('realtime.presence.heartbeat') && \Illuminate\Support\Facades\Route::has('realtime.presence.leave'))
+            <script>
+                window.sitangkasRealtime = {
+                    heartbeatUrl: @json(route('realtime.presence.heartbeat')),
+                    leaveUrl: @json(route('realtime.presence.leave')),
+                };
+
+                window.sitangkasRealtimeUser = {
+                    id: @json(auth()->id()),
+                };
+            </script>
+        @endif
+    @endauth
+
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             if (window.authContextFeedback) {
@@ -222,6 +237,7 @@
     </script>
 
     @yield('additionals')
+    @vite('resources/js/app.js')
     @stack('scripts')
 </body>
 

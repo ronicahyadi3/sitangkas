@@ -11,7 +11,11 @@ Cluster ini menjelaskan akun, autentikasi, dan audit login.
 | Keputusan MFA TOTP/Google Authenticator untuk Admin Super dan non-admin | `MFA_DECISIONS.md` |
 | Rekomendasi implementasi lanjutan MFA untuk AI agent | `MFA_RECOMMENDATIONS.md` |
 | Runbook operator untuk reset MFA via Artisan | `MFA_RESET_COMMAND_RUNBOOK.md` |
+| Snapshot Management Users, keamanan akun, posisi, dan rekomendasi lanjut | `MANAGEMENT_USERS_CURRENT_STATE.md` |
 | Keputusan halaman keamanan akun dan recovery-code regeneration | `PROFILE_SECURITY_DECISIONS.md` |
+| Policy enrichment data audit `login_events` | `LOGIN_EVENTS_ENRICHMENT_POLICY.md` |
+| Runbook GeoIP/ASN MaxMind untuk enrichment `login_events` | `GEOIP_MAXMIND_RUNBOOK.md` |
+| Decision IP risk/VPN/proxy/Tor audit-only dan hold provider | `IP_RISK_DECISIONS.md` |
 | Snapshot implementasi auth context saat ini | `CURRENT_AUTH_CONTEXT_IMPLEMENTATION.md` |
 | Detail tabel akun dan state keamanan | `USERS_TABLE.md` |
 | Detail histori login/logout/lock/session event | `LOGIN_EVENTS_TABLE.md` |
@@ -20,6 +24,15 @@ Cluster ini menjelaskan akun, autentikasi, dan audit login.
 
 - `users` adalah current account state.
 - `login_events` adalah histori autentikasi append-only.
+- Enrichment `login_events` wajib mengikuti `LOGIN_EVENTS_ENRICHMENT_POLICY.md`;
+  nilai `null` pada kolom device, GeoIP, ASN, VPN/proxy/Tor, risk, timezone,
+  fingerprint, integrity, dan retention dapat berarti data belum tersedia atau
+  belum diperiksa.
+- Setup GeoIP/ASN MaxMind wajib mengikuti `GEOIP_MAXMIND_RUNBOOK.md`; command
+  status resmi adalah `php artisan auth:geoip-status`.
+- IP risk/VPN/proxy/Tor wajib mengikuti `IP_RISK_DECISIONS.md`; mode resmi
+  saat ini adalah audit-only, provider sengaja di-hold, dan blocking login
+  belum boleh dibuat.
 - Jangan menambah histori login langsung ke `users`.
 - Jangan menyimpan secret, token, cookie, passphrase, password asli, atau session id mentah.
 - Login berhasil memperbarui ringkasan di `users` dan menulis event.
@@ -32,10 +45,11 @@ Cluster ini menjelaskan akun, autentikasi, dan audit login.
   WebAuthn/security key dibaca dari `MFA_RECOMMENDATIONS.md`.
 - Halaman pengelolaan keamanan akun setelah login wajib mengikuti
   `PROFILE_SECURITY_DECISIONS.md`.
-- Reset MFA resmi saat ini adalah command operator
-  `php artisan auth:mfa-reset`; cara pakainya ada di
-  `MFA_RESET_COMMAND_RUNBOOK.md`. UI reset MFA browser belum boleh dibuat tanpa
-  decision permission/approval baru.
+- Reset MFA resmi saat ini tersedia melalui Management Users untuk Admin Super
+  dan command operator `php artisan auth:mfa-reset`; cara command ada di
+  `MFA_RESET_COMMAND_RUNBOOK.md`.
+- Management Users mengikuti snapshot implementasi
+  `MANAGEMENT_USERS_CURRENT_STATE.md`.
 - `CurrentUserContext::realActivePosition()` adalah posisi asli dari `user_positions`.
 - `CurrentUserContext::activePosition()` adalah effective context untuk modul,
   dashboard, navbar, dan sidebar.
@@ -49,3 +63,5 @@ Cluster ini menjelaskan akun, autentikasi, dan audit login.
 - Pekerjaan menyangkut posisi setelah login: baca `../03-user-positions/README.md`.
 - Pekerjaan menyangkut audit aktivitas bisnis lintas domain: baca `../05-relationships/README.md`.
 - Pekerjaan menyentuh migration: baca `../06-migrations/FRESH_INSTALL_READINESS.md`.
+- Pekerjaan menyangkut Reverb, online monitoring, atau status session realtime:
+  baca `../07-realtime/README.md`.

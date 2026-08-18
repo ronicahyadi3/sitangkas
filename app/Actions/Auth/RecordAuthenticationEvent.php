@@ -5,6 +5,11 @@ namespace App\Actions\Auth;
 use App\Models\LoginEvent;
 use App\Models\User;
 use App\Models\UserPosition;
+use App\Services\Auth\AuthenticationEventContext;
+use App\Services\Auth\LoginEventIntegrity;
+use App\Services\Auth\LoginEventRetention;
+use Carbon\CarbonImmutable;
+use DateTimeInterface;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
@@ -12,6 +17,12 @@ use RuntimeException;
 
 class RecordAuthenticationEvent
 {
+    public function __construct(
+        private AuthenticationEventContext $authenticationEventContext,
+        private LoginEventRetention $loginEventRetention,
+        private LoginEventIntegrity $loginEventIntegrity
+    ) {}
+
     /**
      * @param  array<string, mixed>  $overrides
      */
@@ -19,8 +30,12 @@ class RecordAuthenticationEvent
     {
         $identifierType = $this->loginIdentifierType($request, $user, $overrides);
         $identifier = $this->loginIdentifier($request, $user, $overrides);
+        $eventContext = $this->authenticationEventContext->defaults($request, $overrides);
+        $occurredAt = $this->dateTimeValue($overrides, 'occurred_at');
+        $createdAt = $this->dateTimeValue($overrides, 'created_at');
 
-        return LoginEvent::create([
+        $attributes = [
+            'event_uuid' => $overrides['event_uuid'] ?? (string) Str::uuid(),
             'user_id' => $user?->getKey(),
             'actor_user_id' => $overrides['actor_user_id'] ?? null,
             'login_identifier_type' => $identifierType,
@@ -38,8 +53,8 @@ class RecordAuthenticationEvent
             'remember_me' => $overrides['remember_me'] ?? $this->rememberMe($request),
             'mfa_method' => $overrides['mfa_method'] ?? null,
             'mfa_result' => $overrides['mfa_result'] ?? null,
-            'request_id' => $overrides['request_id'] ?? $this->uuidHeader($request, 'X-Request-Id'),
-            'correlation_id' => $overrides['correlation_id'] ?? $this->uuidHeader($request, 'X-Correlation-Id'),
+            'request_id' => $this->contextValue($overrides, $eventContext, 'request_id'),
+            'correlation_id' => $this->contextValue($overrides, $eventContext, 'correlation_id'),
             'session_id_hash' => $overrides['session_id_hash'] ?? null,
             'token_id_hash' => $overrides['token_id_hash'] ?? null,
             'source_channel' => $overrides['source_channel'] ?? 'web',
@@ -47,26 +62,26 @@ class RecordAuthenticationEvent
             'request_path' => $overrides['request_path'] ?? Str::limit($request->path(), 500, ''),
             'http_method' => $overrides['http_method'] ?? $request->method(),
             'http_status' => $overrides['http_status'] ?? null,
-            'ip_address' => $overrides['ip_address'] ?? $request->ip(),
-            'proxy_ip_address' => $overrides['proxy_ip_address'] ?? null,
-            'forwarded_for' => $overrides['forwarded_for'] ?? $this->forwardedFor($request),
-            'network_asn' => $overrides['network_asn'] ?? null,
-            'network_organization' => $overrides['network_organization'] ?? null,
-            'country_code' => $overrides['country_code'] ?? null,
-            'region' => $overrides['region'] ?? null,
-            'city' => $overrides['city'] ?? null,
-            'is_vpn' => $overrides['is_vpn'] ?? null,
-            'is_proxy' => $overrides['is_proxy'] ?? null,
-            'is_tor' => $overrides['is_tor'] ?? null,
-            'risk_score' => $overrides['risk_score'] ?? null,
+            'ip_address' => $this->contextValue($overrides, $eventContext, 'ip_address'),
+            'proxy_ip_address' => $this->contextValue($overrides, $eventContext, 'proxy_ip_address'),
+            'forwarded_for' => $this->contextValue($overrides, $eventContext, 'forwarded_for'),
+            'network_asn' => $this->contextValue($overrides, $eventContext, 'network_asn'),
+            'network_organization' => $this->contextValue($overrides, $eventContext, 'network_organization'),
+            'country_code' => $this->contextValue($overrides, $eventContext, 'country_code'),
+            'region' => $this->contextValue($overrides, $eventContext, 'region'),
+            'city' => $this->contextValue($overrides, $eventContext, 'city'),
+            'is_vpn' => $this->contextValue($overrides, $eventContext, 'is_vpn'),
+            'is_proxy' => $this->contextValue($overrides, $eventContext, 'is_proxy'),
+            'is_tor' => $this->contextValue($overrides, $eventContext, 'is_tor'),
+            'risk_score' => $this->contextValue($overrides, $eventContext, 'risk_score'),
             'user_agent' => $overrides['user_agent'] ?? $request->userAgent(),
-            'device_type' => $overrides['device_type'] ?? null,
-            'device_name' => $overrides['device_name'] ?? null,
-            'browser_name' => $overrides['browser_name'] ?? null,
-            'browser_version' => $overrides['browser_version'] ?? null,
-            'platform_name' => $overrides['platform_name'] ?? null,
-            'platform_version' => $overrides['platform_version'] ?? null,
-            'client_timezone' => $overrides['client_timezone'] ?? null,
+            'device_type' => $this->contextValue($overrides, $eventContext, 'device_type'),
+            'device_name' => $this->contextValue($overrides, $eventContext, 'device_name'),
+            'browser_name' => $this->contextValue($overrides, $eventContext, 'browser_name'),
+            'browser_version' => $this->contextValue($overrides, $eventContext, 'browser_version'),
+            'platform_name' => $this->contextValue($overrides, $eventContext, 'platform_name'),
+            'platform_version' => $this->contextValue($overrides, $eventContext, 'platform_version'),
+            'client_timezone' => $this->contextValue($overrides, $eventContext, 'client_timezone'),
             'accept_language' => $overrides['accept_language'] ?? $request->header('Accept-Language'),
             'device_fingerprint_hash' => $overrides['device_fingerprint_hash'] ?? null,
             'captcha_provider' => $overrides['captcha_provider'] ?? ($this->captchaIsConfigured($request) ? 'recaptcha_v3' : null),
@@ -74,14 +89,19 @@ class RecordAuthenticationEvent
             'captcha_action' => $overrides['captcha_action'] ?? $this->captchaAction($request),
             'captcha_success' => $overrides['captcha_success'] ?? null,
             'captcha_error_codes' => $overrides['captcha_error_codes'] ?? null,
-            'application_version' => $overrides['application_version'] ?? null,
+            'application_version' => $this->contextValue($overrides, $eventContext, 'application_version'),
             'environment' => $overrides['environment'] ?? config('app.env'),
             'server_node' => $overrides['server_node'] ?? (gethostname() ?: null),
             'metadata' => $overrides['metadata'] ?? null,
-            'event_hash' => $overrides['event_hash'] ?? null,
-            'occurred_at' => $overrides['occurred_at'] ?? now(),
-            'retention_until' => $overrides['retention_until'] ?? null,
-        ]);
+            'event_hash' => null,
+            'occurred_at' => $occurredAt,
+            'retention_until' => $this->retentionUntil($overrides, $occurredAt),
+            'created_at' => $createdAt,
+        ];
+
+        $attributes['event_hash'] = $this->eventHash($overrides, $attributes);
+
+        return LoginEvent::create($attributes);
     }
 
     public function sessionIdHash(Request $request): ?string
@@ -203,9 +223,67 @@ class RecordAuthenticationEvent
         return method_exists($request, $method);
     }
 
+    /**
+     * @param  array<string, mixed>  $overrides
+     * @param  array<string, mixed>  $eventContext
+     */
+    private function contextValue(array $overrides, array $eventContext, string $key): mixed
+    {
+        if (array_key_exists($key, $overrides)) {
+            return $overrides[$key];
+        }
+
+        return $eventContext[$key] ?? null;
+    }
+
+    /**
+     * @param  array<string, mixed>  $overrides
+     */
+    private function dateTimeValue(array $overrides, string $key): CarbonImmutable
+    {
+        $value = $overrides[$key] ?? null;
+
+        if ($value instanceof DateTimeInterface) {
+            return CarbonImmutable::instance($value);
+        }
+
+        if (is_string($value) && trim($value) !== '') {
+            return CarbonImmutable::parse($value);
+        }
+
+        return CarbonImmutable::instance(now());
+    }
+
+    /**
+     * @param  array<string, mixed>  $overrides
+     */
+    private function retentionUntil(array $overrides, DateTimeInterface $occurredAt): mixed
+    {
+        if (array_key_exists('retention_until', $overrides)) {
+            return $overrides['retention_until'];
+        }
+
+        return $this->loginEventRetention->until($occurredAt);
+    }
+
+    /**
+     * @param  array<string, mixed>  $overrides
+     * @param  array<string, mixed>  $attributes
+     */
+    private function eventHash(array $overrides, array $attributes): ?string
+    {
+        if (array_key_exists('event_hash', $overrides)) {
+            return is_string($overrides['event_hash']) || $overrides['event_hash'] === null
+                ? $overrides['event_hash']
+                : null;
+        }
+
+        return $this->loginEventIntegrity->hash($attributes);
+    }
+
     private function auditHashKey(): string
     {
-        $auditHashKey = config('auth.audit_hash_key');
+        $auditHashKey = config('auth.audit.hash_key', config('auth.audit_hash_key'));
 
         if (is_string($auditHashKey) && $auditHashKey !== '') {
             return $auditHashKey;
@@ -220,34 +298,5 @@ class RecordAuthenticationEvent
         }
 
         throw new RuntimeException('AUDIT_HASH_KEY must be configured for authentication audit hashing.');
-    }
-
-    private function uuidHeader(Request $request, string $header): ?string
-    {
-        $value = $request->header($header);
-
-        if (! is_string($value) || ! Str::isUuid($value)) {
-            return null;
-        }
-
-        return $value;
-    }
-
-    /**
-     * @return list<string>|null
-     */
-    private function forwardedFor(Request $request): ?array
-    {
-        $forwardedFor = $request->headers->get('X-Forwarded-For');
-
-        if (! is_string($forwardedFor) || trim($forwardedFor) === '') {
-            return null;
-        }
-
-        return collect(explode(',', $forwardedFor))
-            ->map(fn (string $ipAddress): string => trim($ipAddress))
-            ->filter()
-            ->values()
-            ->all();
     }
 }

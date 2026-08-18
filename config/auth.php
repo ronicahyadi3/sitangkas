@@ -173,13 +173,87 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Authentication Audit Hash Key
+    | Authentication Audit Policy
     |--------------------------------------------------------------------------
     |
-    | Used to HMAC authentication identifiers and session IDs before writing
-    | them to audit tables. Production should set AUDIT_HASH_KEY separately
-    | from APP_KEY. Local development may fall back to APP_KEY, but production
-    | code must fail closed when this value is missing.
+    | Authentication audit data is written to append-only audit tables. Keep
+    | enrichment fail-safe: unavailable or unchecked enrichment should remain
+    | null instead of being guessed.
+    |
+    */
+
+    'audit' => [
+        'hash_key' => env('AUDIT_HASH_KEY'),
+        'login_events' => [
+            'enrichment' => [
+                'user_agent' => [
+                    'enabled' => env('AUTH_LOGIN_EVENT_USER_AGENT_ENRICHMENT_ENABLED', true),
+                    'provider' => env('AUTH_LOGIN_EVENT_USER_AGENT_PROVIDER', 'matomo_device_detector'),
+                ],
+                'network' => [
+                    'forwarded_for_max_entries' => max(1, (int) env('AUTH_LOGIN_EVENT_FORWARDED_FOR_MAX_ENTRIES', 10)),
+                    'capture_untrusted_forwarded_for' => env('AUTH_LOGIN_EVENT_CAPTURE_UNTRUSTED_FORWARDED_FOR', false),
+                    'proxy_ip_address_enabled' => env('AUTH_LOGIN_EVENT_PROXY_IP_ADDRESS_ENABLED', true),
+                ],
+                'geoip' => [
+                    'enabled' => env('AUTH_LOGIN_EVENT_GEOIP_ENABLED', false),
+                    'provider' => env('AUTH_LOGIN_EVENT_GEOIP_PROVIDER', 'maxmind'),
+                    'database_path' => env('AUTH_LOGIN_EVENT_GEOIP_DATABASE_PATH'),
+                    'city_database_path' => env('AUTH_LOGIN_EVENT_GEOIP_CITY_DATABASE_PATH', env('AUTH_LOGIN_EVENT_GEOIP_DATABASE_PATH')),
+                    'asn_database_path' => env('AUTH_LOGIN_EVENT_GEOIP_ASN_DATABASE_PATH'),
+                    'cache_ttl_seconds' => max(60, (int) env('AUTH_LOGIN_EVENT_GEOIP_CACHE_TTL_SECONDS', 86400)),
+                ],
+                'ip_risk' => [
+                    'enabled' => env('AUTH_LOGIN_EVENT_IP_RISK_ENABLED', false),
+                    'mode' => env('AUTH_LOGIN_EVENT_IP_RISK_MODE', 'audit'),
+                    'blocking_enabled' => env('AUTH_LOGIN_EVENT_IP_RISK_BLOCKING_ENABLED', false),
+                    'provider' => env('AUTH_LOGIN_EVENT_IP_RISK_PROVIDER', 'none'),
+                    'anonymous_ip_database_path' => env('AUTH_LOGIN_EVENT_IP_RISK_ANONYMOUS_IP_DATABASE_PATH'),
+                    'allowlist_cidrs' => array_values(array_filter(array_map(
+                        static fn (string $cidr): string => trim($cidr),
+                        explode(',', (string) env('AUTH_LOGIN_EVENT_IP_RISK_ALLOWLIST_CIDRS', ''))
+                    ))),
+                    'timeout_seconds' => max(1, (int) env('AUTH_LOGIN_EVENT_IP_RISK_TIMEOUT_SECONDS', 2)),
+                    'connect_timeout_seconds' => max(1, (int) env('AUTH_LOGIN_EVENT_IP_RISK_CONNECT_TIMEOUT_SECONDS', 1)),
+                    'cache_ttl_seconds' => max(60, (int) env('AUTH_LOGIN_EVENT_IP_RISK_CACHE_TTL_SECONDS', 86400)),
+                    'risk_score_min' => 0,
+                    'risk_score_max' => 100,
+                ],
+                'client_timezone' => [
+                    'enabled' => env('AUTH_LOGIN_EVENT_CLIENT_TIMEZONE_ENABLED', true),
+                ],
+                'device_fingerprint' => [
+                    'enabled' => env('AUTH_LOGIN_EVENT_DEVICE_FINGERPRINT_ENABLED', false),
+                    'strategy' => env('AUTH_LOGIN_EVENT_DEVICE_FINGERPRINT_STRATEGY', 'first_party_device_token'),
+                ],
+                'application' => [
+                    'version' => env('APP_VERSION'),
+                    'build_number' => env('APP_BUILD_NUMBER'),
+                    'build_commit' => env('APP_BUILD_COMMIT'),
+                ],
+                'integrity' => [
+                    'event_hash_enabled' => env('AUTH_LOGIN_EVENT_HASH_ENABLED', true),
+                    'event_hash_payload_version' => 'v1',
+                    'retention_days' => env('AUTH_LOGIN_EVENT_RETENTION_DAYS'),
+                ],
+            ],
+        ],
+        'user_management_events' => [
+            'integrity' => [
+                'event_hash_enabled' => env('USER_MANAGEMENT_AUDIT_EVENT_HASH_ENABLED', true),
+                'event_hash_payload_version' => 'v1',
+                'retention_days' => env('USER_MANAGEMENT_AUDIT_RETENTION_DAYS'),
+            ],
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Authentication Audit Hash Key Compatibility
+    |--------------------------------------------------------------------------
+    |
+    | Prefer config('auth.audit.hash_key') for new code. This key remains for
+    | older code paths that still read config('auth.audit_hash_key').
     |
     */
 

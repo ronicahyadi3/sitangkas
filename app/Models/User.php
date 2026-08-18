@@ -2,6 +2,9 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\TracksUserAudit;
+use App\Models\Realtime\RealtimeMessage;
+use App\Models\Realtime\UserPresenceSession;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -60,7 +63,7 @@ use Illuminate\Support\Str;
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
-    use HasFactory, Notifiable, SoftDeletes;
+    use HasFactory, Notifiable, SoftDeletes, TracksUserAudit;
 
     public const ACCOUNT_TYPE_EMERGENCY = 'emergency';
 
@@ -100,14 +103,44 @@ class User extends Authenticatable
         return $this->hasMany(UserPosition::class);
     }
 
+    public function positions(): HasMany
+    {
+        return $this->userPositions();
+    }
+
     public function loginEvents(): HasMany
     {
         return $this->hasMany(LoginEvent::class);
     }
 
+    public function presenceSessions(): HasMany
+    {
+        return $this->hasMany(UserPresenceSession::class);
+    }
+
+    public function receivedRealtimeMessages(): HasMany
+    {
+        return $this->hasMany(RealtimeMessage::class, 'recipient_user_id');
+    }
+
+    public function sentRealtimeMessages(): HasMany
+    {
+        return $this->hasMany(RealtimeMessage::class, 'sender_user_id');
+    }
+
     public function actedLoginEvents(): HasMany
     {
         return $this->hasMany(LoginEvent::class, 'actor_user_id');
+    }
+
+    public function managementAuditEvents(): HasMany
+    {
+        return $this->hasMany(UserManagementAuditEvent::class, 'target_user_id');
+    }
+
+    public function actedManagementAuditEvents(): HasMany
+    {
+        return $this->hasMany(UserManagementAuditEvent::class, 'actor_user_id');
     }
 
     public function activeUserPositions(): HasMany
