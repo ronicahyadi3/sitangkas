@@ -9,17 +9,24 @@ Dua tabel utama yang dibahas adalah:
 - `users`: menyimpan **kondisi akun terkini** dan ringkasan keamanan yang diperlukan dalam proses autentikasi.
 - `login_events`: menyimpan **riwayat setiap kejadian autentikasi** secara terpisah dan append-only untuk kebutuhan audit.
 
+Untuk fitur Management Users, audit administratif detail berada di
+`user_management_audit_events`. Tabel tersebut tidak menggantikan
+`login_events`; aksi keamanan akun yang berdampak pada autentikasi/session tetap
+dicatat ke `login_events`.
+
 Dokumen rinci:
 
 - [`USERS_TABLE.md`](USERS_TABLE.md)
 - [`LOGIN_EVENTS_TABLE.md`](LOGIN_EVENTS_TABLE.md)
 - [`AUTH_CONTEXT_DECISIONS.md`](AUTH_CONTEXT_DECISIONS.md)
 - [`CURRENT_AUTH_CONTEXT_IMPLEMENTATION.md`](CURRENT_AUTH_CONTEXT_IMPLEMENTATION.md)
+- [`MANAGEMENT_USERS_CURRENT_STATE.md`](MANAGEMENT_USERS_CURRENT_STATE.md)
 
 Migration acuan:
 
 - `0001_01_01_000000_create_users_table.php`
 - `2026_07_28_120000_create_login_events_table.php`
+- `2026_08_12_025830_create_user_management_audit_events_table.php`
 
 ---
 
@@ -32,13 +39,18 @@ AI agent **WAJIB** membedakan dua jenis data berikut.
 | Jenis data | Tabel | Contoh |
 |---|---|---|
 | Kondisi akun saat ini | `users` | status akun, jumlah gagal login berturut-turut, waktu terkunci, login terakhir |
-| Riwayat kejadian | `login_events` | login berhasil, login gagal, logout, lockout, session timeout, session revoked |
+| Riwayat autentikasi | `login_events` | login berhasil, login gagal, logout, lockout, session timeout, session revoked, reset MFA |
+| Audit administrasi Management Users | `user_management_audit_events` | create/update/delete user, create/deactivate posisi, grant/revoke izin historis |
 
 Aturan sederhana:
 
 > Bila nilainya menggambarkan kondisi akun **sekarang**, simpan di `users`.
 >
 > Bila nilainya menjelaskan **apa yang terjadi pada suatu waktu**, tulis event baru di `login_events`.
+>
+> Bila event berasal dari administrasi Management Users, tulis detailnya ke
+> `user_management_audit_events`; untuk aksi keamanan akun, tetap tulis event
+> autentikasi yang relevan ke `login_events`.
 
 Contoh benar:
 
@@ -114,6 +126,20 @@ Tabel `login_events` bertanggung jawab atas:
 - integritas, waktu, serta retensi event.
 
 Tabel `login_events` **bukan** sumber utama untuk menentukan apakah akun saat ini boleh login. Keputusan autentikasi harus membaca state pada `users`.
+
+### `user_management_audit_events`
+
+Tabel `user_management_audit_events` bertanggung jawab atas audit administrasi
+Management Users:
+
+- create/update/delete user;
+- create/update/activate/deactivate/delete posisi;
+- grant/revoke izin tahun historis;
+- force change password, lock/unlock, dan reset MFA dari UI;
+- snapshot `before_state` dan `after_state`;
+- reason, message, metadata, serta request context non-secret.
+
+Tabel ini **bukan** pengganti `login_events` untuk histori autentikasi.
 
 ---
 
@@ -192,14 +218,16 @@ Nilai yang direkomendasikan:
 - `login`;
 - `logout`;
 - `lockout`;
-- `unlock`;
+- `account_locked`;
+- `account_unlocked`;
+- `password_change_forced`;
+- `context_switched`;
 - `session_timeout`;
 - `session_revoked`;
 - `mfa_challenge`;
+- `mfa_recovery_codes_regenerated`;
+- `mfa_reset`;
 - `mfa_verified`;
-- `password_reset_login`;
-- `impersonation_started`;
-- `impersonation_ended`.
 
 ### `login_events.result`
 

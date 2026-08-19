@@ -23,8 +23,9 @@ aman agar agent berikutnya tidak salah menafsirkan arah MFA SITANGKAS.
 - Remember-me tidak boleh bypass MFA Admin Super.
 - Recovery code boleh disediakan sebagai fallback, tetapi harus one-time,
   dibatasi, diaudit, dan tidak boleh menjadi cara login permanen.
-- Reset MFA lebih aman dimulai dari command Artisan untuk operator, bukan UI
-  browser admin umum.
+- Reset MFA resmi saat ini memiliki dua jalur: Management Users untuk Admin
+  Super dan command Artisan untuk operator/server. Jangan memperluasnya ke UI
+  admin umum tanpa decision permission baru.
 - Recovery-code regeneration harus ditempatkan di halaman profile/security,
   bukan di flow `login.mfa`; baca `PROFILE_SECURITY_DECISIONS.md`.
 - Passkey/WebAuthn/FIDO2 adalah kandidat fase lanjutan, bukan pengganti cepat
@@ -150,10 +151,11 @@ Rekomendasi event audit:
 - `mfa_recovery_code_used/success` jika konstanta event khusus dibuat;
 - `mfa_recovery_codes_regenerated/success` saat code baru dibuat.
 
-## Rekomendasi 6 - Reset MFA Lebih Aman Dimulai Dari Artisan
+## Rekomendasi 6 - Reset MFA Resmi: Admin Super UI Dan Command Operator
 
-Untuk fase awal, reset MFA sebaiknya dibuat sebagai command Artisan, bukan UI
-browser admin umum.
+Status saat ini sudah melewati fase command-only. Reset MFA browser tersedia
+melalui Management Users khusus Admin Super, sedangkan command Artisan tetap
+menjadi jalur operator/server untuk kondisi teknis atau SOP production.
 
 Contoh command yang direkomendasikan:
 
@@ -194,6 +196,7 @@ Catatan jalur reset MFA:
 - Management Users sudah menyediakan reset MFA browser untuk Admin Super;
 - jalur browser harus tetap memakai permission ketat, alasan wajib, session
   invalidation, dan audit `login_events`;
+- PA/KPA tidak boleh reset MFA user lain;
 - jangan memperluas reset MFA ke PA/KPA atau role lain tanpa decision baru.
 
 Jika user sudah tidak punya akses authenticator maupun recovery code, jalur
@@ -284,7 +287,8 @@ app resmi atau provider MFA enterprise.
 ## Rekomendasi 8 - Urutan Implementasi Lanjutan
 
 Kondisi runtime MFA saat ini sudah mencakup setup TOTP, branded QR, challenge
-TOTP, recovery-code challenge, reset MFA Artisan, halaman profile/security,
+TOTP, recovery-code challenge, reset MFA dari Management Users untuk Admin
+Super, reset MFA Artisan untuk operator/server, halaman profile/security,
 recovery-code regeneration, dan tombol aktivasi MFA optional untuk user
 non-Admin Super yang belum enroll. Response yang menampilkan raw recovery codes
 juga sudah memakai header no-store.

@@ -15,12 +15,11 @@ class UserManagementAccessService
      */
     private const MANAGEABLE_CODES_BY_ADMIN_CODE = [
         'PA' => ['PPK_SKPD', 'PPTK', 'BP'],
-        'KPA' => ['PPK_SKPD', 'PPTK', 'BPP'],
+        'KPA' => ['PPTK', 'BPP'],
     ];
 
     public function __construct(
-        private PositionScopeOptionsService $positionScopeOptionsService,
-        private YearAccessService $yearAccessService
+        private PositionScopeOptionsService $positionScopeOptionsService
     ) {}
 
     public function canAccessModule(?UserPosition $actor): bool
@@ -30,7 +29,14 @@ class UserManagementAccessService
 
     public function isFullAdmin(?UserPosition $actor): bool
     {
-        return $this->yearAccessService->isOriginalSuperAdmin($actor);
+        if (! $actor instanceof UserPosition) {
+            return false;
+        }
+
+        $code = $this->jabatanCode((int) $actor->jabatan_id);
+
+        return is_string($code)
+            && in_array($code, config('position_rules.admin_super_jabatan_codes', []), true);
     }
 
     public function isScopedAdmin(?UserPosition $actor): bool
@@ -86,8 +92,16 @@ class UserManagementAccessService
             return $query->whereKey([]);
         }
 
-        return $query->whereHas('userPositions', function (Builder $positions) use ($actor): void {
-            $this->applyManageablePositionsScope($positions, $actor);
+        return $query->where(function (Builder $query) use ($actor): void {
+            $query
+                ->whereHas('userPositions', function (Builder $positions) use ($actor): void {
+                    $this->applyManageablePositionsScope($positions, $actor);
+                })
+                ->orWhere(function (Builder $query): void {
+                    $query
+                        ->where('created_by_user_id', auth()->id())
+                        ->whereDoesntHave('userPositions');
+                });
         });
     }
 
@@ -112,6 +126,10 @@ class UserManagementAccessService
 
         if (! $this->isScopedAdmin($actor)) {
             return false;
+        }
+
+        if ($this->canManagePendingInitialUser($user, $actor)) {
+            return true;
         }
 
         return $user->userPositions()
@@ -139,7 +157,7 @@ class UserManagementAccessService
         $totalPositions = $user->userPositions()->count();
 
         if ($totalPositions === 0) {
-            return false;
+            return $this->canManagePendingInitialUser($user, $actor);
         }
 
         $manageablePositions = $user->userPositions()
@@ -171,7 +189,7 @@ class UserManagementAccessService
         }
 
         if (! $user->userPositions()->exists()) {
-            return true;
+            return $this->canManagePendingInitialUser($user, $actor);
         }
 
         return $this->canViewUser($user, $actor);
@@ -248,6 +266,13 @@ class UserManagementAccessService
             ->whereIn('jabatan_id', $allowedJabatanIds)
             ->where('instansi_id', (int) $actor->instansi_id)
             ->whereIn('unit_kerja_id', $managedUnitIds);
+    }
+
+    private function canManagePendingInitialUser(User $user, ?UserPosition $actor): bool
+    {
+        return $this->isScopedAdmin($actor)
+            && (int) ($user->created_by_user_id ?? 0) === (int) auth()->id()
+            && ! $user->userPositions()->exists();
     }
 
     /**

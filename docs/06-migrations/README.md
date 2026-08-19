@@ -8,6 +8,7 @@ Cluster ini bukan tempat semua detail migration. Detail migration tetap berada d
 |---|---|
 | Fresh install, readiness Laravel, migration blockers | `FRESH_INSTALL_READINESS.md` |
 | Migration auth | `../01-authentication/README.md` |
+| Migration audit/filter Management Users | `../01-authentication/MANAGEMENT_USERS_CURRENT_STATE.md` dan `FRESH_INSTALL_READINESS.md` |
 | Migration master data | `../02-master-data/README.md` |
 | Migration posisi pengguna | `../03-user-positions/README.md` |
 | Migration permission tahun historis | `../04-year-permissions/README.md` |

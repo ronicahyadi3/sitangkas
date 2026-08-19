@@ -7,6 +7,7 @@ use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
+use Illuminate\Validation\Validator;
 
 class UserUpdateRequest extends FormRequest
 {
@@ -68,6 +69,37 @@ class UserUpdateRequest extends FormRequest
         ]);
     }
 
+    /**
+     * @return array<int, callable(Validator): void>
+     */
+    public function after(): array
+    {
+        return [
+            function (Validator $validator): void {
+                $user = $this->routeUser();
+                $newStatus = $this->input('status');
+
+                if (! $user instanceof User || $newStatus === null) {
+                    return;
+                }
+
+                if ($user->status !== User::STATUS_LOCKED && $newStatus === User::STATUS_LOCKED) {
+                    $validator->errors()->add(
+                        'status',
+                        'Gunakan menu Keamanan Akun untuk mengunci akun user.'
+                    );
+                }
+
+                if ($user->status === User::STATUS_LOCKED && $newStatus !== User::STATUS_LOCKED) {
+                    $validator->errors()->add(
+                        'status',
+                        'Gunakan menu Keamanan Akun untuk membuka kunci akun user.'
+                    );
+                }
+            },
+        ];
+    }
+
     private function routeUser(): ?User
     {
         $user = $this->route('user');
@@ -100,13 +132,18 @@ class UserUpdateRequest extends FormRequest
      */
     private function allowedStatuses(): array
     {
-        return [
+        $statuses = [
             User::STATUS_PENDING,
             User::STATUS_ACTIVE,
             User::STATUS_INACTIVE,
-            User::STATUS_LOCKED,
             User::STATUS_SUSPENDED,
         ];
+
+        if ($this->routeUser()?->status === User::STATUS_LOCKED) {
+            $statuses[] = User::STATUS_LOCKED;
+        }
+
+        return $statuses;
     }
 
     private function requiresStatusReason(): bool

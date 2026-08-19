@@ -12,10 +12,12 @@ use App\Http\Requests\User\LockUserAccountRequest;
 use App\Http\Requests\User\ResetUserMfaRequest;
 use App\Http\Requests\User\UnlockUserAccountRequest;
 use App\Models\User;
+use App\Models\UserManagementAuditEvent;
 use App\Models\UserPosition;
 use App\Services\Auth\MfaPolicy;
 use App\Services\User\ActivePositionService;
 use App\Services\User\UserManagementAccessService;
+use App\Services\User\UserManagementAuditLogger;
 use DateTimeInterface;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -28,14 +30,23 @@ class UserSecurityController extends Controller
     public function __construct(
         private ActivePositionService $activePositionService,
         private UserManagementAccessService $userManagementAccessService,
+        private UserManagementAuditLogger $userManagementAuditLogger,
         private MfaPolicy $mfaPolicy
     ) {}
 
     public function show(Request $request, User $user): JsonResponse
     {
-        $actor = $this->activePositionService->get();
+        $actor = $this->activePositionService->managementActor();
 
         if (! $this->userManagementAccessService->canViewUser($user, $actor)) {
+            $this->logBlocked(
+                UserManagementAuditEvent::EVENT_MODULE_ACCESS,
+                $request,
+                $user,
+                'unauthorized_scope',
+                'Akses data keamanan akun ditolak karena user target di luar scope aktor.'
+            );
+
             return $this->forbidden('User ini tidak termasuk scope pengelolaan jabatan aktif Anda.');
         }
 
@@ -145,7 +156,7 @@ class UserSecurityController extends Controller
         return response()->json([
             'ok' => true,
             'message' => $message,
-            'data' => $this->securityPayload($user, $this->activePositionService->get()),
+            'data' => $this->securityPayload($user, $this->activePositionService->managementActor()),
         ]);
     }
 
@@ -189,6 +200,7 @@ class UserSecurityController extends Controller
         $user->loadMissing(['passwordResetBy', 'statusChangedBy']);
 
         $canManageSecurity = $this->userManagementAccessService->canManageUser($user, $actor);
+        $canManageAccountLock = $this->userManagementAccessService->isFullAdmin($actor) && $canManageSecurity;
         $canResetMfa = $this->userManagementAccessService->isFullAdmin($actor) && $canManageSecurity;
         $mfaIsEnrolled = $this->mfaPolicy->isEnrolled($user);
         $mfaIsPending = $this->mfaPolicy->hasPendingEnrollment($user);
@@ -239,8 +251,8 @@ class UserSecurityController extends Controller
             'permissions' => [
                 'can_manage_security' => $canManageSecurity,
                 'can_force_password_change' => $canManageSecurity && ! $user->requiresPasswordChange(),
-                'can_lock' => $canManageSecurity && $user->status === User::STATUS_ACTIVE && ! $user->isLocked(),
-                'can_unlock' => $canManageSecurity && (
+                'can_lock' => $canManageAccountLock && $user->status === User::STATUS_ACTIVE && ! $user->isLocked(),
+                'can_unlock' => $canManageAccountLock && (
                     $user->status === User::STATUS_LOCKED
                     || ($user->status === User::STATUS_ACTIVE && $user->isLocked())
                 ),
@@ -327,5 +339,32 @@ class UserSecurityController extends Controller
             $recoveryCodes,
             static fn (mixed $recoveryCode): bool => is_string($recoveryCode) && $recoveryCode !== ''
         ));
+    }
+
+    private function logBlocked(
+        string $eventType,
+        Request $request,
+        User $targetUser,
+        string $reasonCode,
+        string $message
+    ): void {
+        $actor = $this->activePositionService->managementActor();
+
+        $this->userManagementAuditLogger->blocked($eventType, [
+            'actor_user' => $request->user(),
+            'actor_position' => $actor,
+            'target_user' => $targetUser,
+            'resource_type' => User::class,
+            'resource_id' => $targetUser->getKey(),
+            'before_state' => $this->userManagementAuditLogger->userSnapshot($targetUser),
+            'reason_code' => $reasonCode,
+            'reason' => $message,
+            'message' => $message,
+            'metadata' => [
+                'requested_action' => $eventType,
+                'actor_is_full_admin' => $this->userManagementAccessService->isFullAdmin($actor),
+                'actor_can_manage_target' => $this->userManagementAccessService->canManageUser($targetUser, $actor),
+            ],
+        ], $request);
     }
 }

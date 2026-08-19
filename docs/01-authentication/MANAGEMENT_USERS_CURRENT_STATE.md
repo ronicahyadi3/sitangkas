@@ -1,12 +1,12 @@
 # Management Users Current State
 
-Last updated: 2026-08-11.
+Last updated: 2026-08-18.
 
 Dokumen ini merangkum kondisi fitur Management Users saat ini, apa saja yang
 sudah dibuat, rekomendasi pekerjaan berikutnya, dan isu yang perlu dibahas
 sebelum fitur diperluas. Entry point domain ini adalah tabel `users`, tetapi
 fiturnya juga menyentuh `user_positions`, dokumen SK, izin tahun historis,
-MFA, session guard, dan audit autentikasi.
+MFA, session guard, audit autentikasi, dan audit administrasi Management Users.
 
 ## Status
 
@@ -18,8 +18,10 @@ ini dan sudah dipisah menjadi beberapa lapis:
 - route dan middleware authenticated;
 - controller Management Users;
 - Form Request untuk validasi;
+- action layer untuk create/update/delete user, posisi, dan izin tahun historis;
 - action/service untuk aksi keamanan akun;
 - model dan relasi posisi/dokumen/izin tahun;
+- dedicated audit table dan service logger Management Users;
 - Blade satu halaman dengan modal user, posisi, keamanan akun, dokumen SK, dan
   izin tahun historis.
 
@@ -29,6 +31,7 @@ Route utama:
 
 - `GET /users` -> `users.index`;
 - `GET /users/datatable` -> `users.datatable`;
+- `GET /users/audit-trail` -> `users.audit-trail`;
 - `POST /users` -> `users.store`;
 - `PUT /users/{user}` -> `users.update`;
 - `DELETE /users/{user}` -> `users.destroy`;
@@ -40,7 +43,9 @@ Route utama:
 - `POST /users/{user}/security/reset-mfa` -> `users.security.reset-mfa`;
 - `GET /users/{user}/positions` -> `users.positions.index`;
 - `POST /users/{user}/positions` -> `users.positions.store`;
+- `GET /users/{user}/positions/{position}` -> `users.positions.show`;
 - `PUT /users/{user}/positions/{position}` -> `users.positions.update`;
+- `DELETE /users/{user}/positions/{position}` -> `users.positions.destroy`;
 - `POST /users/{user}/positions/{position}/activate` ->
   `users.positions.activate`;
 - `POST /users/{user}/positions/{position}/deactivate` ->
@@ -57,11 +62,20 @@ File utama:
 - `app/Http/Controllers/Users/UserController.php`;
 - `app/Http/Controllers/Users/UserPositionController.php`;
 - `app/Http/Controllers/Users/UserSecurityController.php`;
+- `app/Http/Controllers/Users/UserManagementAuditController.php`;
 - `app/Http/Requests/User/*`;
+- `app/Models/User.php`;
+- `app/Models/UserPosition.php`;
+- `app/Actions/UserManagement/*`;
 - `app/Actions/UserSecurity/*`;
 - `app/Actions/Auth/ResetUserMfa.php`;
 - `app/Services/User/*`;
-- `resources/views/users/index.blade.php`.
+- `app/Support/UserManagement/UserDatatablePresenter.php`;
+- `app/Models/UserManagementAuditEvent.php`;
+- `database/migrations/2026_08_12_025830_create_user_management_audit_events_table.php`;
+- `database/migrations/2026_08_18_044639_add_management_user_filter_indexes.php`;
+- `resources/views/users/index.blade.php`;
+- `resources/views/users/audit-trail.blade.php`.
 
 Middleware terkait:
 
@@ -82,9 +96,24 @@ Middleware terkait:
 - Prefix route `users.*` sudah memakai middleware `user.management`.
 - Route internal penting sudah memakai guard posisi, MFA, active position, dan
   password freshness.
+- Route binding model `User` dan `UserPosition` sudah memakai encrypted route
+  key melalui `getRouteKey()` dan `resolveRouteBinding()`. URL numeric polos
+  untuk parameter `{user}` dan `{position}` ditolak pada binding ini.
 - Package `yajra/laravel-datatables-oracle` sudah terpasang di Composer.
-- Endpoint DataTables users saat ini masih memakai response manual
-  server-side pada `UserController@datatable`; belum memakai builder Yajra.
+- Endpoint DataTables users sudah memakai Yajra pada
+  `UserController@datatable`, dengan scope PA/KPA tetap melalui
+  `UserManagementAccessService`.
+- Endpoint DataTables users sudah mendukung filter server-side untuk
+  `status`, `account_type`, `jabatan_id`, `instansi_id`, `unit_kerja_id`, dan
+  `position_state`.
+- HTML kolom dan payload tombol DataTables users sudah dipindahkan ke
+  `App\Support\UserManagement\UserDatatablePresenter`, sehingga controller
+  fokus pada query, filter, dan response.
+- Halaman Management Users sudah memiliki panel filter di atas tabel. Filter
+  instansi dan unit kerja mengikuti pilihan jabatan melalui endpoint AJAX scope
+  `users-management`.
+- Index database pendukung filter Management Users sudah ditambahkan melalui
+  migration `2026_08_18_044639_add_management_user_filter_indexes.php`.
 
 ### Form Akun
 
@@ -105,6 +134,9 @@ Catatan:
 - akun baru dibuat tanpa posisi awal;
 - setelah create sukses, UI membuka flow tambah posisi;
 - akun baru ditandai `must_change_password = true`;
+- opsi status `locked` tidak tersedia di form akun umum. Lock/unlock akun harus
+  dilakukan melalui modal Keamanan Akun agar session, reason, dan audit tetap
+  konsisten;
 - status audit ringan mengisi `status_changed_at` dan
   `status_changed_by_user_id` saat status berubah;
 - audit actor create/update/delete memakai kolom `created_by_user_id`,
@@ -114,6 +146,18 @@ Catatan:
 ### Flow User Dan Posisi
 
 - Flow resmi adalah buat akun terlebih dahulu, lalu tambah posisi.
+- Create user tidak membuat posisi awal secara otomatis.
+- Setelah create user sukses melalui AJAX, UI mengirim
+  `prompt_position_setup = true` untuk membuka modal tambah posisi.
+- Posisi pertama untuk user baru dapat dibuat oleh Admin Super, PA, atau KPA
+  selama kombinasi `jabatan_id`, `instansi_id`, dan `unit_kerja_id` yang akan
+  ditempel berada dalam scope kewenangan aktor.
+- Authorization create posisi memakai
+  `UserManagementAccessService::canAttachPositionToUser()`. Method ini
+  memberi jalur khusus untuk user yang belum punya posisi, tetapi tetap
+  memvalidasi scope posisi yang dipilih.
+- Audit create posisi menyimpan metadata `is_initial_position` agar laporan
+  dapat membedakan posisi pertama dan posisi tambahan.
 - Satu user boleh memiliki lebih dari satu posisi.
 - Posisi aktif berarti posisi tersedia untuk dipilih, bukan berarti sedang
   dipakai pada session.
@@ -204,6 +248,10 @@ Force change password:
 
 Lock/unlock:
 
+- hanya Admin Super yang boleh menjalankan lock/unlock akun dari Management
+  Users;
+- PA/KPA tidak boleh lock/unlock akun user lain walaupun target berada dalam
+  scope posisi mereka;
 - lock hanya boleh untuk akun aktif yang belum terkunci;
 - unlock hanya membuka akun yang memang terkunci;
 - lock/unlock tidak boleh dijalankan untuk akun sendiri;
@@ -215,6 +263,9 @@ Lock/unlock:
 Reset MFA:
 
 - hanya Admin Super yang boleh menjalankan reset MFA dari Management Users;
+- PA/KPA tidak boleh reset MFA user lain;
+- non-Admin Super tetap boleh enroll atau mengaktifkan MFA untuk dirinya
+  sendiri sesuai policy optional;
 - target harus punya MFA aktif atau pending setup;
 - action menghapus secret, pending secret, recovery codes, dan timestamp MFA;
 - remember token dirotasi dan session target dicabut;
@@ -224,13 +275,53 @@ Reset MFA:
 
 ### Audit Dan Log
 
-Keputusan saat ini:
+Dedicated audit table Management Users sudah dibuat:
 
-- dedicated audit table untuk Management Users ditunda;
-- audit keamanan akun dicatat pada `login_events`;
-- error teknis dicatat melalui channel `module_users`;
-- audit ringan akun/posisi memakai kolom actor di tabel masing-masing;
-- reason penting disimpan pada field domain seperti `status_reason`,
+- tabel `user_management_audit_events`;
+- model `App\Models\UserManagementAuditEvent`;
+- service logger `App\Services\User\UserManagementAuditLogger`;
+- halaman audit trail `users.audit-trail`.
+
+Audit Management Users saat ini mencatat event utama:
+
+- create/update/delete user;
+- create/update/activate/deactivate/delete posisi;
+- grant/revoke izin tahun historis;
+- force change password;
+- lock/unlock akun;
+- reset MFA;
+- authorization denial penting sebagai result `blocked`.
+
+Audit `blocked` saat ini diterapkan pada:
+
+- akses module Management Users oleh jabatan yang tidak berwenang;
+- akses opsi AJAX Management Users oleh jabatan yang tidak berwenang;
+- update/delete user di luar scope;
+- lihat/create/update/activate/deactivate/delete posisi di luar scope;
+- nested URL posisi yang tidak dimiliki user target;
+- grant/revoke izin tahun historis oleh non-Admin Super;
+- force change password, lock/unlock, dan reset MFA yang ditolak oleh
+  authorization FormRequest.
+
+Data audit yang tersedia:
+
+- aktor user dan posisi aktor;
+- target user dan target posisi;
+- event type, result, resource, reason, dan message;
+- snapshot `before_state` dan `after_state`;
+- metadata operasional, termasuk `is_initial_position` untuk create posisi;
+- request context seperti route, path, method, HTTP status, IP, user agent,
+  request id, dan correlation id.
+
+Catatan:
+
+- audit keamanan akun tetap juga dicatat pada `login_events` untuk kebutuhan
+  histori autentikasi;
+- error teknis tetap dicatat melalui channel `module_users`;
+- kolom actor seperti `created_by_user_id`, `updated_by_user_id`, dan
+  `deleted_by_user_id` tetap dipakai sebagai ringkasan aktor terakhir pada
+  tabel domain;
+- reason penting tetap disimpan pada field domain seperti `status_reason`,
   `deactivation_reason`, metadata izin historis, dan metadata dokumen.
 
 Data yang tidak boleh masuk audit/log:
@@ -254,6 +345,10 @@ Test awal yang direkomendasikan:
 - Admin Super dapat membuka Management Users;
 - user biasa tidak dapat membuka Management Users;
 - PA/KPA tidak dapat mengelola user di luar scope;
+- PA/KPA dapat membuat posisi pertama untuk user baru hanya jika posisi yang
+  dibuat berada dalam scope mereka;
+- PA/KPA ditolak saat membuat posisi pertama di luar scope;
+- PA/KPA tidak dapat lock/unlock akun;
 - PA/KPA tidak dapat reset MFA;
 - Admin Super dapat reset MFA user yang punya MFA;
 - reset MFA ditolak bila target belum punya MFA aktif/pending;
@@ -261,38 +356,13 @@ Test awal yang direkomendasikan:
 - user tanpa posisi diarahkan ke halaman no-active-position;
 - user dengan `must_change_password = true` diarahkan ke halaman ganti password.
 
-### 2. Rapikan Status Locked Di Form Akun
-
-Saat ini status `locked` masih tersedia sebagai status akun umum. Ini perlu
-diputuskan ulang karena lock yang proper harus lewat flow keamanan akun agar:
-
-- session target dibatalkan;
-- remember token dirotasi;
-- audit `login_events` tercatat;
-- reason dan lock metadata konsisten.
-
-Rekomendasi:
-
-- hapus opsi `locked` dari form create/update user biasa; atau
-- jika tetap ditampilkan, arahkan perubahan status locked melalui action
-  `LockUserAccount`.
-
-### 3. Migrasi Endpoint Users DataTable Ke Yajra
-
-Package Yajra sudah terpasang, tetapi endpoint users masih manual.
-
-Rekomendasi:
-
-- pindahkan `UserController@datatable` ke Yajra DataTables bila query dan
-  payload sudah stabil;
-- pertahankan scope PA/KPA melalui `UserManagementAccessService`;
-- pastikan search dan count tetap efisien;
-- hindari HTML berat di controller bila nanti ingin response lebih bersih.
-
-### 4. Tambahkan Test Minimal Untuk Posisi Dan Izin Tahun
+### 2. Tambahkan Test Minimal Untuk Posisi Dan Izin Tahun
 
 Skenario prioritas:
 
+- user baru tanpa posisi dapat diberi posisi pertama oleh aktor yang berwenang;
+- audit create posisi pertama menyimpan `is_initial_position = true`;
+- audit create posisi tambahan menyimpan `is_initial_position = false`;
 - user dapat punya dua posisi aktif;
 - switch posisi tidak menonaktifkan posisi lain;
 - PA/KPA hanya bisa membuat posisi dalam scope;
@@ -300,7 +370,7 @@ Skenario prioritas:
 - grant izin historis wajib metadata dasar;
 - revoke izin historis membuat akses tulis tidak berlaku.
 
-### 5. Review Upload SK
+### 3. Review Upload SK
 
 Karena keputusan saat ini hanya upload, review minimal yang tetap penting:
 
@@ -310,56 +380,60 @@ Karena keputusan saat ini hanya upload, review minimal yang tetap penting:
 - `php artisan storage:link` atau strategi private download;
 - kebijakan replace dokumen lama dan versi dokumen.
 
-### 6. Konsolidasi Dokumentasi MFA
+### 4. Konsolidasi SOP Keamanan Akun
 
-Dokumen lama masih banyak berangkat dari fase command-only reset MFA. Setelah
-UI Management Users stabil, pastikan semua dokumen MFA menyebut dua jalur resmi:
+Keputusan teknis sudah jelas:
 
-- Management Users untuk Admin Super;
-- command `auth:mfa-reset` untuk operator/server.
+- lock/unlock akun dari Management Users adalah Admin Super only;
+- reset MFA dari Management Users adalah Admin Super only;
+- PA/KPA tidak boleh menjalankan lock/unlock atau reset MFA user lain;
+- command `auth:mfa-reset` tetap jalur operator/server sesuai SOP environment.
 
-### 7. Pertimbangkan Dedicated Audit Table Nanti
+Tahap berikutnya adalah menyamakan SOP operasional, approval internal, dan
+kalimat bantuan UI agar tidak ada admin umum yang memakai jalur reset di luar
+desain.
 
-Dedicated table seperti `user_management_audit_events` tidak perlu dibuat pada
-tahap sekarang.
+### 5. Retention Audit Management Users
 
-Buat hanya jika muncul kebutuhan:
+Audit `blocked` penting sudah mulai dicatat. Retention belum dibuat sebagai job
+purge otomatis.
 
-- laporan audit formal;
-- investigasi perubahan data lintas admin;
-- compliance/inspektorat;
-- histori detail perubahan posisi dan dokumen.
+Rancangan retention yang direkomendasikan:
+
+- simpan audit Management Users minimal 5 tahun;
+- simpan event keamanan kritis 7 tahun bila dibutuhkan kebijakan organisasi;
+- event kritis mencakup lock/unlock, force change password, reset MFA,
+  delete user, delete/nonaktif posisi, dan grant/revoke izin historis;
+- jangan membuat auto purge sebelum ada SOP arsip, backup, dan approval
+  administrasi;
+- gunakan kolom `retention_until` untuk menandai tanggal retensi, bukan langsung
+  menghapus data.
 
 ## Issue Yang Perlu Dibahas Kedepannya
 
-1. Apakah PA/KPA boleh lock/unlock akun dalam scope mereka, atau hanya Admin
-   Super?
-2. Apakah reset MFA harus tetap Admin Super only, atau ada workflow approval
-   untuk operator tertentu?
-3. Apakah status `locked` perlu dihapus dari form akun umum?
-4. Apakah non-Admin Super nanti wajib MFA global?
-5. Apakah dokumen SK cukup upload saja atau perlu verifikasi dokumen?
-6. Apakah file SK harus public disk atau private download terotorisasi?
-7. Apakah DataTables users perlu segera dimigrasikan ke Yajra atau tunggu
-   setelah test authorization selesai?
-8. Apakah user dengan posisi campuran lintas scope boleh diedit profil globalnya
+1. Apakah non-Admin Super nanti wajib MFA global?
+2. Apakah dokumen SK cukup upload saja atau perlu verifikasi dokumen?
+3. Apakah file SK harus public disk atau private download terotorisasi?
+4. Apakah user dengan posisi campuran lintas scope boleh diedit profil globalnya
    oleh PA/KPA? Implementasi saat ini cenderung menolak bila tidak semua posisi
    user berada dalam scope actor.
-9. Apakah dedicated audit table perlu dibuat sebelum produksi atau cukup
-   `login_events`, actor columns, reason fields, dan `module_users` log?
-10. Apakah perlu halaman riwayat keamanan/user activity di modal Management
-    Users, atau cukup audit di database/log untuk admin teknis?
+5. Apakah retention audit Management Users memakai 5 tahun atau 7 tahun untuk
+   semua event kritis?
+6. Apakah perlu halaman riwayat keamanan/user activity di modal Management
+   Users, atau cukup audit di database/log untuk admin teknis?
 
 ## Hal Yang Jangan Diubah Tanpa Diskusi
 
 - Jangan membuat posisi awal otomatis saat create user.
+- Jangan bypass `canAttachPositionToUser()` ketika membuat posisi pertama user
+  baru.
 - Jangan menganggap hanya satu posisi yang boleh aktif.
 - Jangan memakai `users.tahun_aktif` sebagai bukti authorization tahun.
+- Jangan memberi lock/unlock akun kepada PA/KPA tanpa decision baru.
 - Jangan memberi reset MFA kepada PA/KPA tanpa decision baru.
 - Jangan menjadikan remember-me sebagai pengganti MFA.
 - Jangan menyimpan secret, password, token, atau recovery code mentah di log.
-- Jangan membuat dedicated audit table hanya karena terlihat rapi; tunggu
-  kebutuhan nyata.
+- Jangan menyimpan isi file SK di audit/log.
 
 ## Related Docs
 

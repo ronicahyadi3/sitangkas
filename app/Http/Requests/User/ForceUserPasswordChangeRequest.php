@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\User;
 
+use App\Models\UserManagementAuditEvent;
 use App\Services\User\ActivePositionService;
 use App\Services\User\UserManagementAccessService;
 
@@ -11,7 +12,11 @@ class ForceUserPasswordChangeRequest extends UserSecurityRequest
         UserManagementAccessService $userManagementAccessService,
         ActivePositionService $activePositionService
     ): bool {
-        return $this->authorizeManagedTargetUser($userManagementAccessService, $activePositionService);
+        return $this->authorizeManagedTargetUser(
+            $userManagementAccessService,
+            $activePositionService,
+            UserManagementAuditEvent::EVENT_SECURITY_FORCE_PASSWORD_CHANGE
+        );
     }
 
     /**

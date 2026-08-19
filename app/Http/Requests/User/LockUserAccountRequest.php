@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\User;
 
+use App\Models\UserManagementAuditEvent;
 use App\Services\User\ActivePositionService;
 use App\Services\User\UserManagementAccessService;
 use Illuminate\Support\Carbon;
@@ -12,7 +13,11 @@ class LockUserAccountRequest extends UserSecurityRequest
         UserManagementAccessService $userManagementAccessService,
         ActivePositionService $activePositionService
     ): bool {
-        return $this->authorizeManagedTargetUser($userManagementAccessService, $activePositionService);
+        return $this->authorizeFullAdminTargetUser(
+            $userManagementAccessService,
+            $activePositionService,
+            UserManagementAuditEvent::EVENT_SECURITY_LOCK
+        );
     }
 
     /**

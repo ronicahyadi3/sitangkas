@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Models\Concerns\TracksUserAudit;
 use App\Models\Realtime\RealtimeMessage;
 use App\Models\Realtime\UserPresenceSession;
+use App\Support\EncryptedId;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -141,6 +142,32 @@ class User extends Authenticatable
     public function actedManagementAuditEvents(): HasMany
     {
         return $this->hasMany(UserManagementAuditEvent::class, 'actor_user_id');
+    }
+
+    public function getRouteKey()
+    {
+        return EncryptedId::encode($this->getKey());
+    }
+
+    public function resolveRouteBinding($value, $field = null)
+    {
+        if ($field !== null && $field !== $this->getKeyName()) {
+            return parent::resolveRouteBinding($value, $field);
+        }
+
+        if (ctype_digit(trim((string) $value))) {
+            return null;
+        }
+
+        $id = EncryptedId::tryDecode($value);
+
+        if ($id === null) {
+            return null;
+        }
+
+        return $this->newQuery()
+            ->whereKey($id)
+            ->firstOrFail();
     }
 
     public function activeUserPositions(): HasMany

@@ -19,8 +19,9 @@ Cluster ini menjelaskan izin modifikasi data tahun historis dan event auditnya.
 - Target tahun historis butuh permission aktif dan belum kedaluwarsa.
 - Target tahun mendatang tidak otomatis boleh.
 - Semua grant, use, deny, revoke, expire, reject, dan cancel harus memiliki jejak audit.
-- Modal Management Users untuk grant izin historis sudah membawa metadata
+- Modal Management Users untuk grant izin historis sudah membawa `reason`,
   `reference_number`, `reference_date`, `valid_until`, dan `grant_notes`.
+- Revoke izin historis dari Management Users wajib membawa alasan pencabutan.
 
 ## Pakai cluster lain bila
 

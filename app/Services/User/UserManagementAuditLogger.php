@@ -52,6 +52,19 @@ class UserManagementAuditLogger
     }
 
     /**
+     * @param  array<string, mixed>  $attributes
+     */
+    public function blocked(string $eventType, array $attributes = [], ?Request $request = null): ?UserManagementAuditEvent
+    {
+        return $this->record([
+            ...$attributes,
+            'event_type' => $eventType,
+            'result' => UserManagementAuditEvent::RESULT_BLOCKED,
+            'http_status' => $attributes['http_status'] ?? 403,
+        ], $request);
+    }
+
+    /**
      * Menulis audit secara fail-safe. Gunakan recordOrFail() jika caller perlu
      * menjadikan kegagalan audit sebagai kegagalan aksi utama.
      *

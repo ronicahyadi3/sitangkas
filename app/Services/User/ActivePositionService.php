@@ -23,6 +23,20 @@ class ActivePositionService
         return $this->currentUserContext->realActivePosition($this->request);
     }
 
+    public function managementActor(): ?UserPosition
+    {
+        $realActivePosition = $this->real();
+
+        if (
+            $realActivePosition instanceof UserPosition
+            && $this->currentUserContext->isAdminSuperPosition($realActivePosition)
+        ) {
+            return $realActivePosition;
+        }
+
+        return $this->get();
+    }
+
     public function selectedYear(): int
     {
         return $this->currentUserContext->activeYear($this->request)

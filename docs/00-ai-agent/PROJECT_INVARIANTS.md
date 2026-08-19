@@ -7,6 +7,10 @@ Ini ringkasan aturan yang tidak boleh dilanggar lintas domain.
 - `users` menyimpan state akun saat ini, bukan histori lengkap.
 - Histori autentikasi ditulis ke `login_events`.
 - `login_events` bersifat append-only: tidak ada update/delete alur normal.
+- Route Management Users untuk parameter `{user}` dan nested `{position}`
+  memakai encrypted route key; numeric route param polos tidak boleh diterima.
+- Encrypted route key hanya obfuscation URL. Authorization dan scope tetap wajib
+  dicek pada setiap aksi.
 - Enrichment `login_events` mengikuti
   `../01-authentication/LOGIN_EVENTS_ENRICHMENT_POLICY.md`; `null` pada kolom
   device, GeoIP, ASN, VPN/proxy/Tor, risk, timezone, fingerprint, integrity,
@@ -30,6 +34,10 @@ Ini ringkasan aturan yang tidak boleh dilanggar lintas domain.
 - Satu user boleh memiliki banyak posisi aktif.
 - Kombinasi `user_id`, `jabatan_id`, `instansi_id`, `unit_kerja_id` harus unik.
 - Dokumen SK disimpan di `user_position_documents`, bukan di `user_positions`.
+- Flow Management Users membuat akun terlebih dahulu, lalu menambahkan posisi.
+  Jangan membuat posisi awal otomatis tanpa decision baru.
+- Posisi pertama user baru dari Management Users harus lewat
+  `UserManagementAccessService::canAttachPositionToUser()`.
 
 ## Login context dan Admin Super
 
@@ -50,6 +58,9 @@ Ini ringkasan aturan yang tidak boleh dilanggar lintas domain.
 - Saat real active position berubah dari atau ke Admin Super, acting context harus dibersihkan sesuai `../01-authentication/AUTH_CONTEXT_DECISIONS.md`.
 - Secret TOTP, kode OTP, recovery code mentah, QR provisioning URI, dan payload
   MFA mentah tidak boleh disimpan di audit/log.
+- Lock/unlock akun dari Management Users adalah Admin Super only.
+- Reset MFA dari Management Users adalah Admin Super only; PA/KPA tidak boleh
+  reset MFA user lain.
 - Remember-me default 24 jam dan harus configurable; sumber policy adalah
   `config('auth.remember_me.duration_minutes')`, guard `web.remember`, dan
   `users.remember_token_expires_at`.

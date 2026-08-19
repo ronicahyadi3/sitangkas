@@ -177,15 +177,16 @@ Nilai awal yang direkomendasikan:
 - `login`;
 - `logout`;
 - `lockout`;
-- `unlock`;
+- `account_locked`;
+- `account_unlocked`;
+- `password_change_forced`;
+- `context_switched`;
 - `session_timeout`;
 - `session_revoked`;
 - `mfa_challenge`;
 - `mfa_recovery_codes_regenerated`;
 - `mfa_reset`;
-- `mfa_verified`;
-- `impersonation_started`;
-- `impersonation_ended`.
+- `mfa_verified`.
 
 #### `result`
 
@@ -308,9 +309,12 @@ Catatan MFA TOTP:
 - `mfa_recovery_codes_regenerated` dipakai saat user yang sudah MFA verified via
   TOTP membuat recovery codes baru. Event ini tidak boleh menyimpan recovery code
   mentah.
-- `mfa_reset` dipakai saat operator/admin teknis mereset enrollment MFA melalui
-  command Artisan. Event ini harus memakai `source_channel = console` dan tidak
-  boleh menyimpan secret/recovery code mentah.
+- `mfa_reset` dipakai saat Admin Super mereset enrollment MFA melalui
+  Management Users atau operator/admin teknis mereset melalui command Artisan.
+  Event ini tidak boleh menyimpan secret/recovery code mentah.
+- `account_locked`, `account_unlocked`, dan `password_change_forced` dipakai
+  oleh flow keamanan akun Management Users. Detail administrasi juga dicatat ke
+  `user_management_audit_events`.
 
 ---
 
@@ -737,7 +741,10 @@ Jangan menambahkan index ke setiap kolom boolean atau metadata tanpa bukti pola 
 | MFA salah | `mfa_verified` | `failed` | `mfa_failed` |
 | MFA berhasil | `mfa_verified` | `success` | null |
 | Recovery codes dibuat ulang | `mfa_recovery_codes_regenerated` | `success` | null |
-| Reset MFA via Artisan | `mfa_reset` | `success` | null |
+| Force change password dari Management Users | `password_change_forced` | `success` | null |
+| Lock akun dari Management Users | `account_locked` | `success` | null |
+| Unlock akun dari Management Users | `account_unlocked` | `success` | null |
+| Reset MFA via Management Users atau Artisan | `mfa_reset` | `success` | null |
 
 ---
 

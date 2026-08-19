@@ -85,7 +85,6 @@ class UserStoreRequest extends FormRequest
             User::STATUS_PENDING,
             User::STATUS_ACTIVE,
             User::STATUS_INACTIVE,
-            User::STATUS_LOCKED,
             User::STATUS_SUSPENDED,
         ];
     }

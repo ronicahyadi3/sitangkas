@@ -452,6 +452,18 @@ status, account_type, deleted_at
 
 Digunakan untuk daftar akun berdasarkan status dan tipe, terutama akun yang belum dihapus.
 
+#### `ix_users_account_type_deleted`
+
+Kolom:
+
+```text
+account_type, deleted_at
+```
+
+Ditambahkan untuk filter Management Users server-side, terutama ketika tabel
+users ditampilkan melalui Yajra DataTables dan daftar akun perlu difilter
+berdasarkan tipe akun tanpa membaca row soft-deleted.
+
 #### `ix_users_lock_status`
 
 Kolom:

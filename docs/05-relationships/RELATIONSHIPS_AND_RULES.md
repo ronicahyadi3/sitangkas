@@ -82,6 +82,11 @@ Saat membuat/mengubah/menghapus master:
 - catat perubahan penting ke audit log terpisah;
 - jangan menyimpan password, token, cookie, atau credential dalam catatan/deskripsi.
 
+Untuk Management Users, audit log terpisah yang aktif adalah
+`user_management_audit_events`. Aksi keamanan akun seperti force password
+change, lock/unlock, dan reset MFA tetap juga mencatat event keamanan ke
+`login_events`.
+
 ## Aturan cache
 
 Master ini cocok di-cache karena relatif jarang berubah. Cache wajib di-invalidasi setelah create, update, activate/deactivate, restore, atau soft delete.

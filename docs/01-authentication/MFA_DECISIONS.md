@@ -224,6 +224,7 @@ Event yang digunakan:
   recovery codes baru;
 - `mfa_reset` saat Admin Super mereset MFA melalui Management Users atau saat
   operator/admin teknis mereset MFA via command Artisan.
+- PA/KPA tidak boleh reset MFA user lain dari Management Users.
 
 Field penting:
 
@@ -485,6 +486,7 @@ Kondisi runtime saat ini:
    verified via TOTP.
 7. Reset MFA resmi sudah tersedia melalui Management Users untuk Admin Super
    dan command operator `php artisan auth:mfa-reset`.
+   PA/KPA tidak boleh reset MFA user lain.
 8. Tombol `Aktifkan MFA` atau `Lanjutkan Setup MFA` untuk user non-Admin Super
    yang belum enroll sudah tersedia di `/profile/security`.
 9. Response yang menampilkan raw recovery codes setelah setup pertama atau

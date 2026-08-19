@@ -44,6 +44,16 @@ Urutan konseptual yang aman:
 9. `user_position_documents`
 10. `user_position_year_permissions`
 11. `user_position_year_permission_events`
+12. `user_management_audit_events`
+13. index pendukung Management Users:
+    `2026_08_18_044639_add_management_user_filter_indexes.php`
+
+Catatan Management Users:
+
+- `2026_08_12_025830_create_user_management_audit_events_table.php` membuat
+  audit administrasi user/posisi/security.
+- `2026_08_18_044639_add_management_user_filter_indexes.php` menambah index
+  filter pada `users` dan `user_positions` untuk endpoint Yajra DataTables.
 
 ## Keputusan yang harus dibuat sebelum migrate
 

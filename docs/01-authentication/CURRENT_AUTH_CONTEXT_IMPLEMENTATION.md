@@ -1,6 +1,6 @@
 # Current Auth Context Implementation
 
-Last updated: 2026-08-11.
+Last updated: 2026-08-18.
 
 Dokumen ini menjelaskan kondisi implementasi login context SITANGKAS saat ini.
 AI agent harus membaca file ini setelah `AUTH_CONTEXT_DECISIONS.md` sebelum
@@ -66,6 +66,14 @@ Route penting:
   `user.management`;
 - route keamanan akun Management Users mencakup force password change,
   lock/unlock, dan reset MFA browser untuk Admin Super;
+- route parameter Management Users `{user}` dan nested `{position}` memakai
+  encrypted route key dari model binding `User` dan `UserPosition`; numeric ID
+  polos ditolak oleh binding;
+- endpoint `users.datatable` memakai server-side Yajra DataTables, filter
+  `status`, `account_type`, `jabatan_id`, `instansi_id`, `unit_kerja_id`, dan
+  `position_state`, serta presenter `UserDatatablePresenter`;
+- route `users.audit-trail` menampilkan audit administrasi dari tabel
+  `user_management_audit_events`;
 - `login.post`, `login.post.store`, dan `login.post.options.*` memakai
   middleware `mfa.verified`.
 
@@ -105,6 +113,8 @@ Controllers:
 - `app/Http/Controllers/DashboardController.php`;
 - `app/Http/Controllers/Profile/SecurityController.php`;
 - `app/Http/Controllers/Profile/MfaRecoveryCodeController.php`;
+- `app/Http/Controllers/Users/UserController.php`;
+- `app/Http/Controllers/Users/UserPositionController.php`;
 - `app/Http/Controllers/Users/UserSecurityController.php`.
 
 Requests:
@@ -130,6 +140,9 @@ Services and middleware:
 - `app/Services/Auth/UserAgentContext.php`;
 - `app/Services/Auth/ClientSignalContext.php`;
 - `app/Services/Auth/RememberMePolicy.php`;
+- `app/Services/User/UserManagementAccessService.php`;
+- `app/Services/User/UserManagementAuditLogger.php`;
+- `app/Support/UserManagement/UserDatatablePresenter.php`;
 - `app/Http/Middleware/EnsureActiveUserPosition.php`;
 - `app/Http/Middleware/EnsureMfaVerified.php`;
 - `app/Http/Middleware/EnsureAccountIsAccessible.php`;
@@ -148,7 +161,9 @@ Views:
 - `resources/views/layouts/app.blade.php`;
 - `resources/views/inc/navbar.blade.php`;
 - `resources/views/inc/sidebar.blade.php`;
-- `resources/views/dashboard/index.blade.php`.
+- `resources/views/dashboard/index.blade.php`;
+- `resources/views/users/index.blade.php`;
+- `resources/views/users/audit-trail.blade.php`.
 
 ## Login Events Enrichment Saat Ini
 

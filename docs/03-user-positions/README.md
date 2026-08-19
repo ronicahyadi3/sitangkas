@@ -25,9 +25,21 @@ Cluster ini menjelaskan posisi pengguna, dokumen SK, dan aturan pemilihan posisi
   `CurrentUserContext::activePosition()->id`.
 - Dokumen SK berada di `user_position_documents`.
 - Perubahan dokumen utama harus dikelola dalam transaksi.
+- Route binding Management Users untuk `UserPosition` memakai encrypted route
+  key. URL numeric polos untuk parameter `{position}` tidak boleh diterima.
 - Halaman Management Users membuat akun terlebih dahulu, lalu menambahkan
   posisi melalui modal posisi. Jangan membuat posisi awal otomatis saat create
   user tanpa decision baru.
+- Posisi pertama user baru boleh dibuat oleh Admin Super, PA, atau KPA hanya
+  jika posisi yang akan dibuat berada dalam scope kewenangan aktor. Gunakan
+  `UserManagementAccessService::canAttachPositionToUser()` untuk flow create
+  posisi dari Management Users.
+- Audit create posisi menyimpan metadata `is_initial_position` untuk membedakan
+  posisi pertama dan posisi tambahan.
+- Nonaktifkan posisi dari Management Users wajib memakai modal reason dan
+  mengisi `deactivation_reason`.
+- Dokumen SK pada Management Users saat ini hanya upload dan metadata; belum ada
+  workflow verifikasi dokumen.
 
 ## Pakai cluster lain bila
 

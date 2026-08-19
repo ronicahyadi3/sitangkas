@@ -15,6 +15,9 @@ Cluster ini menjelaskan relasi lintas domain, foreign key, dan aturan integritas
 - Master tidak boleh dihapus fisik jika sudah direferensikan.
 - Composite foreign key `user_positions(unit_kerja_id, instansi_id)` harus menjaga konsistensi unit dan instansi.
 - Audit aktivitas bisnis minimal harus menyimpan konteks user dan posisi.
+- Audit administrasi Management Users berada di
+  `user_management_audit_events` dan menyimpan aktor, target user, target
+  posisi, snapshot before/after, metadata, serta request context.
 
 ## Pakai cluster lain bila
 

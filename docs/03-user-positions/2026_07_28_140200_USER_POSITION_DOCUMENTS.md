@@ -221,6 +221,10 @@ Aturan bisnis yang direkomendasikan:
 
 ## Verification
 
+Catatan implementasi saat ini: Management Users baru memakai upload file SK dan
+metadata dokumen. Workflow verifikasi dokumen di bawah ini adalah desain schema
+dan rekomendasi lanjutan, bukan fitur UI yang sudah aktif.
+
 ### `verification_status`
 
 Status verifikasi dokumen.

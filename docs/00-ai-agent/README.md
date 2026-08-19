@@ -16,6 +16,13 @@ Untuk auth context, urutan baca wajib tambahan:
 2. `../01-authentication/CURRENT_AUTH_CONTEXT_IMPLEMENTATION.md`
 3. `../03-user-positions/AI_AGENT_USER_POSITIONS_CONTEXT.md`
 
+Untuk Management Users, urutan baca wajib tambahan:
+
+1. `../01-authentication/MANAGEMENT_USERS_CURRENT_STATE.md`
+2. `../01-authentication/USERS_TABLE.md`
+3. `../03-user-positions/README.md`
+4. `../04-year-permissions/README.md` bila menyentuh izin tahun historis
+
 Untuk Reverb, WebSocket, online monitoring, realtime notification, atau
 message helper realtime, urutan baca wajib tambahan:
 
@@ -28,6 +35,9 @@ message helper realtime, urutan baca wajib tambahan:
 - Jangan membuka semua docs jika pekerjaan hanya menyentuh satu domain.
 - Jangan menyimpulkan migration siap hanya dari sintaks PHP.
 - Jangan memakai numeric `id` sebagai business rule ketika docs meminta `kode`.
+- Jangan mengembalikan route Management Users ke numeric `{user}` atau
+  `{position}`; binding publik memakai encrypted route key, tetapi authorization
+  tetap wajib dicek.
 - Jangan membuat state session sebagai kolom master.
 - Jangan menghapus histori audit untuk membuat implementasi lebih mudah.
 - Jangan membuat atau menjalankan test suite/test command tanpa konfirmasi eksplisit dari user terlebih dahulu.

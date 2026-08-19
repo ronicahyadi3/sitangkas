@@ -7,7 +7,7 @@ Gunakan file ini untuk menentukan dokumen mana yang perlu dibaca.
 | Kebutuhan kerja | Baca pertama | Lanjutkan ke |
 |---|---|---|
 | Login, logout, lock akun, reset password, session invalidation | `../01-authentication/README.md` | `AI_AGENT_DATABASE_CONTEXT.md`, lalu `USERS_TABLE.md` atau `LOGIN_EVENTS_TABLE.md` sesuai tabel |
-| Management Users, CRUD akun, keamanan akun, reset MFA browser, lock/unlock dari UI | `../01-authentication/README.md` | `MANAGEMENT_USERS_CURRENT_STATE.md`, `USERS_TABLE.md`, `LOGIN_EVENTS_TABLE.md`, lalu `../03-user-positions/README.md` bila menyentuh posisi |
+| Management Users, CRUD akun, encrypted URL user/posisi, DataTables users, keamanan akun, reset MFA browser, lock/unlock dari UI, audit trail | `../01-authentication/README.md` | `MANAGEMENT_USERS_CURRENT_STATE.md`, `USERS_TABLE.md`, `LOGIN_EVENTS_TABLE.md`, lalu `../03-user-positions/README.md` bila menyentuh posisi dan `../04-year-permissions/README.md` bila menyentuh izin tahun historis |
 | Login context, post-login, Admin Super acting context, `auth/postLogin.blade.php` | `../01-authentication/README.md` | `AUTH_CONTEXT_DECISIONS.md`, `CURRENT_AUTH_CONTEXT_IMPLEMENTATION.md`, lalu `../03-user-positions/AI_AGENT_USER_POSITIONS_CONTEXT.md` dan `../02-master-data/AI_AGENT_MASTER_ORGANIZATION_CONTEXT.md` |
 | MFA, Google Authenticator, TOTP, recovery codes, atau step-up authentication | `../01-authentication/README.md` | `MFA_DECISIONS.md`, `AUTH_CONTEXT_DECISIONS.md`, `LOGIN_EVENTS_TABLE.md`, lalu `CURRENT_AUTH_CONTEXT_IMPLEMENTATION.md` |
 | Mengubah tabel `users` | `../01-authentication/README.md` | `USERS_TABLE.md`, lalu `AI_AGENT_DATABASE_CONTEXT.md` |
@@ -40,6 +40,8 @@ Gunakan file ini untuk menentukan dokumen mana yang perlu dibaca.
 | `database/seeders/*Master*`, `*Instansi*`, `*Jabatan*`, `*UnitKerja*` | `../02-master-data/AI_AGENT_MASTER_DATA_SEEDERS.md` |
 | Auth controllers, guards, login actions | `../01-authentication/AI_AGENT_DATABASE_CONTEXT.md`; jika menyentuh `login_events` enrichment baca `../01-authentication/LOGIN_EVENTS_ENRICHMENT_POLICY.md`; jika menyentuh context baca `../01-authentication/AUTH_CONTEXT_DECISIONS.md` dan `../01-authentication/CURRENT_AUTH_CONTEXT_IMPLEMENTATION.md` |
 | MFA controllers, MFA middleware, TOTP setup/challenge | `../01-authentication/MFA_DECISIONS.md`, `../01-authentication/AUTH_CONTEXT_DECISIONS.md`, dan `../01-authentication/LOGIN_EVENTS_TABLE.md` |
+| `app/Http/Controllers/Users/*`, `app/Actions/UserManagement/*`, `app/Actions/UserSecurity/*`, `app/Services/User/*`, `app/Support/UserManagement/*`, `resources/views/users/*` | `../01-authentication/MANAGEMENT_USERS_CURRENT_STATE.md`; tambah `../03-user-positions/README.md` untuk posisi/SK dan `../04-year-permissions/README.md` untuk izin tahun historis |
+| `app/Models/User.php`, `app/Models/UserPosition.php` route binding Management Users | `../01-authentication/MANAGEMENT_USERS_CURRENT_STATE.md` dan `../03-user-positions/README.md` |
 | `resources/views/auth/postLogin.blade.php`, `resources/views/auth/context.blade.php` | `../01-authentication/AUTH_CONTEXT_DECISIONS.md` dan `../01-authentication/CURRENT_AUTH_CONTEXT_IMPLEMENTATION.md` |
 | `app/Services/Auth/CurrentUserContext.php` | `../01-authentication/AUTH_CONTEXT_DECISIONS.md`, `../01-authentication/CURRENT_AUTH_CONTEXT_IMPLEMENTATION.md`, dan `../03-user-positions/AI_AGENT_USER_POSITIONS_CONTEXT.md` |
 | Position selector middleware/controllers | `../03-user-positions/AI_AGENT_USER_POSITIONS_CONTEXT.md` |

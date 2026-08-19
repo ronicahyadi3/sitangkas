@@ -21,7 +21,7 @@ class UserManagementAuditController extends Controller
 
     public function index(Request $request): View
     {
-        $actor = $this->activePositionService->get();
+        $actor = $this->activePositionService->managementActor();
         $filters = $this->filters($request);
 
         $events = UserManagementAuditEvent::query()
@@ -200,6 +200,8 @@ class UserManagementAuditController extends Controller
             UserManagementAuditEvent::EVENT_USER_CREATED => 'User dibuat',
             UserManagementAuditEvent::EVENT_USER_UPDATED => 'User diperbarui',
             UserManagementAuditEvent::EVENT_USER_DELETED => 'User dihapus',
+            UserManagementAuditEvent::EVENT_MODULE_ACCESS => 'Akses module',
+            UserManagementAuditEvent::EVENT_POSITION_VIEWED => 'Posisi dilihat',
             UserManagementAuditEvent::EVENT_POSITION_CREATED => 'Posisi dibuat',
             UserManagementAuditEvent::EVENT_POSITION_UPDATED => 'Posisi diperbarui',
             UserManagementAuditEvent::EVENT_POSITION_ACTIVATED => 'Posisi diaktifkan',
@@ -234,6 +236,8 @@ class UserManagementAuditController extends Controller
         return [
             User::class => 'User',
             UserPosition::class => 'User Position',
+            'management_users' => 'Management Users',
+            'management_users_options' => 'Opsi Management Users',
         ];
     }
 }

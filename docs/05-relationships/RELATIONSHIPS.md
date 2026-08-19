@@ -6,6 +6,7 @@
 users
   │
   ├── created/updated/deleted_by pada master
+  ├── actor/target pada user_management_audit_events
   │
   └── user_positions
         ├── jabatan_id ───────────────> jabatans.id
@@ -53,6 +54,12 @@ user_position_id
 ```
 
 Untuk laporan audit jangka panjang, tabel transaksi/audit dapat menyimpan snapshot kode/nama jabatan dan unit pada saat aktivitas. Foreign key menunjukkan master saat ini; snapshot menjaga konteks historis bila nama master berubah.
+
+Audit administrasi Management Users memakai `user_management_audit_events`.
+Tabel ini menyimpan aktor user, aktor posisi, target user, target posisi, event
+type/result/resource, reason/message, snapshot `before_state` dan
+`after_state`, metadata, serta request context. Audit keamanan akun tertentu
+tetap juga ditulis ke `login_events` karena berdampak pada autentikasi/session.
 
 ## Urutan penghapusan migration
 

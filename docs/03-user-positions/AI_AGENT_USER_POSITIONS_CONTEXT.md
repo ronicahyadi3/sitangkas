@@ -236,6 +236,11 @@ deactivation_reason = alasan
 
 Gunakan penonaktifan ketika posisi tidak lagi boleh dipilih, tetapi record masih valid sebagai histori administratif.
 
+Pada Management Users, flow nonaktif posisi sudah memakai modal alasan dan
+harus mengisi `deactivation_reason`. Hard delete tetap hanya untuk record salah,
+duplikat, atau penghapusan administratif yang memang harus disembunyikan dari
+operasi normal.
+
 ### Soft delete
 
 Gunakan `deleted_at` hanya untuk record yang salah, duplikat, atau tidak seharusnya ada.
@@ -269,6 +274,10 @@ File wajib disimpan pada storage privat. Database hanya menyimpan path dan metad
 Jangan menyimpan URL publik permanen pada `file_path`.
 
 Untuk akses pengguna, buat temporary signed URL atau streaming melalui controller yang memiliki authorization check.
+
+State Management Users saat ini hanya upload file SK dan metadata
+`document_type`, `document_number`, `document_date`, serta `issued_by`. Workflow
+verifikasi dokumen belum dibuat dan tidak boleh diasumsikan tersedia.
 
 ---
 

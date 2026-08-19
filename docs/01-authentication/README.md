@@ -50,6 +50,11 @@ Cluster ini menjelaskan akun, autentikasi, dan audit login.
   `MFA_RESET_COMMAND_RUNBOOK.md`.
 - Management Users mengikuti snapshot implementasi
   `MANAGEMENT_USERS_CURRENT_STATE.md`.
+- Management Users memakai encrypted route binding untuk `User` dan
+  `UserPosition`; URL numeric polos untuk `{user}` atau `{position}` harus
+  ditolak sebelum masuk aksi controller.
+- Endpoint users DataTable memakai server-side Yajra dengan filter penting dan
+  presenter payload agar controller tetap fokus pada query dan authorization.
 - `CurrentUserContext::realActivePosition()` adalah posisi asli dari `user_positions`.
 - `CurrentUserContext::activePosition()` adalah effective context untuk modul,
   dashboard, navbar, dan sidebar.

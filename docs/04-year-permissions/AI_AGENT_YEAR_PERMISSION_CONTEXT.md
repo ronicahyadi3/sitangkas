@@ -145,7 +145,9 @@ Ketika izin diberikan:
 3. Isi `status = active`.
 4. Isi `granted_by_user_id`, `granted_by_position_id`, dan `granted_at`.
 5. Isi `valid_from` dan `valid_until` sesuai keputusan.
-6. Simpan event `granted` dalam transaksi database yang sama.
+6. Isi dasar administratif dari Management Users jika tersedia: `reason`,
+   `reference_number`, `reference_date`, dan `grant_notes`.
+7. Simpan event `granted` dalam transaksi database yang sama.
 
 ## 9. Alur penggunaan izin
 
@@ -200,11 +202,17 @@ Gunakan:
 
 - `reason` untuk uraian alasan;
 - `reference_number` untuk nomor surat, nota dinas, disposisi, tiket, atau dasar resmi lain;
-- `reference_date` untuk tanggal dokumen referensi.
+- `reference_date` untuk tanggal dokumen referensi;
+- `valid_until` untuk batas waktu permission jika akses historis tidak
+  diberikan permanen;
+- `grant_notes` untuk catatan tambahan non-rahasia.
 
 Keduanya nullable pada database, tetapi aplikasi dapat mewajibkannya sesuai kebijakan organisasi.
 
 Jika `reference_number` diisi, `reference_date` sebaiknya diwajibkan, dan sebaliknya.
+
+Management Users saat ini sudah menyediakan field tersebut pada modal grant.
+Modal revoke wajib mengirim `revocation_reason`.
 
 ## 14. Data yang tidak boleh disimpan
 

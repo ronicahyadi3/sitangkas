@@ -7,6 +7,8 @@
 
     $sidebarRouteMeta = $sidebarWorkspaceConfig['route_meta'] ?? [];
     $sidebarGroupMeta = $sidebarWorkspaceConfig['group_meta'] ?? [];
+    $sidebarUserManagementAccess = app(\App\Services\User\UserManagementAccessService::class);
+    $sidebarManagementActor = app(\App\Services\User\ActivePositionService::class)->managementActor();
     $sidebarRoleMeta = $sidebarWorkspaceConfig['roles'][$sidebarRoleId] ?? [
         'label' => $sidebarActor?->jabatan?->nama,
         'workspace_routes' => [],
@@ -15,8 +17,18 @@
 
     $sidebarWorkspaceRoutes = collect($sidebarRoleMeta['workspace_routes'] ?? []);
 
-    if (in_array($sidebarRoleId, [1, 2, 3], true) && \Illuminate\Support\Facades\Route::has('users.index')) {
-        $sidebarWorkspaceRoutes->prepend('users.index');
+    if (\Illuminate\Support\Facades\Route::has('positions.index')) {
+        $sidebarWorkspaceRoutes->push('positions.index');
+    }
+
+    if ($sidebarUserManagementAccess->canAccessModule($sidebarManagementActor)) {
+        if (\Illuminate\Support\Facades\Route::has('users.index')) {
+            $sidebarWorkspaceRoutes->push('users.index');
+        }
+
+        if (\Illuminate\Support\Facades\Route::has('users.audit-trail')) {
+            $sidebarWorkspaceRoutes->push('users.audit-trail');
+        }
     }
 
     $sidebarWorkspaceRoutes = $sidebarWorkspaceRoutes
@@ -59,11 +71,14 @@
         'tu' => 'text-warning',
         'kkpd' => 'text-purple',
         'up' => 'text-warning',
+        'administration' => 'text-danger',
     ];
 
     $sidebarRouteIcons = [
         'dashboard.anggaran.index' => 'fa-solid fa-chart-line text-success',
         'users.index' => 'fa-solid fa-users-gear text-danger',
+        'users.audit-trail' => 'fa-solid fa-clock-rotate-left text-warning',
+        'positions.index' => 'fa-solid fa-id-badge text-primary',
         'bank.sp2d.index' => 'fa-solid fa-file-invoice-dollar text-secondary',
         'kkpd.spp.index' => 'fa-solid fa-file-invoice-dollar text-secondary',
         'kkpd.lpj.index' => 'fa-solid fa-file-waveform text-secondary',
@@ -143,13 +158,11 @@
                 </li>
             @endif
 
-                            <li class="nav-item mt-3">
+            @if ($sidebarPagesRoutes->isNotEmpty())
+                <li class="nav-item mt-3">
                     <hr class="horizontal dark mt-0 mb-2">
                     <h6 class="ps-3 ms-2 text-uppercase text-xs font-weight-bolder opacity-6">Pages</h6>
                 </li>
-
-            @if ($sidebarPagesRoutes->isNotEmpty())
-
 
                 @foreach ($sidebarPagesRoutes as $routeName)
                     @php

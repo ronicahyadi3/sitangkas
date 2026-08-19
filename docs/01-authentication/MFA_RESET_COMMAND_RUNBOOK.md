@@ -3,6 +3,10 @@
 Dokumen ini adalah panduan operator/admin teknis untuk mereset MFA user
 SITANGKAS melalui Artisan.
 
+Catatan state saat ini: reset MFA dari browser sudah tersedia melalui
+Management Users khusus Admin Super. Command ini tetap dipertahankan sebagai
+jalur operator/server, fallback teknis, dan SOP production.
+
 AI agent wajib membaca dokumen ini sebelum menjalankan, mengubah, atau
 merekomendasikan penggunaan command reset MFA.
 

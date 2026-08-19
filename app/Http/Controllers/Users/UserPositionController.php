@@ -14,11 +14,13 @@ use App\Http\Requests\User\UserPositionDeactivateRequest;
 use App\Http\Requests\User\UserPositionStoreRequest;
 use App\Models\Jabatan;
 use App\Models\User;
+use App\Models\UserManagementAuditEvent;
 use App\Models\UserPosition;
 use App\Models\UserPositionDocument;
 use App\Models\UserPositionYearPermission;
 use App\Services\User\ActivePositionService;
 use App\Services\User\UserManagementAccessService;
+use App\Services\User\UserManagementAuditLogger;
 use App\Services\User\YearAccessService;
 use App\Support\EncryptedId;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -33,7 +35,8 @@ class UserPositionController extends Controller
 {
     public function __construct(
         protected ActivePositionService $activePositionService,
-        protected UserManagementAccessService $userManagementAccessService
+        protected UserManagementAccessService $userManagementAccessService,
+        protected UserManagementAuditLogger $userManagementAuditLogger
     ) {}
 
     // JSON daftar posisi user (untuk di-load di modal)
@@ -43,13 +46,17 @@ class UserPositionController extends Controller
         ActivePositionService $activePositionService,
         YearAccessService $yearAccessService
     ) {
-        $viewer = $activePositionService->get();
+        $viewer = $activePositionService->managementActor();
 
         if (! $this->userManagementAccessService->canViewUser($user, $viewer)) {
-            return response()->json([
-                'ok' => false,
-                'message' => 'User ini tidak termasuk scope pengelolaan jabatan aktif Anda.',
-            ], 403);
+            return $this->positionDeniedResponse(
+                $request,
+                $user,
+                null,
+                UserManagementAuditEvent::EVENT_POSITION_VIEWED,
+                'User ini tidak termasuk scope pengelolaan jabatan aktif Anda.',
+                'unauthorized_scope'
+            );
         }
 
         $selectedYear = $this->resolveManagedYear($request, $viewer, $yearAccessService);
@@ -107,9 +114,19 @@ class UserPositionController extends Controller
         ActivePositionService $activePositionService,
         YearAccessService $yearAccessService
     ) {
-        $viewer = $activePositionService->get();
+        $viewer = $activePositionService->managementActor();
 
         if ($position->user_id !== $user->id) {
+            $this->logBlockedPosition(
+                UserManagementAuditEvent::EVENT_POSITION_VIEWED,
+                $request,
+                $user,
+                $position,
+                'ownership_mismatch',
+                'Posisi tidak dimiliki oleh user pada URL.',
+                404
+            );
+
             abort(404);
         }
 
@@ -117,10 +134,14 @@ class UserPositionController extends Controller
             ! $this->userManagementAccessService->canViewUser($user, $viewer) ||
             ! $this->userManagementAccessService->canManagePosition($position, $viewer)
         ) {
-            return response()->json([
-                'ok' => false,
-                'message' => 'Posisi ini tidak termasuk scope pengelolaan jabatan aktif Anda.',
-            ], 403);
+            return $this->positionDeniedResponse(
+                $request,
+                $user,
+                $position,
+                UserManagementAuditEvent::EVENT_POSITION_VIEWED,
+                'Posisi ini tidak termasuk scope pengelolaan jabatan aktif Anda.',
+                'unauthorized_scope'
+            );
         }
 
         $position->loadMissing(['deactivatedBy:id,nama', 'jabatan', 'instansi', 'unitKerja', 'user', 'primaryDocument']);
@@ -152,7 +173,7 @@ class UserPositionController extends Controller
 
     public function store(UserPositionStoreRequest $request, User $user, CreateManagedUserPosition $createManagedUserPosition)
     {
-        $actor = $this->activePositionService->get();
+        $actor = $this->activePositionService->managementActor();
         $data = $request->validated();
 
         if (! $this->userManagementAccessService->canAttachPositionToUser(
@@ -162,10 +183,19 @@ class UserPositionController extends Controller
             isset($data['instansi_id']) ? (int) $data['instansi_id'] : null,
             isset($data['unit_kerja_id']) ? (int) $data['unit_kerja_id'] : null
         )) {
-            return response()->json([
-                'ok' => false,
-                'message' => 'Posisi yang dipilih tidak termasuk kewenangan jabatan aktif Anda.',
-            ], 403);
+            return $this->positionDeniedResponse(
+                $request,
+                $user,
+                null,
+                UserManagementAuditEvent::EVENT_POSITION_CREATED,
+                'Posisi yang dipilih tidak termasuk kewenangan jabatan aktif Anda.',
+                'unauthorized_scope',
+                [
+                    'requested_jabatan_id' => isset($data['jabatan_id']) ? (int) $data['jabatan_id'] : null,
+                    'requested_instansi_id' => isset($data['instansi_id']) ? (int) $data['instansi_id'] : null,
+                    'requested_unit_kerja_id' => isset($data['unit_kerja_id']) ? (int) $data['unit_kerja_id'] : null,
+                ]
+            );
         }
 
         try {
@@ -177,6 +207,15 @@ class UserPositionController extends Controller
 
             return back()->with('status', 'Posisi ditambahkan.');
         } catch (AuthorizationException $e) {
+            $this->logBlockedPosition(
+                UserManagementAuditEvent::EVENT_POSITION_CREATED,
+                $request,
+                $user,
+                null,
+                'unauthorized_scope',
+                $e->getMessage()
+            );
+
             return response()->json([
                 'ok' => false,
                 'message' => $e->getMessage(),
@@ -196,9 +235,19 @@ class UserPositionController extends Controller
         UserPosition $position,
         UpdateManagedUserPosition $updateManagedUserPosition
     ) {
-        $actor = $this->activePositionService->get();
+        $actor = $this->activePositionService->managementActor();
 
         if ($position->user_id !== $user->id) {
+            $this->logBlockedPosition(
+                UserManagementAuditEvent::EVENT_POSITION_UPDATED,
+                $request,
+                $user,
+                $position,
+                'ownership_mismatch',
+                'Posisi tidak dimiliki oleh user pada URL.',
+                404
+            );
+
             abort(404);
         }
 
@@ -206,10 +255,14 @@ class UserPositionController extends Controller
             ! $this->userManagementAccessService->canViewUser($user, $actor) ||
             ! $this->userManagementAccessService->canManagePosition($position, $actor)
         ) {
-            return response()->json([
-                'ok' => false,
-                'message' => 'Posisi ini tidak termasuk scope pengelolaan jabatan aktif Anda.',
-            ], 403);
+            return $this->positionDeniedResponse(
+                $request,
+                $user,
+                $position,
+                UserManagementAuditEvent::EVENT_POSITION_UPDATED,
+                'Posisi ini tidak termasuk scope pengelolaan jabatan aktif Anda.',
+                'unauthorized_scope'
+            );
         }
 
         try {
@@ -220,6 +273,15 @@ class UserPositionController extends Controller
                 'message' => 'Posisi berhasil diperbarui.',
             ]);
         } catch (AuthorizationException $e) {
+            $this->logBlockedPosition(
+                UserManagementAuditEvent::EVENT_POSITION_UPDATED,
+                $request,
+                $user,
+                $position,
+                'unauthorized_scope',
+                $e->getMessage()
+            );
+
             return response()->json([
                 'ok' => false,
                 'message' => $e->getMessage(),
@@ -238,9 +300,19 @@ class UserPositionController extends Controller
         UserPosition $position,
         ActivateManagedUserPosition $activateManagedUserPosition
     ) {
-        $actor = $this->activePositionService->get();
+        $actor = $this->activePositionService->managementActor();
 
         if ($position->user_id !== $user->id) {
+            $this->logBlockedPosition(
+                UserManagementAuditEvent::EVENT_POSITION_ACTIVATED,
+                $request,
+                $user,
+                $position,
+                'ownership_mismatch',
+                'Posisi tidak dimiliki oleh user pada URL.',
+                404
+            );
+
             Log::channel('module_users')->warning('User position activate blocked: ownership mismatch', [
                 'actor_id' => auth()->id(),
                 'target_user_id' => $user->id,
@@ -253,10 +325,14 @@ class UserPositionController extends Controller
             ! $this->userManagementAccessService->canViewUser($user, $actor) ||
             ! $this->userManagementAccessService->canManagePosition($position, $actor)
         ) {
-            return response()->json([
-                'ok' => false,
-                'message' => 'Posisi ini tidak termasuk scope pengelolaan jabatan aktif Anda.',
-            ], 403);
+            return $this->positionDeniedResponse(
+                $request,
+                $user,
+                $position,
+                UserManagementAuditEvent::EVENT_POSITION_ACTIVATED,
+                'Posisi ini tidak termasuk scope pengelolaan jabatan aktif Anda.',
+                'unauthorized_scope'
+            );
         }
 
         try {
@@ -282,9 +358,19 @@ class UserPositionController extends Controller
         UserPosition $position,
         DeactivateManagedUserPosition $deactivateManagedUserPosition
     ) {
-        $actor = $this->activePositionService->get();
+        $actor = $this->activePositionService->managementActor();
 
         if ($position->user_id !== $user->id) {
+            $this->logBlockedPosition(
+                UserManagementAuditEvent::EVENT_POSITION_DEACTIVATED,
+                $request,
+                $user,
+                $position,
+                'ownership_mismatch',
+                'Posisi tidak dimiliki oleh user pada URL.',
+                404
+            );
+
             Log::channel('module_users')->warning('User position deactivate blocked: ownership mismatch', [
                 'actor_id' => auth()->id(),
                 'target_user_id' => $user->id,
@@ -297,10 +383,14 @@ class UserPositionController extends Controller
             ! $this->userManagementAccessService->canViewUser($user, $actor) ||
             ! $this->userManagementAccessService->canManagePosition($position, $actor)
         ) {
-            return response()->json([
-                'ok' => false,
-                'message' => 'Posisi ini tidak termasuk scope pengelolaan jabatan aktif Anda.',
-            ], 403);
+            return $this->positionDeniedResponse(
+                $request,
+                $user,
+                $position,
+                UserManagementAuditEvent::EVENT_POSITION_DEACTIVATED,
+                'Posisi ini tidak termasuk scope pengelolaan jabatan aktif Anda.',
+                'unauthorized_scope'
+            );
         }
 
         if (! $position->is_active) {
@@ -331,9 +421,19 @@ class UserPositionController extends Controller
         UserPosition $position,
         DeleteManagedUserPosition $deleteManagedUserPosition
     ) {
-        $actor = $this->activePositionService->get();
+        $actor = $this->activePositionService->managementActor();
 
         if ($position->user_id !== $user->id) {
+            $this->logBlockedPosition(
+                UserManagementAuditEvent::EVENT_POSITION_DELETED,
+                $request,
+                $user,
+                $position,
+                'ownership_mismatch',
+                'Posisi tidak dimiliki oleh user pada URL.',
+                404
+            );
+
             Log::channel('module_users')->warning('User position delete blocked: ownership mismatch', [
                 'actor_id' => auth()->id(),
                 'target_user_id' => $user->id,
@@ -346,10 +446,14 @@ class UserPositionController extends Controller
             ! $this->userManagementAccessService->canViewUser($user, $actor) ||
             ! $this->userManagementAccessService->canManagePosition($position, $actor)
         ) {
-            return response()->json([
-                'ok' => false,
-                'message' => 'Posisi ini tidak termasuk scope pengelolaan jabatan aktif Anda.',
-            ], 403);
+            return $this->positionDeniedResponse(
+                $request,
+                $user,
+                $position,
+                UserManagementAuditEvent::EVENT_POSITION_DELETED,
+                'Posisi ini tidak termasuk scope pengelolaan jabatan aktif Anda.',
+                'unauthorized_scope'
+            );
         }
 
         try {
@@ -377,14 +481,36 @@ class UserPositionController extends Controller
         YearAccessService $yearAccessService,
         GrantHistoricalYearAccess $grantHistoricalYearAccess
     ) {
+        $actor = $activePositionService->managementActor();
+
         if ($position->user_id !== $user->id) {
+            $this->logBlockedPosition(
+                UserManagementAuditEvent::EVENT_YEAR_PERMISSION_GRANTED,
+                $request,
+                $user,
+                $position,
+                'ownership_mismatch',
+                'Posisi tidak dimiliki oleh user pada URL.',
+                404
+            );
+
             abort(404);
         }
 
-        $actor = $activePositionService->get();
         $year = (int) $request->integer('tahun', $yearAccessService->selectedYear());
 
         if (! $this->canManageHistoricalYearAccess($actor)) {
+            $this->logBlockedPosition(
+                UserManagementAuditEvent::EVENT_YEAR_PERMISSION_GRANTED,
+                $request,
+                $user,
+                $position,
+                'admin_super_required',
+                'Grant izin tulis histori ditolak karena membutuhkan Admin Super.',
+                403,
+                ['requested_year' => $year]
+            );
+
             abort(403, 'Hanya Admin Super yang dapat mengatur izin tulis histori.');
         }
 
@@ -420,14 +546,36 @@ class UserPositionController extends Controller
         YearAccessService $yearAccessService,
         RevokeHistoricalYearAccess $revokeHistoricalYearAccess
     ) {
+        $actor = $activePositionService->managementActor();
+
         if ($position->user_id !== $user->id) {
+            $this->logBlockedPosition(
+                UserManagementAuditEvent::EVENT_YEAR_PERMISSION_REVOKED,
+                $request,
+                $user,
+                $position,
+                'ownership_mismatch',
+                'Posisi tidak dimiliki oleh user pada URL.',
+                404
+            );
+
             abort(404);
         }
 
-        $actor = $activePositionService->get();
         $year = (int) $request->integer('tahun', $yearAccessService->selectedYear());
 
         if (! $this->canManageHistoricalYearAccess($actor)) {
+            $this->logBlockedPosition(
+                UserManagementAuditEvent::EVENT_YEAR_PERMISSION_REVOKED,
+                $request,
+                $user,
+                $position,
+                'admin_super_required',
+                'Revoke izin tulis histori ditolak karena membutuhkan Admin Super.',
+                403,
+                ['requested_year' => $year]
+            );
+
             abort(403, 'Hanya Admin Super yang dapat mengatur izin tulis histori.');
         }
 
@@ -487,6 +635,66 @@ class UserPositionController extends Controller
         }
 
         return $requestedYear;
+    }
+
+    /**
+     * @param  array<string, mixed>  $metadata
+     */
+    private function positionDeniedResponse(
+        Request $request,
+        User $user,
+        ?UserPosition $position,
+        string $eventType,
+        string $message,
+        string $reasonCode,
+        array $metadata = []
+    ) {
+        $this->logBlockedPosition($eventType, $request, $user, $position, $reasonCode, $message, 403, $metadata);
+
+        return response()->json([
+            'ok' => false,
+            'message' => $message,
+        ], 403);
+    }
+
+    /**
+     * @param  array<string, mixed>  $metadata
+     */
+    private function logBlockedPosition(
+        string $eventType,
+        Request $request,
+        User $user,
+        ?UserPosition $position,
+        string $reasonCode,
+        string $message,
+        int $httpStatus = 403,
+        array $metadata = []
+    ): void {
+        $actor = $this->activePositionService->managementActor();
+
+        $this->userManagementAuditLogger->blocked($eventType, [
+            'actor_user' => $request->user(),
+            'actor_position' => $actor,
+            'target_user' => $user,
+            'target_position' => $position,
+            'resource_type' => $position instanceof UserPosition ? UserPosition::class : User::class,
+            'resource_id' => $position instanceof UserPosition ? $position->getKey() : $user->getKey(),
+            'before_state' => $position instanceof UserPosition
+                ? $this->userManagementAuditLogger->positionSnapshot($position)
+                : $this->userManagementAuditLogger->userSnapshot($user),
+            'reason_code' => $reasonCode,
+            'reason' => $message,
+            'message' => $message,
+            'http_status' => $httpStatus,
+            'metadata' => [
+                'requested_action' => $eventType,
+                'actor_is_full_admin' => $this->userManagementAccessService->isFullAdmin($actor),
+                'actor_can_view_target_user' => $this->userManagementAccessService->canViewUser($user, $actor),
+                'actor_can_manage_target_position' => $position instanceof UserPosition
+                    && $this->userManagementAccessService->canManagePosition($position, $actor),
+                ...$metadata,
+            ],
+        ], $request);
     }
 
     private function serializePosition(

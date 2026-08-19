@@ -23,6 +23,10 @@ class UserManagementAuditEvent extends Model
 
     public const EVENT_POSITION_UPDATED = 'position.updated';
 
+    public const EVENT_MODULE_ACCESS = 'module.access';
+
+    public const EVENT_POSITION_VIEWED = 'position.viewed';
+
     public const EVENT_SECURITY_FORCE_PASSWORD_CHANGE = 'security.force_password_change';
 
     public const EVENT_SECURITY_LOCK = 'security.lock';

@@ -98,6 +98,12 @@ Penonaktifan sementara sebaiknya memakai `is_active = false`, `deactivated_at`, 
 
 Soft delete hanya dipakai untuk record salah, duplikat, atau penghapusan administratif yang memang harus disembunyikan dari operasi normal.
 
+Flow Management Users saat ini membuat akun terlebih dahulu lalu menambahkan
+posisi melalui modal posisi. Posisi pertama user baru harus lewat
+`UserManagementAccessService::canAttachPositionToUser()` agar PA/KPA bisa
+menempelkan posisi awal hanya pada scope yang mereka kelola. Audit create posisi
+menyimpan metadata `is_initial_position`.
+
 ### Masa berlaku
 
 Posisi dianggap dapat dipakai jika seluruh kondisi terpenuhi:
@@ -186,5 +192,10 @@ Indeks utama disusun mengikuti query aktual:
 - `(unit_kerja_id, jabatan_id, is_active)` untuk daftar pemegang jabatan per unit.
 - `(instansi_id, is_active)` untuk administrasi instansi.
 - `(ended_at, is_active)` untuk proses kedaluwarsa otomatis.
+- `(user_id, jabatan_id, instansi_id, unit_kerja_id, is_active, deleted_at)`
+  untuk filter dan validasi posisi pada Management Users.
+- `(instansi_id, unit_kerja_id, jabatan_id, is_active, deleted_at, user_id)`
+  untuk filter scope Management Users berdasarkan instansi, unit kerja, jabatan,
+  dan status posisi.
 
 Tidak dibuat indeks tunggal tambahan pada semua foreign key karena unique/composite index dan foreign key yang ada sudah memenuhi sebagian besar pola akses. Penambahan indeks baru harus didasarkan pada `EXPLAIN ANALYZE`, bukan perkiraan semata.

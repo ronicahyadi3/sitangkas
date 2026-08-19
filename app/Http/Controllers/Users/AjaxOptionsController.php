@@ -6,9 +6,11 @@ use App\Http\Controllers\Controller;
 use App\Models\Instansi;
 use App\Models\Jabatan;
 use App\Models\UnitKerja;
+use App\Models\UserManagementAuditEvent;
 use App\Services\User\ActivePositionService;
 use App\Services\User\PositionScopeOptionsService;
 use App\Services\User\UserManagementAccessService;
+use App\Services\User\UserManagementAuditLogger;
 use App\Support\EncryptedId;
 use Illuminate\Http\Request;
 
@@ -35,10 +37,12 @@ class AjaxOptionsController extends Controller
         }
 
         if ($isUsersManagementScope) {
-            $actor = app(ActivePositionService::class)->get();
+            $actor = app(ActivePositionService::class)->managementActor();
             $access = app(UserManagementAccessService::class);
 
             if (! $access->canAccessModule($actor)) {
+                $this->logUsersManagementOptionsBlocked($request, $actor, 'instansi_options');
+
                 return response()->json(['ok' => false, 'message' => 'Akses manajemen pengguna tidak tersedia.'], 403);
             }
 
@@ -130,10 +134,12 @@ class AjaxOptionsController extends Controller
         }
 
         if ($isUsersManagementScope) {
-            $actor = app(ActivePositionService::class)->get();
+            $actor = app(ActivePositionService::class)->managementActor();
             $access = app(UserManagementAccessService::class);
 
             if (! $access->canAccessModule($actor)) {
+                $this->logUsersManagementOptionsBlocked($request, $actor, 'unit_kerja_options');
+
                 return response()->json(['ok' => false, 'message' => 'Akses manajemen pengguna tidak tersedia.'], 403);
             }
 
@@ -187,5 +193,22 @@ class AjaxOptionsController extends Controller
         ])->values();
 
         return response()->json(['ok' => true, 'options' => $options]);
+    }
+
+    private function logUsersManagementOptionsBlocked(Request $request, mixed $actor, string $requestedOptions): void
+    {
+        app(UserManagementAuditLogger::class)->blocked(UserManagementAuditEvent::EVENT_MODULE_ACCESS, [
+            'actor_user' => $request->user(),
+            'actor_position' => $actor,
+            'resource_type' => 'management_users_options',
+            'resource_id' => $requestedOptions,
+            'reason_code' => 'module_access_denied',
+            'reason' => 'Akses opsi Management Users ditolak.',
+            'message' => 'Akses opsi Management Users ditolak.',
+            'metadata' => [
+                'requested_options' => $requestedOptions,
+                'scope' => $request->query('scope'),
+            ],
+        ], $request);
     }
 }

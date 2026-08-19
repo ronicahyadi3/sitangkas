@@ -18,8 +18,9 @@ context, atau `CurrentUserContext`, wajib baca:
 3. `03-user-positions/AI_AGENT_USER_POSITIONS_CONTEXT.md`
 
 Untuk pekerjaan Management Users, CRUD akun, posisi user dari halaman users,
-keamanan akun, reset MFA browser, lock/unlock, force change password, dokumen SK
-posisi, atau izin tahun historis dari modal users, wajib baca:
+keamanan akun, reset MFA browser, lock/unlock, force change password, encrypted
+route key `{user}`/`{position}`, Yajra DataTables, audit trail Management
+Users, dokumen SK posisi, atau izin tahun historis dari modal users, wajib baca:
 
 1. `01-authentication/MANAGEMENT_USERS_CURRENT_STATE.md`
 2. `01-authentication/USERS_TABLE.md`
