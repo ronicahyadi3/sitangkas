@@ -1,6 +1,6 @@
 # Management Users Current State
 
-Last updated: 2026-08-18.
+Last updated: 2026-09-14.
 
 Dokumen ini merangkum kondisi fitur Management Users saat ini, apa saja yang
 sudah dibuat, rekomendasi pekerjaan berikutnya, dan isu yang perlu dibahas
@@ -25,6 +25,50 @@ ini dan sudah dipisah menjadi beberapa lapis:
 - Blade satu halaman dengan modal user, posisi, keamanan akun, dokumen SK, dan
   izin tahun historis.
 
+### Rancangan Import Users Legacy
+
+Keputusan desain import `dump-keuangan-202609090855.sql` sudah disetujui dan
+diimplementasikan bertahap; mode `--commit` belum tersedia. Akun target akan
+dibentuk berdasarkan NIK unik,
+sedangkan seluruh row legacy tetap dipertahankan sebagai `user_positions`
+dengan kontrak:
+
+```text
+legacy users.id = target user_positions.id
+target user_positions.user_id = target users.id
+```
+
+Kolom sumber `uuid` dan `access` tidak digunakan. Pada 2026-09-09, tiga akun dan
+enam posisi target telah dihapus permanen setelah backup terenkripsi, sehingga
+collision posisi ID 1 sampai 6 sudah selesai. Current schema belum siap
+menjalankan import penuh. Migration canonical/alias sudah diterapkan pada
+2026-09-14 sehingga constraint konteks telah mendukung alias legacy.
+`LegacyOrganizationResolver` juga sudah menangani 51 koreksi unit-instansi yang
+seluruhnya cocok dengan allowlist. `LegacyUserAccountAggregator` sudah memilih
+1.053 akun dan ID profil canonical secara deterministik.
+`LegacyUserPositionClassifier` juga sudah memproyeksikan 1.143 posisi canonical
+dan 371 alias tanpa row yang gagal diklasifikasikan.
+`App\Services\User\PositionIdentityResolver` sudah menyediakan normalisasi
+canonical, daftar equivalent IDs, pemeriksaan authorization, dan filter query
+untuk histori yang masih menyimpan ID alias. Resolver sudah dipakai pada
+controller `Data` dan pembayaran untuk ownership `uploaded_by`/`users_to`,
+termasuk acting context PPTK/BUD. Index ownership pada `document` dan
+`document_process` juga sudah diterapkan. Import `--commit` belum tersedia.
+Sumber keputusan dan daftar pekerjaan berada di
+`../99-legacy/LEGACY_USERS_IMPORT_DECISIONS.md`.
+
+Aturan import posisi sudah diputuskan: satu NIK hanya boleh mempunyai satu
+posisi aktif untuk kombinasi jabatan, instansi, dan unit kerja yang sama. Posisi
+aktif terbaru berdasarkan `created_at`, lalu legacy ID terbesar sebagai tie
+breaker, menjadi canonical. Seluruh posisi lama tetap diimpor sebagai alias
+soft-deleted agar referensi histori dokumen tidak terputus.
+
+Database staging resmi `sitangkas_legacy.users` sudah diverifikasi pada
+2026-09-14: 1.514 row, ID unik lengkap 1 sampai 1514, 1.053 NIK, dan 16 kolom.
+Koneksi Laravel `legacy_import` menuju staging sudah tersedia. Importer belum
+diimplementasikan; credential produksi harus memakai user MySQL read-only dan
+preflight verification tetap wajib dijalankan sebelum commit.
+
 ## Entry Point Kode
 
 Route utama:
@@ -38,6 +82,8 @@ Route utama:
 - `GET /users/{user}/security` -> `users.security.show`;
 - `POST /users/{user}/security/force-password-change` ->
   `users.security.force-password-change`;
+- `POST /users/{user}/security/reset-password` ->
+  `users.security.reset-password`;
 - `POST /users/{user}/security/lock` -> `users.security.lock`;
 - `POST /users/{user}/security/unlock` -> `users.security.unlock`;
 - `POST /users/{user}/security/reset-mfa` -> `users.security.reset-mfa`;
@@ -69,6 +115,7 @@ File utama:
 - `app/Actions/UserManagement/*`;
 - `app/Actions/UserSecurity/*`;
 - `app/Actions/Auth/ResetUserMfa.php`;
+- `app/Http/Requests/User/ResetUserPasswordRequest.php`;
 - `app/Services/User/*`;
 - `app/Support/UserManagement/UserDatatablePresenter.php`;
 - `app/Models/UserManagementAuditEvent.php`;
@@ -99,6 +146,10 @@ Middleware terkait:
 - Route binding model `User` dan `UserPosition` sudah memakai encrypted route
   key melalui `getRouteKey()` dan `resolveRouteBinding()`. URL numeric polos
   untuk parameter `{user}` dan `{position}` ditolak pada binding ini.
+- Payload frontend Management Users tidak boleh mengirim numeric
+  `position_id`. Response posisi memakai `id_enc` dan URL aksi route binding
+  terenkripsi. Numeric `position_id` yang tersisa hanya boleh berada pada query
+  database, audit, atau log internal server.
 - Package `yajra/laravel-datatables-oracle` sudah terpasang di Composer.
 - Endpoint DataTables users sudah memakai Yajra pada
   `UserController@datatable`, dengan scope PA/KPA tetap melalui
@@ -232,12 +283,15 @@ aktivitas login.
 Aksi yang sudah tersedia:
 
 - force change password;
+- reset password;
 - lock account;
 - unlock account;
 - reset MFA.
 
 Force change password:
 
+- hanya Admin Super yang boleh menjalankan force change password dari
+  Management Users;
 - mengisi `must_change_password = true`;
 - mengisi `password_reset_at` dan `password_reset_by_user_id`;
 - merotasi remember token;
@@ -245,6 +299,35 @@ Force change password:
 - mencabut database session target bila session driver mendukung;
 - mencatat audit `password_change_forced` pada `login_events`;
 - middleware `password.fresh` memaksa user mengganti password sebelum lanjut.
+
+Reset password:
+
+- hanya Admin Super yang boleh menjalankan reset password dari Management Users;
+- PA/KPA tidak boleh reset password user lain walaupun target berada dalam
+  scope posisi mereka;
+- reset password tidak boleh dijalankan untuk akun sendiri;
+- action `App\Actions\UserSecurity\ResetUserPassword` membuat temporary password
+  acak 16 karakter;
+- password lama langsung tidak berlaku karena field `password` diganti ke hash
+  temporary password;
+- user target ditandai `must_change_password = true`;
+- `password_changed_at` dan `password_expires_at` dikosongkan sampai user
+  mengganti password sendiri melalui flow resmi;
+- `password_reset_at`, `password_reset_by_user_id`, `sessions_invalidated_at`,
+  dan `updated_by_user_id` diisi;
+- counter gagal login target direset;
+- remember token dirotasi dan session database target dicabut bila session
+  driver mendukung;
+- temporary password hanya dikirim sekali pada response JSON
+  `users.security.reset-password`;
+- Blade Management Users menampilkan modal hasil khusus "Password Sementara"
+  dengan tombol copy dan membersihkan nilai dari DOM saat modal ditutup;
+- temporary password tidak boleh dicatat pada audit, log, metadata, atau flash
+  message;
+- audit autentikasi memakai event `password_reset_by_admin` pada
+  `login_events`;
+- audit administrasi memakai event `security.password_reset` pada
+  `user_management_audit_events`.
 
 Lock/unlock:
 
@@ -288,6 +371,7 @@ Audit Management Users saat ini mencatat event utama:
 - create/update/activate/deactivate/delete posisi;
 - grant/revoke izin tahun historis;
 - force change password;
+- reset password;
 - lock/unlock akun;
 - reset MFA;
 - authorization denial penting sebagai result `blocked`.
@@ -300,8 +384,8 @@ Audit `blocked` saat ini diterapkan pada:
 - lihat/create/update/activate/deactivate/delete posisi di luar scope;
 - nested URL posisi yang tidak dimiliki user target;
 - grant/revoke izin tahun historis oleh non-Admin Super;
-- force change password, lock/unlock, dan reset MFA yang ditolak oleh
-  authorization FormRequest.
+- force change password, reset password, lock/unlock, dan reset MFA yang
+  ditolak oleh authorization FormRequest.
 
 Data audit yang tersedia:
 
@@ -349,7 +433,11 @@ Test awal yang direkomendasikan:
   dibuat berada dalam scope mereka;
 - PA/KPA ditolak saat membuat posisi pertama di luar scope;
 - PA/KPA tidak dapat lock/unlock akun;
+- PA/KPA tidak dapat force change password;
+- PA/KPA tidak dapat reset password;
 - PA/KPA tidak dapat reset MFA;
+- Admin Super dapat reset password dan response menampilkan temporary password
+  satu kali;
 - Admin Super dapat reset MFA user yang punya MFA;
 - reset MFA ditolak bila target belum punya MFA aktif/pending;
 - user locked tidak bisa login atau lanjut ke dashboard;
@@ -385,8 +473,11 @@ Karena keputusan saat ini hanya upload, review minimal yang tetap penting:
 Keputusan teknis sudah jelas:
 
 - lock/unlock akun dari Management Users adalah Admin Super only;
+- force change password dan reset password dari Management Users adalah Admin
+  Super only;
 - reset MFA dari Management Users adalah Admin Super only;
-- PA/KPA tidak boleh menjalankan lock/unlock atau reset MFA user lain;
+- PA/KPA tidak boleh menjalankan force change password, reset password,
+  lock/unlock, atau reset MFA user lain;
 - command `auth:mfa-reset` tetap jalur operator/server sesuai SOP environment.
 
 Tahap berikutnya adalah menyamakan SOP operasional, approval internal, dan
@@ -402,8 +493,9 @@ Rancangan retention yang direkomendasikan:
 
 - simpan audit Management Users minimal 5 tahun;
 - simpan event keamanan kritis 7 tahun bila dibutuhkan kebijakan organisasi;
-- event kritis mencakup lock/unlock, force change password, reset MFA,
-  delete user, delete/nonaktif posisi, dan grant/revoke izin historis;
+- event kritis mencakup lock/unlock, force change password, reset password,
+  reset MFA, delete user, delete/nonaktif posisi, dan grant/revoke izin
+  historis;
 - jangan membuat auto purge sebelum ada SOP arsip, backup, dan approval
   administrasi;
 - gunakan kolom `retention_until` untuk menandai tanggal retensi, bukan langsung
@@ -421,6 +513,9 @@ Rancangan retention yang direkomendasikan:
    semua event kritis?
 6. Apakah perlu halaman riwayat keamanan/user activity di modal Management
    Users, atau cukup audit di database/log untuk admin teknis?
+7. Apakah reset password Admin Super perlu opsi kirim via email/SMS resmi di
+   masa depan, atau tetap hanya tampil satu kali untuk disampaikan manual sesuai
+   SOP internal?
 
 ## Hal Yang Jangan Diubah Tanpa Diskusi
 
@@ -430,9 +525,12 @@ Rancangan retention yang direkomendasikan:
 - Jangan menganggap hanya satu posisi yang boleh aktif.
 - Jangan memakai `users.tahun_aktif` sebagai bukti authorization tahun.
 - Jangan memberi lock/unlock akun kepada PA/KPA tanpa decision baru.
+- Jangan memberi force change password atau reset password kepada PA/KPA tanpa
+  decision baru.
 - Jangan memberi reset MFA kepada PA/KPA tanpa decision baru.
 - Jangan menjadikan remember-me sebagai pengganti MFA.
 - Jangan menyimpan secret, password, token, atau recovery code mentah di log.
+- Jangan menyimpan temporary password reset administrator di audit/log.
 - Jangan menyimpan isi file SK di audit/log.
 
 ## Related Docs
@@ -446,3 +544,4 @@ Rancangan retention yang direkomendasikan:
 - `../03-user-positions/README.md`
 - `../04-year-permissions/README.md`
 - `../05-relationships/README.md`
+- `../99-legacy/LEGACY_USERS_IMPORT_DECISIONS.md`

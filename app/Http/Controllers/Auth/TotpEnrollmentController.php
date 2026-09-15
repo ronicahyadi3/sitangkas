@@ -95,7 +95,7 @@ class TotpEnrollmentController extends Controller
 
         if (! $this->currentUserContext->hasSessionContext($request)) {
             return redirect()
-                ->route('login.context')
+                ->route('positions.index')
                 ->with('status', 'Silakan pilih konteks kerja sebelum setup MFA.');
         }
 
@@ -105,7 +105,7 @@ class TotpEnrollmentController extends Controller
             $this->currentUserContext->forgetActivePosition($request);
 
             return redirect()
-                ->route('login.context')
+                ->route('positions.index')
                 ->with('status', 'Konteks kerja sudah tidak aktif. Silakan pilih kembali sebelum setup MFA.');
         }
 

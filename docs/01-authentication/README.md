@@ -37,7 +37,9 @@ Cluster ini menjelaskan akun, autentikasi, dan audit login.
 - Jangan menyimpan secret, token, cookie, passphrase, password asli, atau session id mentah.
 - Login berhasil memperbarui ringkasan di `users` dan menulis event.
 - Login gagal menulis event; jika user ditemukan, update failed count sesuai policy.
-- `login.context` hanya untuk memilih `UserPosition` nyata.
+- `/positions` adalah halaman canonical untuk memilih `UserPosition` nyata.
+  `/login/context` hanya route legacy/compatibility yang diarahkan ke halaman
+  tersebut.
 - `login.post` adalah flow resmi Admin Super untuk memilih acting context manual.
 - MFA memakai TOTP kompatibel Google Authenticator; wajib untuk real active
   position Admin Super dan optional/enrollable untuk non-Admin Super.
@@ -45,6 +47,9 @@ Cluster ini menjelaskan akun, autentikasi, dan audit login.
   WebAuthn/security key dibaca dari `MFA_RECOMMENDATIONS.md`.
 - Halaman pengelolaan keamanan akun setelah login wajib mengikuti
   `PROFILE_SECURITY_DECISIONS.md`.
+- Reset password dari Management Users tersedia untuk Admin Super only. Flow ini
+  membuat temporary password yang tampil satu kali, mencabut session target, dan
+  memaksa user mengganti password setelah login.
 - Reset MFA resmi saat ini tersedia melalui Management Users untuk Admin Super
   dan command operator `php artisan auth:mfa-reset`; cara command ada di
   `MFA_RESET_COMMAND_RUNBOOK.md`.

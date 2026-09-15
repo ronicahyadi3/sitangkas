@@ -55,10 +55,9 @@ class AdminSuperActingContextController extends Controller
 
         $request->session()->forget(array_values($this->currentUserContext->adminSuperActingContextSessionKeys()));
         $request->session()->put($request->actingSessionData());
-        $request->session()->regenerate();
 
         if ($user instanceof User) {
-            $singleDeviceAuthentication->disableRememberMe($request, $user);
+            $singleDeviceAuthentication->disableRememberMeForCurrentSessionOnly($request);
         }
 
         $recordAuthenticationEvent->handle($request, $user instanceof User ? $user : null, $realActiveUserPosition, [
@@ -203,7 +202,7 @@ class AdminSuperActingContextController extends Controller
 
         if (! filled($this->currentUserContext->activeUserPositionId($request))) {
             return redirect()
-                ->route('login.context')
+                ->route('positions.index')
                 ->with('status', 'Silakan pilih posisi nyata Admin Super terlebih dahulu.');
         }
 

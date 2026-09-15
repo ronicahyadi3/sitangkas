@@ -41,7 +41,7 @@ class MfaChallengeController extends Controller
         }
 
         if (! $this->mfaSession->shouldChallenge($request, $user, $realActiveUserPosition)) {
-            return redirect()->intended($this->nextUrlAfterVerified($realActiveUserPosition));
+            return redirect()->to($this->verifiedDestinationUrl($request, $realActiveUserPosition));
         }
 
         $startMfaChallenge->handle($request, $user, $realActiveUserPosition);
@@ -76,7 +76,7 @@ class MfaChallengeController extends Controller
         }
 
         return redirect()
-            ->intended($this->nextUrlAfterVerified($realActiveUserPosition))
+            ->to($this->verifiedDestinationUrl($request, $realActiveUserPosition))
             ->with('status', 'Verifikasi MFA berhasil.');
     }
 
@@ -93,7 +93,7 @@ class MfaChallengeController extends Controller
 
         if (! $this->currentUserContext->hasSessionContext($request)) {
             return redirect()
-                ->route('login.context')
+                ->route('positions.index')
                 ->with('status', 'Silakan pilih konteks kerja sebelum verifikasi MFA.');
         }
 
@@ -103,7 +103,7 @@ class MfaChallengeController extends Controller
             $this->currentUserContext->forgetActivePosition($request);
 
             return redirect()
-                ->route('login.context')
+                ->route('positions.index')
                 ->with('status', 'Konteks kerja sudah tidak aktif. Silakan pilih kembali sebelum verifikasi MFA.');
         }
 
@@ -137,5 +137,58 @@ class MfaChallengeController extends Controller
         }
 
         return Route::has('dashboard') ? route('dashboard') : route('landing');
+    }
+
+    private function verifiedDestinationUrl(Request $request, UserPosition $realActiveUserPosition): string
+    {
+        $defaultUrl = $this->nextUrlAfterVerified($realActiveUserPosition);
+        $intendedUrl = $request->session()->pull('url.intended');
+
+        if (! is_string($intendedUrl) || $intendedUrl === '') {
+            return $defaultUrl;
+        }
+
+        if (! $this->isAllowedVerifiedDestination($request, $intendedUrl)) {
+            return $defaultUrl;
+        }
+
+        return $intendedUrl;
+    }
+
+    private function isAllowedVerifiedDestination(Request $request, string $url): bool
+    {
+        $host = parse_url($url, PHP_URL_HOST);
+
+        if (is_string($host) && $host !== '' && $host !== $request->getHost()) {
+            return false;
+        }
+
+        $path = parse_url($url, PHP_URL_PATH);
+
+        if (! is_string($path) || $path === '') {
+            return false;
+        }
+
+        $path = trim($path, '/');
+
+        if ($path === '') {
+            return true;
+        }
+
+        $authenticationPaths = [
+            'login',
+            'login/context',
+            'login/mfa',
+            'login/mfa/setup',
+            'login/no-active-position',
+            'login/post',
+            'positions',
+        ];
+
+        if (in_array($path, $authenticationPaths, true)) {
+            return false;
+        }
+
+        return ! str_starts_with($path, 'login/post/options/');
     }
 }

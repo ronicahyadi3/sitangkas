@@ -10,16 +10,21 @@ use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use LogicException;
 
-class StoreLoginContextRequest extends FormRequest
+class StorePositionContextRequest extends FormRequest
 {
     private ?UserPosition $selectedUserPosition = null;
 
+    /**
+     * Determine if the user is authorized to make this request.
+     */
     public function authorize(): bool
     {
         return $this->user() instanceof User;
     }
 
     /**
+     * Get the validation rules that apply to the request.
+     *
      * @return array<string, ValidationRule|array<mixed>|string>
      */
     public function rules(CurrentUserContext $currentUserContext): array
@@ -30,23 +35,23 @@ class StoreLoginContextRequest extends FormRequest
                 'required',
                 'integer',
                 function (string $attribute, mixed $value, Closure $fail) use ($currentUserContext): void {
-                $user = $this->user();
+                    $user = $this->user();
 
-                if (! $user instanceof User) {
-                    $fail('Session pengguna tidak valid.');
+                    if (! $user instanceof User) {
+                        $fail('Session pengguna tidak valid.');
 
-                    return;
-                }
+                        return;
+                    }
 
                     $userPosition = $currentUserContext->selectablePosition($user, $value);
 
-                if (! $userPosition instanceof UserPosition) {
-                    $fail('Konteks kerja tidak tersedia atau sudah tidak aktif.');
+                    if (! $userPosition instanceof UserPosition) {
+                        $fail('Posisi kerja tidak tersedia atau sudah tidak aktif.');
 
-                    return;
-                }
+                        return;
+                    }
 
-                $this->selectedUserPosition = $userPosition;
+                    $this->selectedUserPosition = $userPosition;
                 },
             ],
         ];
@@ -58,7 +63,7 @@ class StoreLoginContextRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'user_position_id.required' => 'Konteks kerja wajib dipilih.',
+            'user_position_id.required' => 'Posisi kerja wajib dipilih.',
         ];
     }
 
@@ -68,7 +73,7 @@ class StoreLoginContextRequest extends FormRequest
     public function attributes(): array
     {
         return [
-            'user_position_id' => 'konteks kerja',
+            'user_position_id' => 'posisi kerja',
         ];
     }
 

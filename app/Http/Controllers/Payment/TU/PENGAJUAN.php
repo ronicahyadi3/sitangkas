@@ -8,6 +8,7 @@ use App\Models\Payment\TU;
 use App\Models\UnitKerja;
 use App\Services\Document\DocumentHistoryService;
 use App\Services\User\ActivePositionService;
+use App\Services\User\PositionIdentityResolver;
 use App\Support\EncryptedId;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -17,6 +18,8 @@ use Yajra\DataTables\Facades\DataTables;
 
 class PENGAJUAN extends Controller
 {
+    public function __construct(private readonly PositionIdentityResolver $positionIdentityResolver) {}
+
     private const SRC_TYPE = 'PENGAJUAN';
 
     private const FILE_DIR = '/File_PENGAJUAN';
@@ -110,7 +113,7 @@ class PENGAJUAN extends Controller
                 ->when(! in_array($jabatanId, [1, 13], true), function ($q) use ($jabatanId, $unitKerjaId, $actorId, $assignedExpr, $statusExpr, $submitExpr) {
                     if ($jabatanId === 8) {
                         $q->where('document.id_unit_kerja', $unitKerjaId);
-                        $q->where('document.uploaded_by', $actorId);
+                        $q->whereIn('document.uploaded_by', $this->positionIdentityResolver->equivalentIds($actorId));
 
                         return;
                     }
@@ -651,7 +654,7 @@ class PENGAJUAN extends Controller
             ->where('src_type', self::SRC_TYPE)
             ->where('payment_type', self::PAYMENT_TYPE)
             ->where('id_unit_kerja', $user->unitKerja->id)
-            ->when((int) $user->jabatan->id === 8, fn ($q) => $q->where('uploaded_by', $actorId))
+            ->when((int) $user->jabatan->id === 8, fn ($q) => $q->whereIn('uploaded_by', $this->positionIdentityResolver->equivalentIds($actorId)))
             ->whereNull('deleted_at')
             ->first();
 
@@ -743,7 +746,7 @@ class PENGAJUAN extends Controller
             ->where('src_type', self::SRC_TYPE)
             ->where('payment_type', self::PAYMENT_TYPE)
             ->where('id_unit_kerja', $user->unitKerja->id)
-            ->when((int) $user->jabatan->id === 8, fn ($q) => $q->where('uploaded_by', $actorId))
+            ->when((int) $user->jabatan->id === 8, fn ($q) => $q->whereIn('uploaded_by', $this->positionIdentityResolver->equivalentIds($actorId)))
             ->whereNull('deleted_at')
             ->first();
 
@@ -947,7 +950,7 @@ class PENGAJUAN extends Controller
                             throw new \RuntimeException('Dokumen belum TTE oleh BUD.');
                         }
 
-                        $assignedTo = '9';
+                        $assignedTo = in_array('5', $submitArr, true) ? '9' : '10';
                         $newSubmit = $doc->submit.',4';
                     } else {
                         throw new \RuntimeException('Dokumen sudah disubmit maksimal 2 kali oleh verifikator.');
@@ -1026,7 +1029,7 @@ class PENGAJUAN extends Controller
 
     private function resolveActorUserId($user): int
     {
-        return (int) (($user->actingPptkUser) ? $user->actingPptkUser->id : $user->id);
+        return (int) $this->positionIdentityResolver->pptkActorPosition($user)->getKey();
     }
 
     private function canAccessForSubmit(Document $document, int $jabatanId, int $unitKerjaId, int $actorId): bool
@@ -1037,7 +1040,7 @@ class PENGAJUAN extends Controller
 
         if ($jabatanId === 8) {
             return (int) $document->id_unit_kerja === $unitKerjaId
-                && (int) $document->uploaded_by === $actorId;
+                && $this->positionIdentityResolver->contains($actorId, (int) $document->uploaded_by);
         }
 
         if (in_array($jabatanId, [5, 6], true)) {

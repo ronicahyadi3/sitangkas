@@ -17,6 +17,13 @@ class UserPosition extends Model
     use SoftDeletes, TracksUserAudit;
 
     /**
+     * @var array<string, mixed>
+     */
+    protected $attributes = [
+        'is_canonical' => true,
+    ];
+
+    /**
      * @var list<string>
      */
     protected $fillable = [
@@ -25,6 +32,9 @@ class UserPosition extends Model
         'instansi_id',
         'unit_kerja_id',
         'is_active',
+        'is_canonical',
+        'canonical_user_position_id',
+        'legacy_duplicate_reason',
         'started_at',
         'ended_at',
         'last_used_at',
@@ -60,6 +70,16 @@ class UserPosition extends Model
     public function unitKerja(): BelongsTo
     {
         return $this->belongsTo(UnitKerja::class);
+    }
+
+    public function canonicalPosition(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'canonical_user_position_id')->withTrashed();
+    }
+
+    public function aliases(): HasMany
+    {
+        return $this->hasMany(self::class, 'canonical_user_position_id')->withTrashed();
     }
 
     public function documents(): HasMany
@@ -164,6 +184,11 @@ class UserPosition extends Model
         return $query->where('is_active', true);
     }
 
+    public function scopeCanonical(Builder $query): Builder
+    {
+        return $query->where('is_canonical', true);
+    }
+
     public function scopeEffective(Builder $query): Builder
     {
         return $query
@@ -179,7 +204,7 @@ class UserPosition extends Model
 
     public function scopeAvailableForSelection(Builder $query): Builder
     {
-        return $query->active()->effective();
+        return $query->canonical()->active()->effective();
     }
 
     public function scopeWithActiveReferences(Builder $query): Builder
@@ -208,7 +233,7 @@ class UserPosition extends Model
 
     public function isAvailableForSelection(): bool
     {
-        return $this->is_active && $this->isEffective() && ! $this->trashed();
+        return $this->is_canonical && $this->is_active && $this->isEffective() && ! $this->trashed();
     }
 
     public function markAsUsed(): bool
@@ -254,6 +279,7 @@ class UserPosition extends Model
             'deactivated_at' => 'datetime',
             'ended_at' => 'date',
             'is_active' => 'boolean',
+            'is_canonical' => 'boolean',
             'last_synced_at' => 'datetime',
             'last_used_at' => 'datetime',
             'started_at' => 'date',

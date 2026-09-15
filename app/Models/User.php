@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -182,6 +183,41 @@ class User extends Authenticatable
                 $query->whereNull('ended_at')
                     ->orWhereDate('ended_at', '>=', today());
             });
+    }
+
+    public function lastUsedUserPosition(): HasOne
+    {
+        return $this->hasOne(UserPosition::class)
+            ->whereNotNull('last_used_at')
+            ->latestOfMany(['last_used_at', 'id']);
+    }
+
+    public function latestActiveUserPosition(): HasOne
+    {
+        return $this->hasOne(UserPosition::class)
+            ->availableForSelection()
+            ->latestOfMany();
+    }
+
+    public function managementDisplayUserPosition(): ?UserPosition
+    {
+        if ($this->relationLoaded('lastUsedUserPosition')) {
+            $lastUsedUserPosition = $this->getRelation('lastUsedUserPosition');
+
+            if ($lastUsedUserPosition instanceof UserPosition) {
+                return $lastUsedUserPosition;
+            }
+        }
+
+        if ($this->relationLoaded('latestActiveUserPosition')) {
+            $latestActiveUserPosition = $this->getRelation('latestActiveUserPosition');
+
+            if ($latestActiveUserPosition instanceof UserPosition) {
+                return $latestActiveUserPosition;
+            }
+        }
+
+        return null;
     }
 
     public function createdBy(): BelongsTo

@@ -364,7 +364,7 @@
                 </div>
 
                 <div class="empty-actions">
-                    <a href="{{ route('login.context') }}" class="btn btn-primary empty-action">
+                    <a href="{{ route('positions.index') }}" class="btn btn-primary empty-action">
                         <i class="fa-solid fa-rotate-right"></i>
                         Cek Lagi
                     </a>

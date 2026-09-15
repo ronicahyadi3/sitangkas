@@ -17,13 +17,13 @@ bersamaan tanpa saling mencampur.
 
 | Konsep | Route utama | Data utama | Untuk siapa |
 |---|---|---|---|
-| Real User Position | `login.context` | `user_positions.id` | Semua user yang memilih posisi nyata |
+| Real User Position | `/positions` | `user_positions.id` | Semua user yang memilih posisi nyata |
 | Admin Super Acting Context | `login.post` | session `acting_*` tervalidasi | Hanya Admin Super dengan real position `ADMIN_SUPER` |
 | Effective Context | service context | real position atau acting context | Semua modul internal |
 
 Aturan paling penting:
 
-- `login.context` tidak boleh dipakai untuk form manual jabatan/instansi/unit kerja.
+- `/positions` tidak boleh dipakai untuk form manual jabatan/instansi/unit kerja.
 - `login.post` bukan file legacy mati; ini halaman resmi Admin Super acting context setelah direfaktor.
 - Acting context tidak boleh dibuat menjadi record permanen di `user_positions`.
 - Modul tidak boleh membaca `session('acting_*')` langsung.
@@ -45,7 +45,9 @@ Karakteristik:
 - disimpan di session sebagai `active_user_position_id`;
 - menunjuk `jabatan_id`, `instansi_id`, dan `unit_kerja_id`;
 - dipakai untuk mengetahui posisi asli user yang sedang aktif;
-- dipilih melalui `GET/POST /login/context`.
+- dipilih melalui `GET/POST /positions`.
+- route lama `GET /login/context` hanya legacy/compatibility redirect ke
+  `/positions`.
 
 Real User Position adalah sumber kebenaran untuk kepemilikan posisi user.
 
@@ -93,7 +95,7 @@ AI agent tidak boleh:
 - membuat baris `user_positions` baru setiap kali Admin Super memilih acting context;
 - menganggap `acting_jabatan_id` sebagai posisi nyata milik user;
 - menaruh semua pilihan manual Admin Super ke tabel `user_positions`;
-- menghapus konsep `auth/postLogin.blade.php` hanya karena sudah ada `login.context`.
+- menghapus konsep `auth/postLogin.blade.php` hanya karena sudah ada `/positions`.
 
 Konsekuensi:
 
@@ -102,16 +104,18 @@ Konsekuensi:
   mengotori data posisi permanen;
 - service context harus mampu membedakan real position dan acting context.
 
-## Decision 2 - `login.context` hanya untuk memilih posisi nyata
+## Decision 2 - `/positions` hanya untuk memilih posisi nyata
 
 Keputusan:
 
-Route `login.context` digunakan hanya untuk memilih Real User Position.
+Route `/positions` digunakan hanya untuk memilih Real User Position.
 
 Route yang dimaksud:
 
-- `GET /login/context` dengan name `login.context`;
-- `POST /login/context` dengan name `login.context.store`.
+- `GET /positions` dengan name `positions.index`;
+- `POST /positions` dengan name `positions.store`;
+- `GET /login/context` dengan name `login.context.legacy` hanya untuk legacy
+  redirect/compatibility.
 
 Payload yang benar:
 
@@ -136,8 +140,7 @@ Aturan behavior:
 - jika user memilih posisi nyata non-Admin Super, acting context lama harus
   dihapus dan user diarahkan ke dashboard.
 
-AI agent tidak boleh menggabungkan form manual Admin Super ke
-`login.context.store`.
+AI agent tidak boleh menggabungkan form manual Admin Super ke `positions.store`.
 
 ## Decision 3 - `login.post` khusus Admin Super manual context
 
@@ -205,7 +208,7 @@ Konsekuensi penting:
 - Admin Super yang posisi terakhirnya posisi non-Admin Super tidak perlu masuk
   `login.post`;
 - user dengan banyak posisi tetap bisa memilih posisi nyata melalui
-  `login.context`;
+  `/positions`;
 - ketika posisi nyata diganti ke Admin Super, user juga harus diarahkan ke
   `login.post`.
 
@@ -310,7 +313,7 @@ AI agent wajib membaca dokumen ini sebelum mengubah file atau fitur berikut:
 - `app/Http/Middleware/EnsureActiveUserPosition.php`;
 - `app/Services/Auth/CurrentUserContext.php`;
 - `resources/views/auth/postLogin.blade.php`;
-- `resources/views/auth/context.blade.php`;
+- `resources/views/users/positions-switch.blade.php`;
 - `resources/views/dashboard/*`;
 - `resources/views/inc/navbar.blade.php`;
 - `routes/web.php` untuk route login/context/post-login.
@@ -318,8 +321,8 @@ AI agent wajib membaca dokumen ini sebelum mengubah file atau fitur berikut:
 AI agent tidak boleh:
 
 - menghapus `auth/postLogin.blade.php` sebagai file legacy tanpa keputusan baru;
-- mengganti `login.post` menjadi alias `login.context`;
-- membuat `login.context.store` menerima form manual Admin Super;
+- mengganti `login.post` menjadi alias `/positions`;
+- membuat `positions.store` menerima form manual Admin Super;
 - membaca session `acting_*` langsung dari modul bisnis;
 - membuat special user menunjuk langsung ke `users.id`;
 - menyimpan password, token, session id mentah, atau secret di audit metadata;
@@ -350,7 +353,7 @@ Aturan resmi:
   `last_used_at` terakhir menunjuk Admin Super, request `remember` harus dipaksa
   menjadi `false`;
 - jika user memilih/ganti real active position ke Admin Super melalui
-  `login.context`, remember cookie yang masih ada harus dimatikan;
+  `/positions`, remember cookie yang masih ada harus dimatikan;
 - Admin Super acting context tidak boleh dipulihkan dari remember cookie;
 - acting context tetap session-only dan harus dipilih ulang melalui `login.post`;
 - user non-Admin Super hanya boleh mempunyai satu device aktif;
@@ -425,8 +428,9 @@ File keputusan detail:
 
 Sudah ada:
 
-- `login.context`;
-- `LoginContextController`;
+- `/positions`;
+- `PositionContextController`;
+- legacy route `GET /login/context` yang redirect ke `/positions`;
 - `CurrentUserContext`;
 - `AuthenticateSession`;
 - `RecordAuthenticationEvent`;

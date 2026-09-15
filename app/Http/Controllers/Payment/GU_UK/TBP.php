@@ -7,6 +7,7 @@ use App\Models\Document;
 use App\Models\Payment\GU_UK;
 use App\Services\Document\DocumentHistoryService;
 use App\Services\User\ActivePositionService;
+use App\Services\User\PositionIdentityResolver;
 use App\Support\EncryptedId;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -16,6 +17,8 @@ use Yajra\DataTables\Facades\DataTables;
 
 class TBP extends Controller
 {
+    public function __construct(private readonly PositionIdentityResolver $positionIdentityResolver) {}
+
     private const PAYMENT_TYPE = 'GU_UK';
 
     private const SRC_TYPE = 'TBP';
@@ -1272,7 +1275,7 @@ class TBP extends Controller
 
     private function resolveActorUserId($user): int
     {
-        return (int) (($user->actingPptkUser) ? $user->actingPptkUser->id : $user->id);
+        return (int) $this->positionIdentityResolver->pptkActorPosition($user)->getKey();
     }
 
     private function canManageCrud($user): bool

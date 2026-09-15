@@ -168,11 +168,17 @@ Set menjadi `false` setelah pengguna berhasil mengganti password melalui alur re
 
 Waktu reset password terakhir oleh administrator atau proses sistem.
 
+Pada flow Management Users saat ini, Admin Super dapat menjalankan reset
+password administratif. Flow tersebut mengganti password ke temporary password,
+menandai `must_change_password = true`, mengisi kolom reset ini, mencabut
+session target, dan menampilkan temporary password satu kali di UI.
+
 #### `password_reset_by_user_id`
 
 Aktor yang melakukan reset password.
 
 - Jangan simpan password baru pada log.
+- Jangan simpan temporary password pada audit/log/metadata.
 - Setelah reset, biasanya set `must_change_password = true`.
 
 #### `sessions_invalidated_at`
@@ -548,7 +554,7 @@ DB::table('users')
 
 ```php
 $user->forceFill([
-    'password' => Hash::make($temporaryPassword),
+    'password' => $temporaryPassword,
     'password_reset_at' => now(),
     'password_reset_by_user_id' => auth()->id(),
     'must_change_password' => true,
@@ -557,6 +563,8 @@ $user->forceFill([
 ```
 
 Password sementara tidak boleh dicatat ke audit atau log aplikasi.
+Contoh ini mengandalkan cast `password => hashed` pada model `User`. Jika
+memakai query builder langsung, hash password secara eksplisit sebelum update.
 
 ---
 

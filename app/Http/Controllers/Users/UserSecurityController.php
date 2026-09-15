@@ -5,11 +5,13 @@ namespace App\Http\Controllers\Users;
 use App\Actions\Auth\ResetUserMfa;
 use App\Actions\UserSecurity\ForceUserPasswordChange;
 use App\Actions\UserSecurity\LockUserAccount;
+use App\Actions\UserSecurity\ResetUserPassword;
 use App\Actions\UserSecurity\UnlockUserAccount;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\User\ForceUserPasswordChangeRequest;
 use App\Http\Requests\User\LockUserAccountRequest;
 use App\Http\Requests\User\ResetUserMfaRequest;
+use App\Http\Requests\User\ResetUserPasswordRequest;
 use App\Http\Requests\User\UnlockUserAccountRequest;
 use App\Models\User;
 use App\Models\UserManagementAuditEvent;
@@ -71,6 +73,30 @@ class UserSecurityController extends Controller
             throw $exception;
         } catch (Throwable $throwable) {
             return $this->failed($throwable, $user, 'force_password_change');
+        }
+    }
+
+    public function resetPassword(
+        ResetUserPasswordRequest $request,
+        User $user,
+        ResetUserPassword $resetUserPassword
+    ): JsonResponse {
+        try {
+            $actor = $this->authenticatedActor($request);
+            $result = $resetUserPassword->handle($request, $user, $actor, $request->reason());
+
+            $user->refresh();
+
+            return response()->json([
+                'ok' => true,
+                'message' => 'Password user berhasil direset. Password sementara hanya ditampilkan satu kali.',
+                'temporary_password' => $result['temporary_password'],
+                'data' => $this->securityPayload($user, $this->activePositionService->managementActor()),
+            ]);
+        } catch (ValidationException $exception) {
+            throw $exception;
+        } catch (Throwable $throwable) {
+            return $this->failed($throwable, $user, 'reset_password');
         }
     }
 
@@ -199,9 +225,8 @@ class UserSecurityController extends Controller
     {
         $user->loadMissing(['passwordResetBy', 'statusChangedBy']);
 
-        $canManageSecurity = $this->userManagementAccessService->canManageUser($user, $actor);
-        $canManageAccountLock = $this->userManagementAccessService->isFullAdmin($actor) && $canManageSecurity;
-        $canResetMfa = $this->userManagementAccessService->isFullAdmin($actor) && $canManageSecurity;
+        $canManageTargetUser = $this->userManagementAccessService->canManageUser($user, $actor);
+        $canManageAccountSecurity = $this->userManagementAccessService->isFullAdmin($actor) && $canManageTargetUser;
         $mfaIsEnrolled = $this->mfaPolicy->isEnrolled($user);
         $mfaIsPending = $this->mfaPolicy->hasPendingEnrollment($user);
         $hasMfaState = $mfaIsEnrolled || $mfaIsPending;
@@ -249,17 +274,20 @@ class UserSecurityController extends Controller
                 'sessions_invalidated_at' => $this->dateTimeLabel($user->sessions_invalidated_at),
             ],
             'permissions' => [
-                'can_manage_security' => $canManageSecurity,
-                'can_force_password_change' => $canManageSecurity && ! $user->requiresPasswordChange(),
-                'can_lock' => $canManageAccountLock && $user->status === User::STATUS_ACTIVE && ! $user->isLocked(),
-                'can_unlock' => $canManageAccountLock && (
+                'can_view_security' => $this->userManagementAccessService->canViewUser($user, $actor),
+                'can_manage_security' => $canManageAccountSecurity,
+                'can_force_password_change' => $canManageAccountSecurity && ! $user->requiresPasswordChange(),
+                'can_reset_password' => $canManageAccountSecurity,
+                'can_lock' => $canManageAccountSecurity && $user->status === User::STATUS_ACTIVE && ! $user->isLocked(),
+                'can_unlock' => $canManageAccountSecurity && (
                     $user->status === User::STATUS_LOCKED
                     || ($user->status === User::STATUS_ACTIVE && $user->isLocked())
                 ),
-                'can_reset_mfa' => $canResetMfa && $hasMfaState,
+                'can_reset_mfa' => $canManageAccountSecurity && $hasMfaState,
             ],
             'urls' => [
                 'force_password_change' => route('users.security.force-password-change', $user),
+                'reset_password' => route('users.security.reset-password', $user),
                 'lock' => route('users.security.lock', $user),
                 'unlock' => route('users.security.unlock', $user),
                 'reset_mfa' => route('users.security.reset-mfa', $user),

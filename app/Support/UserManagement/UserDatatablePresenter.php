@@ -25,11 +25,17 @@ class UserDatatablePresenter
     public function nameColumn(User $user): string
     {
         $positionsCount = (int) $user->positions_count;
+        $activePositionsCount = (int) ($user->active_positions_count ?? 0);
+        $positionSummary = match (true) {
+            $positionsCount === 0 => 'Belum memiliki posisi',
+            $activePositionsCount === 0 => 'Belum memiliki posisi aktif',
+            default => $activePositionsCount.' aktif dari '.$positionsCount.' posisi',
+        };
 
         return '
             <div class="users-table-cell">
                 <div class="users-table-cell__title">'.e($user->nama).'</div>
-                <div class="users-table-cell__meta">'.($positionsCount > 0 ? 'Sudah memiliki '.$positionsCount.' posisi' : 'Belum memiliki posisi').'</div>
+                <div class="users-table-cell__meta">'.e($positionSummary).'</div>
             </div>
         ';
     }
@@ -59,9 +65,50 @@ class UserDatatablePresenter
         ';
     }
 
+    public function securityStatusColumn(User $user): string
+    {
+        return '
+            <div class="users-badge-stack">
+                '.$this->accountSecurityBadge($user).'
+                '.$this->passwordSecurityBadge($user).'
+                '.$this->mfaSecurityBadge($user).'
+            </div>
+        ';
+    }
+
+    public function usedPositionColumn(User $user): string
+    {
+        $position = $user->managementDisplayUserPosition();
+
+        if (! $position instanceof UserPosition) {
+            return '
+                <div class="users-badge-stack">
+                    <span class="users-position-pill users-position-pill--missing"><i class="fa fa-triangle-exclamation"></i>Tidak ada posisi aktif</span>
+                </div>
+            ';
+        }
+
+        $jabatanName = $this->loadedRelationName($position, 'jabatan') ?? 'Jabatan tidak tersedia';
+        $unitKerjaName = $this->loadedRelationName($position, 'unitKerja');
+        $instansiName = $this->loadedRelationName($position, 'instansi');
+        $scopeText = implode(' - ', array_values(array_filter([$unitKerjaName, $instansiName])));
+
+        return '
+            <div class="users-table-cell">
+                <div class="users-table-cell__title">'.e($jabatanName).'</div>
+                <div class="users-table-cell__meta">'.e($scopeText !== '' ? $scopeText : 'Scope posisi belum tersedia').'</div>
+                <div class="users-badge-stack mt-1">
+                    '.$this->positionUsageBadge($position).'
+                    '.$this->positionAvailabilityBadge($position).'
+                </div>
+            </div>
+        ';
+    }
+
     public function positionsCountColumn(User $user): string
     {
         $positionsCount = (int) $user->positions_count;
+        $activePositionsCount = (int) ($user->active_positions_count ?? 0);
 
         if ($positionsCount === 0) {
             return '
@@ -73,7 +120,8 @@ class UserDatatablePresenter
 
         return '
             <div class="users-badge-stack users-badge-stack--center">
-                <span class="users-position-pill users-position-pill--active"><i class="fa fa-briefcase"></i>'.$positionsCount.' posisi</span>
+                <span class="users-position-pill users-position-pill--'.($activePositionsCount > 0 ? 'active' : 'missing').'"><i class="fa '.($activePositionsCount > 0 ? 'fa-briefcase' : 'fa-triangle-exclamation').'"></i>'.($activePositionsCount > 0 ? $activePositionsCount.' aktif' : 'Tidak ada aktif').'</span>
+                <span class="users-position-pill users-position-pill--history"><i class="fa fa-layer-group"></i>'.$positionsCount.' total</span>
             </div>
         ';
     }
@@ -83,11 +131,12 @@ class UserDatatablePresenter
         $canEditProfile = $this->userManagementAccessService->canEditUserProfile($user, $actor);
         $canDeleteProfile = $this->userManagementAccessService->canManageUser($user, $actor);
         $canManagePositions = $this->userManagementAccessService->canViewUser($user, $actor);
+        $canManageAccountSecurity = $this->userManagementAccessService->isFullAdmin($actor) && $canDeleteProfile;
         $payloadJson = e((string) json_encode($this->payload($user) + [
             'can_edit_profile' => $canEditProfile,
             'can_delete_profile' => $canDeleteProfile,
             'can_manage_positions' => $canManagePositions,
-            'can_manage_security' => $canDeleteProfile,
+            'can_manage_security' => $canManageAccountSecurity,
         ]));
 
         $editButton = $canEditProfile
@@ -179,6 +228,92 @@ class UserDatatablePresenter
         $labels = $this->accountTypes();
 
         return '<span class="users-type-badge users-type-badge--'.$this->badgeClassSuffix($accountType).'"><i class="fa fa-id-card"></i>'.e($labels[$accountType] ?? $accountType).'</span>';
+    }
+
+    private function accountSecurityBadge(User $user): string
+    {
+        if ($user->isLocked()) {
+            return '<span class="users-security-badge users-security-badge--locked"><i class="fa fa-lock"></i>Terkunci</span>';
+        }
+
+        return '<span class="users-security-badge users-security-badge--ok"><i class="fa fa-circle-check"></i>Akun OK</span>';
+    }
+
+    private function passwordSecurityBadge(User $user): string
+    {
+        if ($user->requiresPasswordChange()) {
+            return '<span class="users-security-badge users-security-badge--password-required"><i class="fa fa-key"></i>Wajib ganti</span>';
+        }
+
+        return '<span class="users-security-badge users-security-badge--password-ok"><i class="fa fa-key"></i>Password OK</span>';
+    }
+
+    private function mfaSecurityBadge(User $user): string
+    {
+        if ($this->hasActiveMfa($user)) {
+            return '<span class="users-security-badge users-security-badge--mfa-active"><i class="fa fa-shield-halved"></i>MFA Aktif</span>';
+        }
+
+        if ($this->hasPendingMfa($user)) {
+            return '<span class="users-security-badge users-security-badge--mfa-pending"><i class="fa fa-clock"></i>MFA Pending</span>';
+        }
+
+        return '<span class="users-security-badge users-security-badge--mfa-missing"><i class="fa fa-shield-halved"></i>Belum MFA</span>';
+    }
+
+    private function hasActiveMfa(User $user): bool
+    {
+        return $this->hasRawEncryptedValue($user, 'mfa_secret')
+            && $user->mfa_enabled_at !== null
+            && $user->mfa_confirmed_at !== null;
+    }
+
+    private function hasPendingMfa(User $user): bool
+    {
+        return $this->hasRawEncryptedValue($user, 'mfa_pending_secret')
+            && $user->mfa_pending_secret_created_at !== null;
+    }
+
+    private function hasRawEncryptedValue(User $user, string $key): bool
+    {
+        $value = $user->getRawOriginal($key);
+
+        return is_string($value) && trim($value) !== '';
+    }
+
+    private function loadedRelationName(UserPosition $position, string $relation): ?string
+    {
+        if (! $position->relationLoaded($relation)) {
+            return null;
+        }
+
+        $relatedModel = $position->getRelation($relation);
+
+        if (! is_object($relatedModel) || ! isset($relatedModel->nama)) {
+            return null;
+        }
+
+        $name = $relatedModel->nama;
+
+        return is_string($name) && trim($name) !== '' ? $name : null;
+    }
+
+    private function positionUsageBadge(UserPosition $position): string
+    {
+        if ($position->last_used_at !== null) {
+            return '<span class="users-position-pill users-position-pill--used"><i class="fa fa-clock"></i>Dipakai '.$position->last_used_at->format('d/m/Y H:i').'</span>';
+        }
+
+        return '<span class="users-position-pill users-position-pill--unused"><i class="fa fa-circle-info"></i>Belum pernah dipakai</span>';
+    }
+
+    private function positionAvailabilityBadge(UserPosition $position): string
+    {
+        if ($position->isAvailableForSelection()) {
+            return '';
+        }
+
+        return '<span class="users-position-pill users-position-pill--inactive"><i class="fa fa-circle-minus"></i>Posisi nonaktif</span>';
     }
 
     /**

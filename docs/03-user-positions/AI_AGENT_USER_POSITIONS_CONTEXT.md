@@ -154,6 +154,9 @@ $position = UserPosition::query()
 
 ### Saat berganti posisi
 
+Route canonical untuk UI berganti posisi adalah `GET/POST /positions`.
+`GET /login/context` hanya legacy redirect/compatibility.
+
 AI agent wajib memvalidasi bahwa posisi:
 
 - benar-benar milik `auth()->id()`;
@@ -253,7 +256,15 @@ deleted_by_user_id
 
 ### Restore
 
-Karena kombinasi konteks posisi bersifat unik, posisi yang pernah dihapus dan diperlukan kembali harus di-restore, bukan dibuat sebagai record duplikat baru.
+Untuk posisi manual/canonical, kombinasi konteks bersifat unik. Posisi yang
+pernah dihapus dan diperlukan kembali harus di-restore, bukan dibuat sebagai
+record operasional duplikat baru.
+
+Alias non-selectable untuk mempertahankan ID row import legacy adalah
+pengecualian terencana, bukan posisi operasional tambahan. Schema canonical dan
+alias sudah tersedia melalui forward migration 2026-09-14, sedangkan proses
+klasifikasi dan importnya harus mengikuti
+`../99-legacy/LEGACY_USERS_IMPORT_DECISIONS.md`.
 
 ---
 
@@ -297,6 +308,95 @@ AI agent tidak boleh menyimpan pada `metadata`, `notes`, atau kolom lain:
 - isi file dalam Base64.
 
 ---
+
+## Legacy users.sql identity contract
+
+Keputusan khusus untuk `dump-keuangan-202609090855.sql` sudah disetujui dan
+diimplementasikan bertahap; mode `--commit` belum tersedia:
+
+```text
+legacy users.id = target user_positions.id
+target user_positions.user_id = target users.id hasil distinct NIK
+```
+
+Kolom sumber `uuid` dan `access` tidak digunakan. Seluruh 1.514 row legacy harus
+tetap dapat direpresentasikan sebagai posisi karena `document_process.id_user`
+dan kolom aktor `document` memakai ID legacy tersebut.
+
+Staging resmi untuk importer adalah `sitangkas_legacy.users`. Pada 2026-09-14
+staging tersebut sudah diverifikasi memiliki 1.514 row, ID unik lengkap 1 sampai
+1514, 1.053 NIK, dan struktur 16 kolom yang sesuai sumber. Akses importer harus
+read-only dan setiap `--commit` tetap wajib menjalankan preflight verification.
+`LegacyUserSourceReader` sekarang menjadi satu-satunya source reader aplikasi:
+reader menghasilkan DTO immutable `LegacyUserRow`, membaca secara lazy menurut
+ID, dan memverifikasi sesi `legacy_import` berstatus read-only. Jangan mengambil
+data staging langsung dari controller atau memakai model Eloquent target.
+
+Analyzer read-only tersedia melalui
+`php artisan legacy:import-users --dry-run`. Laporan private terakhir memastikan
+1.514 posisi menjadi 1.143 canonical dan 371 alias dalam 239 kelompok duplikat.
+`LegacyOrganizationResolver` menetapkan instansi canonical berdasarkan unit
+kerja; 51 mismatch organisasi seluruhnya cocok dengan allowlist, tanpa mismatch
+tak dikenal atau referensi hilang. Baseline fingerprint saat ini adalah
+`db31cc474ae465954797422f204143f669c125f1363e218e59796cb5e9f7ccf3` dan
+dry-run menghasilkan 0 blocker.
+
+`LegacyUserAccountAggregator` sudah menghasilkan satu akun per NIK dengan ID
+row profil canonical. Rankingnya adalah aktif-nondeleted, nondeleted-inactive,
+lalu histori terhapus; setiap tier memilih `created_at` terbaru dan legacy ID
+terbesar sebagai tie-breaker. Profil selalu diambil utuh dari satu row. Baseline
+menghasilkan 1.053 ID akun unik dengan checksum
+`fdf4b66ce4980887fc7e693773a56c3a3eeb92d4888e5f7e849561e6431c15f8`.
+
+`LegacyUserPositionClassifier` sudah memproyeksikan seluruh 1.514 row menjadi
+1.143 posisi canonical dan 371 alias. Sebanyak 337 alias mempertahankan
+`deleted_at` sumber dan 34 alias aktif ganda memperoleh soft-delete hasil
+rekonsiliasi. Tidak ada row yang gagal diklasifikasikan, akun tanpa posisi
+canonical, alias tanpa target, atau timestamp rekonsiliasi yang hilang. Checksum
+klasifikasi adalah
+`7efe79d9528bb96ea9284ef5c078292d65ae6e0b8c1d7caaee1d7082c741873a`.
+
+Keputusan final 2026-09-14: satu NIK tidak boleh memiliki dua posisi aktif pada
+kombinasi jabatan, instansi, dan unit kerja yang sama. Setelah organisasi
+dinormalisasi, row aktif dengan `created_at` terbaru menjadi canonical; tie
+diputuskan dengan legacy ID terbesar. Row lama tetap disimpan sebagai alias,
+dinonaktifkan, dan di-soft-delete pada waktu canonical baru dibuat. `deleted_at`
+sumber yang sudah ada tidak boleh ditimpa. Seluruh transformasi wajib masuk
+laporan rekonsiliasi.
+
+Collision posisi ID 1 sampai 6 sudah diselesaikan pada 2026-09-09 dengan
+menghapus tiga akun dan enam posisi target setelah backup terenkripsi. Tabel
+`users` dan `user_positions` saat ini sengaja kosong untuk menunggu import
+legacy. Forward migration canonical/alias sudah diterapkan pada 2026-09-14.
+`App\Services\User\PositionIdentityResolver` sudah tersedia untuk menormalisasi
+alias ke canonical, mengambil seluruh equivalent IDs, memeriksa ekuivalensi, dan
+menerapkan filter query histori. Relasi canonical/alias mencakup row
+soft-deleted. Jangan menjalankan import `--commit` sebelum pengaman transaksi dan
+validator pasca-import selesai.
+
+Saat membaca histori yang menyimpan legacy position ID, jangan membandingkan
+langsung dengan satu ID posisi aktif. Gunakan `equivalentIds()`, `contains()`,
+atau `whereEquivalent()` dari resolver. Resolver sengaja memvalidasi kesamaan
+user, jabatan, instansi, dan unit kerja agar alias tidak memperluas scope.
+
+Integrasi pertama selesai pada 2026-09-14 untuk controller `Data` dan pembayaran:
+
+- filter `document.uploaded_by` dan `document.users_to` memakai equivalent IDs;
+- gate detail, hapus, tolak, verifikasi, edit, update, dan submit memakai
+  `contains()` bila ownership ditentukan oleh ID posisi;
+- acting PPTK/BUD dinormalisasi melalui `pptkActorPosition()` dan
+  `budActorPosition()`;
+- join `document_process.id_user` dan penerima dokumen tetap menerima posisi
+  soft-deleted agar histori alias tidak hilang;
+- transaksi baru tetap menyimpan ID canonical tunggal.
+
+Index pendukung telah diterapkan untuk `document (uploaded_by, deleted_at)`,
+`document (users_to, deleted_at)`, dan
+`document_process (id_user, created_at)`.
+
+Baca `../99-legacy/LEGACY_USERS_IMPORT_DECISIONS.md` sebagai sumber keputusan
+lengkap sebelum mengubah importer, `users`, `user_positions`, authorization
+dokumen, atau relasi `document_process`.
 
 ## Source synchronization rules
 

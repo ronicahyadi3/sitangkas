@@ -12,6 +12,7 @@ Cluster ini menjelaskan posisi pengguna, dokumen SK, dan aturan pemilihan posisi
 | Detail migration `user_positions` | `2026_07_28_140100_USER_POSITIONS.md` |
 | Detail migration `user_position_documents` | `2026_07_28_140200_USER_POSITION_DOCUMENTS.md` |
 | Snapshot integrasi Management Users dengan posisi, SK, dan security modal | `../01-authentication/MANAGEMENT_USERS_CURRENT_STATE.md` |
+| Keputusan import users legacy dan preservasi `user_positions.id` | `../99-legacy/LEGACY_USERS_IMPORT_DECISIONS.md` |
 
 ## Aturan inti
 
@@ -19,6 +20,8 @@ Cluster ini menjelaskan posisi pengguna, dokumen SK, dan aturan pemilihan posisi
 - Posisi yang sedang dipakai disimpan di session, bukan di tabel `user_positions`.
 - Satu user dapat memiliki banyak posisi aktif.
 - Saat switch posisi, validasi ownership, active state, soft delete, dan masa berlaku.
+- Halaman switch posisi canonical adalah `/positions`; `/login/context` hanya
+  legacy redirect/compatibility.
 - `instansi_id` tidak boleh bebas dari request; ambil dari posisi valid.
 - Untuk Admin Super, acting context bukan row `user_positions`; lihat
   `../01-authentication/CURRENT_AUTH_CONTEXT_IMPLEMENTATION.md` sebelum memakai
@@ -27,6 +30,8 @@ Cluster ini menjelaskan posisi pengguna, dokumen SK, dan aturan pemilihan posisi
 - Perubahan dokumen utama harus dikelola dalam transaksi.
 - Route binding Management Users untuk `UserPosition` memakai encrypted route
   key. URL numeric polos untuk parameter `{position}` tidak boleh diterima.
+- Payload frontend Management Users memakai `id_enc` dan URL aksi terenkripsi
+  untuk posisi; jangan mengirim numeric `position_id` ke Blade/JavaScript.
 - Halaman Management Users membuat akun terlebih dahulu, lalu menambahkan
   posisi melalui modal posisi. Jangan membuat posisi awal otomatis saat create
   user tanpa decision baru.
@@ -40,6 +45,11 @@ Cluster ini menjelaskan posisi pengguna, dokumen SK, dan aturan pemilihan posisi
   mengisi `deactivation_reason`.
 - Dokumen SK pada Management Users saat ini hanya upload dan metadata; belum ada
   workflow verifikasi dokumen.
+- Import `dump-keuangan-202609090855.sql` mempunyai pengecualian desain yang
+  sudah disetujui tetapi belum diimplementasikan: seluruh ID row legacy akan
+  menjadi `user_positions.id`, akun dibentuk berdasarkan NIK unik, dan row
+  konteks duplikat harus menjadi alias non-selectable. Baca dokumen keputusan
+  legacy sebelum mengubah unique constraint posisi.
 
 ## Pakai cluster lain bila
 

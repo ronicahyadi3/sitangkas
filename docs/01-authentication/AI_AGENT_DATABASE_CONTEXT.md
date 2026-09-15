@@ -39,7 +39,7 @@ AI agent **WAJIB** membedakan dua jenis data berikut.
 | Jenis data | Tabel | Contoh |
 |---|---|---|
 | Kondisi akun saat ini | `users` | status akun, jumlah gagal login berturut-turut, waktu terkunci, login terakhir |
-| Riwayat autentikasi | `login_events` | login berhasil, login gagal, logout, lockout, session timeout, session revoked, reset MFA |
+| Riwayat autentikasi | `login_events` | login berhasil, login gagal, logout, lockout, session timeout, session revoked, reset password admin, reset MFA |
 | Audit administrasi Management Users | `user_management_audit_events` | create/update/delete user, create/deactivate posisi, grant/revoke izin historis |
 
 Aturan sederhana:
@@ -135,7 +135,8 @@ Management Users:
 - create/update/delete user;
 - create/update/activate/deactivate/delete posisi;
 - grant/revoke izin tahun historis;
-- force change password, lock/unlock, dan reset MFA dari UI;
+- force change password, reset password Admin Super, lock/unlock, dan reset MFA
+  dari UI;
 - snapshot `before_state` dan `after_state`;
 - reason, message, metadata, serta request context non-secret.
 
@@ -221,6 +222,7 @@ Nilai yang direkomendasikan:
 - `account_locked`;
 - `account_unlocked`;
 - `password_change_forced`;
+- `password_reset_by_admin`;
 - `context_switched`;
 - `session_timeout`;
 - `session_revoked`;

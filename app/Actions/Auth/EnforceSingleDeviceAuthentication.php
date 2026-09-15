@@ -150,6 +150,12 @@ class EnforceSingleDeviceAuthentication
         $this->forgetRememberCookie();
     }
 
+    public function disableRememberMeForCurrentSessionOnly(Request $request): void
+    {
+        $this->clearRememberedSession($request);
+        $this->forgetRememberCookie();
+    }
+
     public function clearRememberTokenExpiry(User $user): void
     {
         DB::table($user->getTable())

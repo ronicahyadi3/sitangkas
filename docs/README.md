@@ -18,9 +18,10 @@ context, atau `CurrentUserContext`, wajib baca:
 3. `03-user-positions/AI_AGENT_USER_POSITIONS_CONTEXT.md`
 
 Untuk pekerjaan Management Users, CRUD akun, posisi user dari halaman users,
-keamanan akun, reset MFA browser, lock/unlock, force change password, encrypted
-route key `{user}`/`{position}`, Yajra DataTables, audit trail Management
-Users, dokumen SK posisi, atau izin tahun historis dari modal users, wajib baca:
+keamanan akun, reset password Admin Super, reset MFA browser, lock/unlock,
+force change password, encrypted route key `{user}`/`{position}`, Yajra
+DataTables, audit trail Management Users, dokumen SK posisi, atau izin tahun
+historis dari modal users, wajib baca:
 
 1. `01-authentication/MANAGEMENT_USERS_CURRENT_STATE.md`
 2. `01-authentication/USERS_TABLE.md`
@@ -35,6 +36,24 @@ atau message helper realtime, wajib baca:
 3. `07-realtime/AI_AGENT_REVERB_REALTIME_CONTEXT.md`
 4. `07-realtime/ONLINE_PRESENCE_DECISIONS.md`
 
+Untuk pekerjaan migrasi payment LS, SPP/SPM/SP2D LS, dokumen pendukung,
+anggaran LS, TTE/billing/bank yang diperlukan LS, baca:
+
+1. [Hasil analisis payment LS](99-legacy/PAYMENT_LS_ANALYSIS.md)
+2. [Rencana implementasi dan keputusan terbuka](99-legacy/PAYMENT_LS_IMPLEMENTATION_PLAN.md)
+3. `99-legacy/OLD_PROJECT_REFERENCE.md`
+
+Snapshot ini masih berupa analisis, bukan implementasi yang selesai. Prioritas
+pengguna adalah LS dahulu, lalu payment lain setelah LS terimplementasi.
+
+Untuk import `dump-keuangan-202609090855.sql` menjadi akun dan posisi, wajib
+baca `99-legacy/LEGACY_USERS_IMPORT_DECISIONS.md`. Dokumen tersebut menetapkan
+bahwa `uuid` dan `access` tidak digunakan, akun dibuat berdasarkan NIK unik,
+dan ID row legacy dipertahankan sebagai `user_positions.id` untuk kompatibilitas
+`document` dan `document_process`. Pipeline read-only beserta validator sudah
+lulus. Action transaksional sudah dibuat dalam kondisi disabled dan belum
+terhubung ke entry point; opsi `--commit` belum tersedia.
+
 ## Cluster
 
 | Folder | Isi | Kapan dibaca |
@@ -47,7 +66,7 @@ atau message helper realtime, wajib baca:
 | `05-relationships` | Relasi lintas tabel, integrity rules, rollback dependency | Saat mengecek foreign key, dependency, audit lintas domain |
 | `06-migrations` | Readiness fresh install dan catatan masalah migration | Saat review migration, install baru, rollback, atau deployment database |
 | `07-realtime` | Reverb, presence channel, online monitoring, realtime notification, message helper | Saat mengubah WebSocket, broadcasting, Echo, online status, atau notifikasi realtime |
-| `99-legacy` | Referensi project lama, pemetaan data legacy, dan aturan import | Saat migrasi/import data lama atau mencontoh fitur lama |
+| `99-legacy` | Referensi project lama, pemetaan data legacy, aturan import, analisis dan rencana payment LS | Saat migrasi/import data lama, mencontoh fitur lama, atau melanjutkan implementasi LS |
 
 ## Prinsip umum
 

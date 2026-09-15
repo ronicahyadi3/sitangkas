@@ -12,7 +12,7 @@ class ForceUserPasswordChangeRequest extends UserSecurityRequest
         UserManagementAccessService $userManagementAccessService,
         ActivePositionService $activePositionService
     ): bool {
-        return $this->authorizeManagedTargetUser(
+        return $this->authorizeFullAdminTargetUser(
             $userManagementAccessService,
             $activePositionService,
             UserManagementAuditEvent::EVENT_SECURITY_FORCE_PASSWORD_CHANGE

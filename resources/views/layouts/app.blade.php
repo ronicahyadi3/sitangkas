@@ -207,7 +207,24 @@
     @endif
 
     @auth
-        @if (\Illuminate\Support\Facades\Route::has('realtime.presence.heartbeat') && \Illuminate\Support\Facades\Route::has('realtime.presence.leave'))
+        @php
+            $disableRealtimePresence = request()->routeIs(
+                'positions.*',
+                'login.context.*',
+                'login.mfa',
+                'login.mfa.store',
+                'login.mfa.setup',
+                'login.mfa.setup.store',
+                'login.no_active_position',
+                'login.post',
+                'login.post.store',
+                'login.post.options.*',
+                'password.change',
+                'password.change.save'
+            );
+        @endphp
+
+        @if (!$disableRealtimePresence && \Illuminate\Support\Facades\Route::has('realtime.presence.heartbeat') && \Illuminate\Support\Facades\Route::has('realtime.presence.leave'))
             <script>
                 window.sitangkasRealtime = {
                     heartbeatUrl: @json(route('realtime.presence.heartbeat')),

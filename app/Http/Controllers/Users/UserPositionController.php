@@ -709,7 +709,6 @@ class UserPositionController extends Controller
 
         return [
             'id_enc' => $position->getRouteKey(),
-            'position_id' => $position->id,
             'jabatan' => $position->jabatan?->nama ?? '-',
             'jabatan_id' => EncryptedId::encode($position->jabatan_id),
             'instansi' => $position->instansi?->nama ?? '-',

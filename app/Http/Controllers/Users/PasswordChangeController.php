@@ -49,6 +49,7 @@ class PasswordChangeController extends Controller
 
         return redirect()
             ->intended(route('dashboard'))
+            ->with('password_change_success', 'Password berhasil diperbarui.')
             ->with('status', 'Password berhasil diperbarui.');
     }
 }

@@ -3,15 +3,14 @@
 use App\Http\Controllers\Admin\RealtimeOnlineUsersController;
 use App\Http\Controllers\Auth\AdminSuperActingContextController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
-use App\Http\Controllers\Auth\LoginContextController;
 use App\Http\Controllers\Auth\MfaChallengeController;
 use App\Http\Controllers\Auth\MissingActivePositionController;
+use App\Http\Controllers\Auth\PositionContextController;
 use App\Http\Controllers\Auth\TotpEnrollmentController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Profile\MfaRecoveryCodeController;
 use App\Http\Controllers\Profile\SecurityController;
 use App\Http\Controllers\Realtime\OnlinePresenceController;
-use App\Http\Controllers\Users\AccountSwitchController;
 use App\Http\Controllers\Users\AjaxOptionsController;
 use App\Http\Controllers\Users\PasswordChangeController;
 use App\Http\Controllers\Users\UserController;
@@ -36,6 +35,9 @@ Route::middleware('guest')->group(function (): void {
 });
 
 Route::middleware(['auth', 'account.accessible', 'single.device.session'])->group(function (): void {
+    Route::get('/ping', function () {
+        return response()->json(null, 204);
+    });
     Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])->name('logout');
     Route::get('/login/no-active-position', MissingActivePositionController::class)
         ->name('login.no_active_position');
@@ -44,12 +46,12 @@ Route::middleware(['auth', 'account.accessible', 'single.device.session'])->grou
         ->middleware(['has.position', 'mfa.verified', 'active.position', 'password.fresh'])
         ->name('dashboard');
 
-    Route::get('/positions', [AccountSwitchController::class, 'positions'])
-        ->middleware(['has.position', 'mfa.verified', 'active.position', 'password.fresh'])
+    Route::get('/positions', [PositionContextController::class, 'create'])
+        ->middleware('has.position')
         ->name('positions.index');
-    Route::post('/positions/switch', [AccountSwitchController::class, 'switch'])
-        ->middleware(['has.position', 'mfa.verified', 'active.position', 'password.fresh', 'throttle:auth-context'])
-        ->name('positions.switch');
+    Route::post('/positions', [PositionContextController::class, 'store'])
+        ->middleware(['has.position', 'throttle:auth-context'])
+        ->name('positions.store');
 
     Route::get('/profile/security', SecurityController::class)
         ->middleware(['has.position', 'mfa.verified', 'active.position', 'password.fresh'])
@@ -72,10 +74,8 @@ Route::middleware(['auth', 'account.accessible', 'single.device.session'])->grou
         ->middleware(['has.position', 'mfa.verified', 'active.position', 'password.fresh', 'throttle:60,1'])
         ->name('admin.realtime.online-users.state');
 
-    Route::get('/login/context', [LoginContextController::class, 'create'])->name('login.context');
-    Route::post('/login/context', [LoginContextController::class, 'store'])
-        ->middleware('throttle:auth-context')
-        ->name('login.context.store');
+    Route::get('/login/context', [PositionContextController::class, 'legacy'])
+        ->name('login.context.legacy');
 
     Route::get('/login/mfa', [MfaChallengeController::class, 'create'])->name('login.mfa');
     Route::post('/login/mfa', [MfaChallengeController::class, 'store'])
@@ -140,6 +140,9 @@ Route::middleware(['auth', 'account.accessible', 'single.device.session'])->grou
             Route::post('/{user}/security/force-password-change', [UserSecurityController::class, 'forcePasswordChange'])
                 ->middleware('throttle:auth-context')
                 ->name('security.force-password-change');
+            Route::post('/{user}/security/reset-password', [UserSecurityController::class, 'resetPassword'])
+                ->middleware('throttle:auth-context')
+                ->name('security.reset-password');
             Route::post('/{user}/security/lock', [UserSecurityController::class, 'lock'])
                 ->middleware('throttle:auth-context')
                 ->name('security.lock');

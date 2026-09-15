@@ -8,6 +8,7 @@ use App\Models\Payment\KKPD;
 use App\Models\UnitKerja;
 use App\Services\Document\DocumentHistoryService;
 use App\Services\User\ActivePositionService;
+use App\Services\User\PositionIdentityResolver;
 use App\Support\EncryptedId;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -17,6 +18,8 @@ use Yajra\DataTables\Facades\DataTables;
 
 class DPR extends Controller
 {
+    public function __construct(private readonly PositionIdentityResolver $positionIdentityResolver) {}
+
     private const SRC_TYPE_DPR = 'DPR';
 
     private const SRC_TYPE_NPD = 'NPD';
@@ -138,7 +141,7 @@ class DPR extends Controller
                     $q->where('dpr.id_unit_kerja', $unitKerjaId);
 
                     if ($jabatanId === 8) {
-                        $q->where('dpr.uploaded_by', $actorId);
+                        $q->whereIn('dpr.uploaded_by', $this->positionIdentityResolver->equivalentIds($actorId));
                     }
                 })
                 ->when(in_array($jabatanId, [5, 6], true), function ($q) use ($submitExpr) {
@@ -1107,7 +1110,10 @@ class DPR extends Controller
             && $user->unitKerja
             && (int) $user->jabatan->id === 8
             && (int) $document->id_unit_kerja === (int) $user->unitKerja->id
-            && (int) $document->uploaded_by === $this->resolveActorUserId($user);
+            && $this->positionIdentityResolver->contains(
+                $this->resolveActorUserId($user),
+                (int) $document->uploaded_by,
+            );
     }
 
     private function propagateSubmitState($docs, string $submit, string $assignedTo): void
@@ -1157,7 +1163,7 @@ class DPR extends Controller
 
     private function resolveActorUserId($user): int
     {
-        return (int) (($user->actingPptkUser) ? $user->actingPptkUser->id : $user->id);
+        return (int) $this->positionIdentityResolver->pptkActorPosition($user)->getKey();
     }
 
     private function csvToArray(?string $csv): array

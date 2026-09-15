@@ -124,8 +124,22 @@ class SPM extends Controller
                 ->when(! in_array($jabatanId, [1, 13], true), function ($q) use ($unitKerjaId, $jabatanId, $submitExpr) {
                     if ($jabatanId === 7) {
                         $q->where('spm.id_unit_kerja', $unitKerjaId);
-                    } elseif (in_array($jabatanId, [5, 6], true)) {
+                    } elseif (in_array($jabatanId, [5], true)) {
+
                         $q->where('spm.id_unit_kerja', $unitKerjaId);
+
+                        $q->whereRaw("FIND_IN_SET(?, {$submitExpr})", ['7']);
+                    } elseif (in_array($jabatanId, [6], true)) {
+                        $q->where(function ($scope) use ($unitKerjaId) {
+                            $scope->where('spp.id_unit_kerja', $unitKerjaId)
+                                ->orWhere('pengajuan.id_unit_kerja', $unitKerjaId)
+                                ->orWhere(function ($fallback) use ($unitKerjaId) {
+                                    $fallback->whereNull('spp.id')
+                                        ->whereNull('pengajuan.id')
+                                        ->where('spm.id_unit_kerja', $unitKerjaId);
+                                });
+                        });
+
                         $q->whereRaw("FIND_IN_SET(?, {$submitExpr})", ['7']);
                     } elseif ($jabatanId === 4) {
                         $q->where(function ($scope) use ($submitExpr) {
@@ -605,7 +619,11 @@ class SPM extends Controller
                 ->where('spp.payment_type', self::PAYMENT_TYPE)
                 ->whereNull('spp.rejected_by')
                 ->where('spp.verify', 1)
-                ->where('spp.id_unit_kerja', $unitKerjaId)
+                // ->where('spp.id_unit_kerja', $unitKerjaId)
+                ->where(function ($q) use ($unitKerjaId) {
+                    $q->where('spp.id_unit_kerja', $unitKerjaId)
+                        ->orWhere('uk.skpd_id', $unitKerjaId);
+                })
                 ->where(function ($q) use ($isEdited, $currentSppId) {
                     $q->whereNotExists(function ($sub) {
                         $sub->select(DB::raw(1))
@@ -1100,22 +1118,34 @@ class SPM extends Controller
 
     private function assertSppAvailability(int $sppId, ?int $currentSpmId, $user): Document
     {
+        $unitKerjaId = (int) ($user->unitKerja?->id ?? 0);
+
         $spp = Document::query()
+            ->with('unitKerja:id,skpd_id')
             ->where('id', $sppId)
             ->where('src_type', 'SPP')
             ->where('payment_type', self::PAYMENT_TYPE)
             ->whereNull('deleted_at')
-            ->whereNull('rejected_by')
-            ->where('verify', 1)
-            ->where(function ($q) use ($user) {
-                $unitKerjaId = $user->unitKerja?->id;
-                $q->where('id_unit_kerja', $unitKerjaId);
-            })
             ->lockForUpdate()
             ->first();
 
         if (! $spp) {
-            throw new \RuntimeException('Data SPP tidak valid atau belum diverifikasi.');
+            throw new \RuntimeException('Data SPP tidak ditemukan.');
+        }
+
+        $inScope = (int) $spp->id_unit_kerja === $unitKerjaId
+            || (int) ($spp->unitKerja?->skpd_id ?? 0) === $unitKerjaId;
+
+        if (! $inScope) {
+            throw new \RuntimeException('SPP tidak berada dalam scope unit/SKPD Anda.');
+        }
+
+        if (! is_null($spp->rejected_by)) {
+            throw new \RuntimeException('SPP ditolak.');
+        }
+
+        if ((int) $spp->verify !== 1) {
+            throw new \RuntimeException('SPP belum diverifikasi.');
         }
 
         $packageReferenceId = $this->resolvePackageReferenceId($spp);

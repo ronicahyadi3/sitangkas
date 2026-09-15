@@ -53,6 +53,6 @@ class EnsurePasswordIsFresh
             ], 409);
         }
 
-        return redirect()->to($redirectTo)->with('status', $message);
+        return redirect()->to($redirectTo)->with('password_change_required', $message);
     }
 }

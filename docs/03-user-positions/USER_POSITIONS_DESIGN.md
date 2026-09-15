@@ -87,7 +87,16 @@ Kombinasi berikut harus unik:
 user_id + jabatan_id + instansi_id + unit_kerja_id
 ```
 
-Apabila posisi yang sama pernah di-soft-delete lalu diperlukan kembali, aplikasi harus memakai `withTrashed()`, melakukan `restore()`, dan mengaktifkannya kembali. Jangan membuat record duplikat.
+Apabila posisi manual/canonical yang sama pernah di-soft-delete lalu diperlukan
+kembali, aplikasi harus memakai `withTrashed()`, melakukan `restore()`, dan
+mengaktifkannya kembali. Jangan membuat record operasional duplikat.
+
+Pengecualian yang sudah disetujui tetapi belum diimplementasikan berlaku untuk
+import `dump-keuangan-202609090855.sql`. Row legacy dengan konteks sama harus
+tetap dipertahankan sebagai alias non-selectable agar ID yang dirujuk
+`document` dan `document_process` tidak berubah. Current unique constraint
+masih memblokir pengecualian ini. Baca
+`../99-legacy/LEGACY_USERS_IMPORT_DECISIONS.md` sebelum mengubah schema.
 
 ### Arti `is_active`
 

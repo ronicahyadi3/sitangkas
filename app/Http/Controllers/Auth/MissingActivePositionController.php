@@ -23,7 +23,7 @@ class MissingActivePositionController extends Controller
 
         if ($this->currentUserContext->hasSelectablePositions($user)) {
             return redirect()
-                ->route('login.context')
+                ->route('positions.index')
                 ->with('status', 'Posisi aktif sudah tersedia. Silakan pilih konteks kerja.');
         }
 

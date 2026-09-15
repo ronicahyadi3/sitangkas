@@ -74,8 +74,8 @@ class EnsureActiveUserPosition
 
     private function redirectToContextSelection(Request $request, string $message): RedirectResponse
     {
-        if (Route::has('login.context')) {
-            return redirect()->route('login.context')->with('status', $message);
+        if (Route::has('positions.index')) {
+            return redirect()->route('positions.index')->with('status', $message);
         }
 
         $request->session()->invalidate();
@@ -110,8 +110,8 @@ class EnsureActiveUserPosition
             'login.post',
             'login.post.store',
             'login.post.options.*',
-            'login.context',
-            'login.context.store',
+            'positions.index',
+            'positions.store',
             'login.no_active_position',
             'logout'
         );

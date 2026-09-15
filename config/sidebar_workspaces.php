@@ -14,7 +14,7 @@ return [
 
     'route_meta' => [
         'positions.index' => [
-            'label' => 'Ganti Jabatan Aktif',
+            'label' => 'Ganti Posisi Kerja',
             'group' => 'pages',
             'code' => 'POS',
         ],

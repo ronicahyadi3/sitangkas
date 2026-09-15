@@ -32,7 +32,36 @@ Ini ringkasan aturan yang tidak boleh dilanggar lintas domain.
 - `user_positions.is_active` berarti posisi tersedia, bukan posisi session yang sedang dipakai.
 - Posisi aktif request disimpan di session sebagai `active_user_position_id`.
 - Satu user boleh memiliki banyak posisi aktif.
-- Kombinasi `user_id`, `jabatan_id`, `instansi_id`, `unit_kerja_id` harus unik.
+- Kombinasi operasional `user_id`, `jabatan_id`, `instansi_id`,
+  `unit_kerja_id` harus memiliki tepat satu posisi canonical. Import legacy
+  yang disetujui dapat mempertahankan row duplikat sebagai alias non-selectable
+  setelah forward migration canonical/alias tersedia.
+- Pada import legacy, satu NIK tidak boleh mempunyai dua posisi aktif pada
+  kombinasi jabatan, instansi, dan unit kerja yang sama. Setelah organisasi
+  dinormalisasi, row aktif dengan `created_at` terbaru menjadi canonical; bila
+  sama, legacy ID terbesar menang. Row lama tetap ada sebagai alias
+  soft-deleted agar referensi dokumen lama tidak terputus.
+- Untuk import `dump-keuangan-202609090855.sql`, kontrak identitas yang disetujui
+  adalah `legacy users.id = target user_positions.id`, sedangkan
+  `user_positions.user_id` tetap menunjuk akun target hasil distinct NIK.
+- Kolom legacy `uuid` dan `access` tidak digunakan. `access` tidak boleh
+  dipetakan ke `tahun_aktif` atau permission tahun historis.
+- Sejak reset 2026-09-09, tabel `users` dan `user_positions` sengaja kosong agar
+  seluruh akun dan posisi berikutnya berasal dari import legacy. Jangan jalankan
+  seeder akun/posisi atau membuat data manual sebelum import selesai.
+- Detail dan blocker import users legacy berada di
+  `../99-legacy/LEGACY_USERS_IMPORT_DECISIONS.md`. Pipeline read-only sudah
+  mencakup source reader, organization resolver, account aggregator, position
+  classifier, analyzer `--dry-run`, dan `LegacyUserImportValidator`.
+- Action write legacy `ImportLegacyUsers` sudah tersedia, tetapi safety gate
+  `legacy_import.execution.enabled` wajib tetap `false` sampai keputusan
+  transformasi dikunci. Opsi `--commit` dan audit batch belum dibuat.
+- Action import legacy tidak boleh dipanggil dari route, controller, scheduler,
+  job, Tinker, atau command lain sebelum entry point resmi disetujui. Keberadaan
+  class action bukan izin untuk menjalankan import.
+- Sebelum import user legacy, target `users` dan `user_positions` harus tetap
+  kosong. Validator preflight harus lulus dan fingerprint sumber harus sama
+  dengan snapshot yang disetujui.
 - Dokumen SK disimpan di `user_position_documents`, bukan di `user_positions`.
 - Flow Management Users membuat akun terlebih dahulu, lalu menambahkan posisi.
   Jangan membuat posisi awal otomatis tanpa decision baru.
@@ -41,7 +70,8 @@ Ini ringkasan aturan yang tidak boleh dilanggar lintas domain.
 
 ## Login context dan Admin Super
 
-- `login.context` hanya untuk memilih posisi nyata dari `user_positions`.
+- `/positions` adalah route canonical untuk memilih posisi nyata dari
+  `user_positions`; `/login/context` hanya legacy redirect/compatibility.
 - `login.post` adalah flow resmi Admin Super untuk memilih acting context manual.
 - MFA memakai TOTP kompatibel Google Authenticator; wajib untuk real active
   position Admin Super dan optional/enrollable untuk user non-Admin Super.
@@ -59,6 +89,8 @@ Ini ringkasan aturan yang tidak boleh dilanggar lintas domain.
 - Secret TOTP, kode OTP, recovery code mentah, QR provisioning URI, dan payload
   MFA mentah tidak boleh disimpan di audit/log.
 - Lock/unlock akun dari Management Users adalah Admin Super only.
+- Reset password dari Management Users adalah Admin Super only; password
+  sementara hanya boleh ditampilkan satu kali dan tidak boleh masuk audit/log.
 - Reset MFA dari Management Users adalah Admin Super only; PA/KPA tidak boleh
   reset MFA user lain.
 - Remember-me default 24 jam dan harus configurable; sumber policy adalah

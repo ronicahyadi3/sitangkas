@@ -32,8 +32,8 @@ class AuthenticatedSessionController extends Controller
     {
         $authenticateSession->handle($request);
 
-        return redirect()->intended(
-            Route::has('dashboard') ? route('dashboard') : route('landing')
+        return redirect()->route(
+            Route::has('positions.index') ? 'positions.index' : 'dashboard'
         );
     }
 

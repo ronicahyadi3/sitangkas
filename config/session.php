@@ -105,6 +105,26 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Session Blocking
+    |--------------------------------------------------------------------------
+    |
+    | Context switching updates security-sensitive session values such as the
+    | active position and active year. Blocking serializes same-session requests
+    | so realtime heartbeat or AJAX responses cannot write an older payload after
+    | a context switch has completed.
+    |
+    */
+
+    'block' => env('SESSION_BLOCK', true),
+
+    'block_store' => env('SESSION_BLOCK_STORE', env('CACHE_STORE', 'database')),
+
+    'block_lock_seconds' => (int) env('SESSION_BLOCK_LOCK_SECONDS', 10),
+
+    'block_wait_seconds' => (int) env('SESSION_BLOCK_WAIT_SECONDS', 10),
+
+    /*
+    |--------------------------------------------------------------------------
     | Session Sweeping Lottery
     |--------------------------------------------------------------------------
     |

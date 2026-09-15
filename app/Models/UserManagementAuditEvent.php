@@ -33,6 +33,8 @@ class UserManagementAuditEvent extends Model
 
     public const EVENT_SECURITY_MFA_RESET = 'security.mfa_reset';
 
+    public const EVENT_SECURITY_PASSWORD_RESET = 'security.password_reset';
+
     public const EVENT_SECURITY_UNLOCK = 'security.unlock';
 
     public const EVENT_USER_CREATED = 'user.created';

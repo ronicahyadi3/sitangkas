@@ -180,6 +180,7 @@ Nilai awal yang direkomendasikan:
 - `account_locked`;
 - `account_unlocked`;
 - `password_change_forced`;
+- `password_reset_by_admin`;
 - `context_switched`;
 - `session_timeout`;
 - `session_revoked`;
@@ -312,9 +313,13 @@ Catatan MFA TOTP:
 - `mfa_reset` dipakai saat Admin Super mereset enrollment MFA melalui
   Management Users atau operator/admin teknis mereset melalui command Artisan.
   Event ini tidak boleh menyimpan secret/recovery code mentah.
-- `account_locked`, `account_unlocked`, dan `password_change_forced` dipakai
-  oleh flow keamanan akun Management Users. Detail administrasi juga dicatat ke
-  `user_management_audit_events`.
+- `account_locked`, `account_unlocked`, `password_change_forced`, dan
+  `password_reset_by_admin` dipakai oleh flow keamanan akun Management Users.
+  Detail administrasi juga dicatat ke `user_management_audit_events`.
+- `password_reset_by_admin` tidak boleh menyimpan temporary password mentah pada
+  `metadata`, `message`, atau log aplikasi. Metadata maksimal menyimpan
+  informasi non-secret seperti panjang password sementara dan jumlah session
+  yang dicabut.
 
 ---
 
@@ -742,6 +747,7 @@ Jangan menambahkan index ke setiap kolom boolean atau metadata tanpa bukti pola 
 | MFA berhasil | `mfa_verified` | `success` | null |
 | Recovery codes dibuat ulang | `mfa_recovery_codes_regenerated` | `success` | null |
 | Force change password dari Management Users | `password_change_forced` | `success` | null |
+| Reset password oleh Admin Super dari Management Users | `password_reset_by_admin` | `success` | null |
 | Lock akun dari Management Users | `account_locked` | `success` | null |
 | Unlock akun dari Management Users | `account_unlocked` | `success` | null |
 | Reset MFA via Management Users atau Artisan | `mfa_reset` | `success` | null |

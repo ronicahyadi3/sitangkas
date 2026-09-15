@@ -13,7 +13,7 @@
 
         $navbarContextRouteName = $navbarIsRealAdminSuper && \Illuminate\Support\Facades\Route::has('login.post')
             ? 'login.post'
-            : (\Illuminate\Support\Facades\Route::has('login.context') ? 'login.context' : null);
+            : (\Illuminate\Support\Facades\Route::has('positions.index') ? 'positions.index' : null);
         $navbarContextUrl = $navbarContextRouteName ? route($navbarContextRouteName) : '#';
         $navbarProfileUrl = \Illuminate\Support\Facades\Route::has('users.index')
             ? route('users.index')
@@ -38,7 +38,7 @@
         $navbarRoleLabel = $navbarActor?->jabatan?->nama ?? session('active_role') ?? 'Konteks Aktif';
         $navbarContextActionLabel = $navbarIsRealAdminSuper
             ? ($navbarIsActingContext ? 'Ganti Acting Context' : 'Pilih Acting Context')
-            : 'Ganti Jabatan';
+            : 'Ganti Posisi';
 
         $navbarUserName = auth()->user()?->nama ?? 'User';
         $navbarNameParts = preg_split('/\s+/', trim($navbarUserName)) ?: [];
@@ -60,7 +60,7 @@
             'users.index' => ['Users'],
             'profile.security' => ['Akun', 'Keamanan Akun'],
             'profile.security.mfa.recovery_codes.regenerate' => ['Akun', 'Keamanan Akun'],
-            'positions.page' => ['Akun', 'Ganti Jabatan'],
+            'positions.index' => ['Akun', 'Ganti Posisi'],
             'password.change' => ['Akun', 'Ganti Password'],
             'bank.sp2d.index' => ['Bank', 'SP2D'],
         ];

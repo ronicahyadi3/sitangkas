@@ -18,6 +18,8 @@ class LoginEvent extends Model
 
     public const EVENT_PASSWORD_CHANGE_FORCED = 'password_change_forced';
 
+    public const EVENT_PASSWORD_RESET_BY_ADMIN = 'password_reset_by_admin';
+
     public const EVENT_CONTEXT_SWITCHED = 'context_switched';
 
     public const EVENT_LOGOUT = 'logout';

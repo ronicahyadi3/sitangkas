@@ -3,10 +3,10 @@
     $userName = $user?->nama ?? 'User';
     $contextRouteName = ($isRealActiveUserPositionAdminSuper ?? false) && \Illuminate\Support\Facades\Route::has('login.post')
         ? 'login.post'
-        : 'login.context';
+        : 'positions.index';
     $contextActionLabel = ($isRealActiveUserPositionAdminSuper ?? false)
         ? (($isActingContext ?? false) ? 'Ganti Acting Context' : 'Pilih Acting Context')
-        : 'Ganti Konteks';
+        : 'Ganti Posisi';
 @endphp
 
 @extends('layouts.app')

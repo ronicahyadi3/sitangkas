@@ -1,0 +1,168 @@
+<?php
+
+namespace App\Http\Controllers\Data;
+
+use App\Http\Controllers\Controller;
+use App\Models\Document;
+use App\Services\User\ActivePositionService;
+use App\Services\User\PositionIdentityResolver;
+use App\Support\EncryptedId;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
+use Yajra\DataTables\Facades\DataTables;
+
+class DetailTbp extends Controller
+{
+    public function __construct(private readonly PositionIdentityResolver $positionIdentityResolver) {}
+
+    public function detail(Request $request, ActivePositionService $activePosition)
+    {
+        Log::channel('module_document_data')->info('Document Detail TBP Request', [
+            'hash' => $request->id,
+        ]);
+
+        if (! $request->id) {
+            return response()->json([
+                'status' => 400,
+                'message' => 'Parameter tidak valid',
+            ], 400);
+        }
+
+        try {
+            $id = EncryptedId::decode($request->id);
+        } catch (\Throwable $e) {
+            Log::channel('module_document_data')->warning('Document Detail TBP Invalid ID', [
+                'hash' => $request->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return response()->json([
+                'status' => 422,
+                'message' => 'ID dokumen tidak valid',
+            ], 422);
+        }
+
+        $position = $activePosition->get();
+        if (! $position || ! $position->jabatan) {
+            return response()->json([
+                'status' => 403,
+                'message' => 'Posisi aktif tidak valid',
+            ], 403);
+        }
+
+        $document = Document::with('unitKerja')->find($id);
+        if (! $document) {
+            return response()->json([
+                'status' => 404,
+                'message' => 'Dokumen tidak ditemukan',
+            ], 404);
+        }
+
+        if (! $this->canAccessDocument($document, $position)) {
+            return response()->json([
+                'status' => 403,
+                'message' => 'Anda tidak berwenang mengakses data TBP ini',
+            ], 403);
+        }
+
+        $lpjId = $this->resolveLpjId($document);
+        if (! $lpjId) {
+            return DataTables::of(collect())->make(true);
+        }
+
+        $tbpQuery = Document::query()
+            ->join('unit_kerjas', 'unit_kerjas.id', '=', 'document.id_unit_kerja')
+            ->where('document.src_type', 'TBP')
+            ->where('document.payment_type', $document->payment_type)
+            ->where('document.parent_id', $lpjId)
+            ->whereNull('document.deleted_at')
+            ->select('document.*', 'unit_kerjas.nama as unit_kerja')
+            ->orderByDesc('document.created_at');
+
+        return DataTables::of($tbpQuery)
+            ->addIndexColumn()
+            ->addColumn('action', function ($row) {
+                $url = ! is_null($row->status)
+                    ? '/File_TBP/signs/'.$row->src_name
+                    : '/File_TBP/'.$row->src_name;
+                $downloadName = $row->unit_kerja.' - '.str_replace('/', '|', (string) $row->nomor).' - '.optional($row->created_at)->format('Y-m-d').'.pdf';
+
+                return '<button type="button" class="btn btn-sm btn-success view-pdf"'
+                    .' data-url="'.$url.'"'
+                    .' data-files="'.$row->src_name.'"'
+                    .' data-wenk="Klik untuk menampilkan dokumen"'
+                    .' data-wenk-color="green">'
+                    .'<i class="fa-solid fa-eye"></i> Tampilkan</button>'
+                    .' <a href="'.$url.'" class="btn btn-sm btn-primary"'
+                    .' download="'.e($downloadName).'"'
+                    .' target="_blank"'
+                    .' data-wenk="Download"'
+                    .' data-wenk-color="blue">'
+                    .'<i class="fas fa-file-download"></i> Download</a>';
+            })
+            ->rawColumns(['action'])
+            ->make(true);
+    }
+
+    private function resolveLpjId(Document $document): ?int
+    {
+        if ($document->payment_type === 'GU_SKPD') {
+            return match ($document->src_type) {
+                'LPJ' => (int) $document->id,
+                'SPP', 'BMD' => $document->reference_id ? (int) $document->reference_id : null,
+                'TBP' => $document->parent_id ? (int) $document->parent_id : null,
+                default => null,
+            };
+        }
+
+        if ($document->payment_type === 'GU_UK') {
+            return match ($document->src_type) {
+                'LPJ_BPP' => (int) $document->id,
+                'TBP' => $document->parent_id ? (int) $document->parent_id : null,
+                default => null,
+            };
+        }
+
+        return null;
+    }
+
+    private function canAccessDocument(Document $document, $position): bool
+    {
+        if (! $position || ! $position->jabatan) {
+            return false;
+        }
+
+        $jabatanId = (int) $position->jabatan->id;
+        if ($jabatanId === 1) {
+            return true;
+        }
+
+        $unitKerjaId = $position->unitKerja?->id;
+        if (! $unitKerjaId) {
+            return false;
+        }
+
+        if ($document->payment_type === 'GU_UK') {
+            if ($jabatanId === 8 && $document->src_type === 'NPD') {
+                return $this->positionIdentityResolver->contains(
+                    $this->positionIdentityResolver->pptkActorPosition($position),
+                    (int) $document->uploaded_by,
+                );
+            }
+
+            return (int) $document->id_unit_kerja === (int) $unitKerjaId;
+        }
+
+        if ((int) $document->id_unit_kerja === (int) $unitKerjaId) {
+            return true;
+        }
+
+        if ((int) ($document->unitKerja?->skpd_id ?? 0) === (int) $unitKerjaId) {
+            return true;
+        }
+
+        $assigned = array_filter(explode(',', (string) $document->assigned_to));
+
+        return in_array((string) $jabatanId, $assigned, true);
+    }
+}

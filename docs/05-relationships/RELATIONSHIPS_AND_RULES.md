@@ -84,8 +84,8 @@ Saat membuat/mengubah/menghapus master:
 
 Untuk Management Users, audit log terpisah yang aktif adalah
 `user_management_audit_events`. Aksi keamanan akun seperti force password
-change, lock/unlock, dan reset MFA tetap juga mencatat event keamanan ke
-`login_events`.
+change, reset password Admin Super, lock/unlock, dan reset MFA tetap juga
+mencatat event keamanan ke `login_events`.
 
 ## Aturan cache
 

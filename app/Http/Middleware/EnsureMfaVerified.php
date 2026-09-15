@@ -51,7 +51,7 @@ class EnsureMfaVerified
 
             return $this->redirectOrJson(
                 $request,
-                'login.context',
+                'positions.index',
                 'Silakan pilih konteks kerja sebelum verifikasi MFA.'
             );
         }
@@ -71,7 +71,7 @@ class EnsureMfaVerified
 
             return $this->redirectOrJson(
                 $request,
-                'login.context',
+                'positions.index',
                 'Konteks kerja sudah tidak aktif. Silakan pilih kembali sebelum verifikasi MFA.'
             );
         }
@@ -105,8 +105,8 @@ class EnsureMfaVerified
             'login.mfa.store',
             'login.mfa.setup',
             'login.mfa.setup.store',
-            'login.context',
-            'login.context.store',
+            'positions.index',
+            'positions.store',
             'login.no_active_position',
             'logout'
         );

@@ -8,6 +8,7 @@ use App\Models\Payment\GU_SKPD;
 use App\Models\UnitKerja;
 use App\Services\Document\DocumentHistoryService;
 use App\Services\User\ActivePositionService;
+use App\Services\User\PositionIdentityResolver;
 use App\Support\EncryptedId;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -17,6 +18,8 @@ use Yajra\DataTables\Facades\DataTables;
 
 class NPD extends Controller
 {
+    public function __construct(private readonly PositionIdentityResolver $positionIdentityResolver) {}
+
     private const SRC_TYPE = 'NPD';
 
     private const FILE_DIR = '/File_NPD';
@@ -118,7 +121,7 @@ class NPD extends Controller
                 ->when(! in_array($jabatanId, [1, 13], true), function ($q) use ($unitKerjaId, $jabatanId, $actorId, $submitExpr) {
                     if ($jabatanId === 8) {
                         // PPTK: hanya lihat dokumen dirinya sendiri pada unit kerja aktif.
-                        $q->where('document.uploaded_by', $actorId)
+                        $q->whereIn('document.uploaded_by', $this->positionIdentityResolver->equivalentIds($actorId))
                             ->where('document.id_unit_kerja', $unitKerjaId);
 
                         return;
@@ -524,7 +527,7 @@ class NPD extends Controller
                 $q->where('id_unit_kerja', $unitKerjaId);
 
                 if ($jabatanId === 8) {
-                    $q->where('uploaded_by', $actorId);
+                    $q->whereIn('uploaded_by', $this->positionIdentityResolver->equivalentIds($actorId));
                 }
             })
             ->first();
@@ -623,7 +626,7 @@ class NPD extends Controller
                 $q->where('id_unit_kerja', $unitKerjaId);
 
                 if ($jabatanId === 8) {
-                    $q->where('uploaded_by', $actorId);
+                    $q->whereIn('uploaded_by', $this->positionIdentityResolver->equivalentIds($actorId));
                 }
             })
             ->first();
@@ -873,7 +876,7 @@ class NPD extends Controller
 
     private function resolveActorUserId($user): int
     {
-        return (int) (($user->actingPptkUser) ? $user->actingPptkUser->id : $user->id);
+        return (int) $this->positionIdentityResolver->pptkActorPosition($user)->getKey();
     }
 
     private function canManageCrud($user): bool
@@ -895,7 +898,7 @@ class NPD extends Controller
 
         if ($jabatanId === 8) {
             return (int) $document->id_unit_kerja === (int) $unitKerjaId
-                && (int) $document->uploaded_by === $actorId;
+                && $this->positionIdentityResolver->contains($actorId, (int) $document->uploaded_by);
         }
 
         if ((int) $document->id_unit_kerja === (int) $unitKerjaId) {

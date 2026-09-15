@@ -15,6 +15,7 @@ use App\Models\Payment\LS_GAJI;
 use App\Models\UnitKerja;
 use App\Services\Document\DocumentHistoryService;
 use App\Services\User\ActivePositionService;
+use App\Services\User\PositionIdentityResolver;
 use App\Support\EncryptedId;
 use DB;
 use Illuminate\Http\Request;
@@ -24,6 +25,8 @@ use Yajra\DataTables\Facades\DataTables;
 
 class SPP extends Controller
 {
+    public function __construct(private readonly PositionIdentityResolver $positionIdentityResolver) {}
+
     protected function storeFile($file, $directory, ?array &$storedFiles = null)
     {
         $filename = Str::uuid()->toString().'.pdf';
@@ -288,7 +291,11 @@ class SPP extends Controller
             $user = $activePosition->get();
             $userJabatan = $user->jabatan->id;
             $userUnit = ($user->unitKerja) ? $user->unitKerja->id : null;
-            $userId = ($user->actingPptkUser) ? $user->actingPptkUser->id : $user->id;
+            $userIds = (int) $userJabatan === 8
+                ? $this->positionIdentityResolver->equivalentIds(
+                    $this->positionIdentityResolver->pptkActorPosition($user),
+                )
+                : [];
 
             Log::channel('payment_ls_gaji')->debug('SPP LS Gaji json request', [
                 'duration_ms' => round((microtime(true) - $start) * 1000, 2),
@@ -335,7 +342,7 @@ class SPP extends Controller
                                         ->whereRaw("FIND_IN_SET(?, {$assignedExpr})", ['6']);
                                 });
                         })
-                        ->where('document.users_to', $userId);
+                        ->whereIn('document.users_to', $userIds);
                     break;
                 case 7:
                     $dataQuery = $dataQuery

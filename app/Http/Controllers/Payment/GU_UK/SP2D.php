@@ -7,6 +7,7 @@ use App\Models\Document;
 use App\Models\Payment\GU_UK as PaymentGU_UK;
 use App\Services\Document\DocumentHistoryService;
 use App\Services\User\ActivePositionService;
+use App\Services\User\PositionIdentityResolver;
 use App\Support\EncryptedId;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -15,6 +16,8 @@ use Yajra\DataTables\Facades\DataTables;
 
 class SP2D extends Controller
 {
+    public function __construct(private readonly PositionIdentityResolver $positionIdentityResolver) {}
+
     private const PAYMENT_TYPE = 'GU_UK';
 
     protected function auditorStatusBadge(object $row): string
@@ -63,7 +66,11 @@ class SP2D extends Controller
         }
 
         $jabatanId = (int) $user->jabatan->id;
-        $actorBudUserId = $user->actingBudUser ? $user->actingBudUser->id : $user->id;
+        $actorBudIds = in_array($jabatanId, [2, 3], true)
+            ? $this->positionIdentityResolver->equivalentIds(
+                $this->positionIdentityResolver->budActorPosition($user),
+            )
+            : [];
         $actorPositionId = (int) $user->id;
         $unitKerjaId = (int) ($user->unitKerja?->id ?? 0);
         $query = PaymentGU_UK::rootQueryAlias('sp2d')
@@ -75,8 +82,7 @@ class SP2D extends Controller
                     ->whereNull('spm.deleted_at');
             })
             ->leftJoin('user_positions as user_pos_to', function ($join) {
-                $join->on('user_pos_to.id', '=', 'sp2d.users_to')
-                    ->whereNull('user_pos_to.deleted_at');
+                $join->on('user_pos_to.id', '=', 'sp2d.users_to');
             })
             ->leftJoin('users as users_to_data', function ($join) {
                 $join->on('users_to_data.id', '=', 'user_pos_to.user_id')
@@ -84,8 +90,8 @@ class SP2D extends Controller
             })
             ->where('sp2d.src_type', 'SP2D')
             ->where('sp2d.payment_type', self::PAYMENT_TYPE)
-            ->when(in_array($jabatanId, [2, 3], true), function ($q) use ($actorBudUserId) {
-                $q->where('sp2d.users_to', $actorBudUserId);
+            ->when(in_array($jabatanId, [2, 3], true), function ($q) use ($actorBudIds) {
+                $q->whereIn('sp2d.users_to', $actorBudIds);
             })
             ->select([
                 'sp2d.id',
@@ -556,7 +562,7 @@ class SP2D extends Controller
 
     private function canDeleteForVerifier(object $row, int $actorPositionId, int $unitKerjaId): bool
     {
-        if ((int) ($row->uploaded_by ?? 0) === $actorPositionId) {
+        if ($this->positionIdentityResolver->contains($actorPositionId, (int) ($row->uploaded_by ?? 0))) {
             return true;
         }
 

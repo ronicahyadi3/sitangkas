@@ -19,6 +19,7 @@ use App\Services\User\UserManagementAuditLogger;
 use App\Support\EncryptedId;
 use App\Support\UserManagement\UserDatatablePresenter;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
@@ -69,7 +70,43 @@ class UserController extends Controller
         $filters = $this->datatableFilters($request);
         $index = $start + 1;
 
-        $query = User::query()->withCount('positions');
+        $query = User::query()
+            ->select([
+                'id',
+                'nik',
+                'nip',
+                'nama',
+                'email',
+                'account_type',
+                'status',
+                'status_reason',
+                'tahun_aktif',
+                'locked_until',
+                'must_change_password',
+                'password_expires_at',
+                'mfa_secret',
+                'mfa_enabled_at',
+                'mfa_confirmed_at',
+                'mfa_pending_secret',
+                'mfa_pending_secret_created_at',
+                'created_by_user_id',
+            ])
+            ->with([
+                'lastUsedUserPosition' => function (Relation $positions) use ($actor): void {
+                    $this->eagerLoadDatatableDisplayPosition($positions, $actor);
+                },
+                'latestActiveUserPosition' => function (Relation $positions) use ($actor): void {
+                    $this->eagerLoadDatatableDisplayPosition($positions, $actor);
+                },
+            ])
+            ->withCount([
+                'positions' => function (Builder $positions) use ($actor): void {
+                    $this->userManagementAccessService->applyVisiblePositionsScope($positions, $actor);
+                },
+                'activeUserPositions as active_positions_count' => function (Builder $positions) use ($actor): void {
+                    $this->userManagementAccessService->applyVisiblePositionsScope($positions, $actor);
+                },
+            ]);
         $query = $this->userManagementAccessService->applyVisibleUsersScope($query, $actor);
         $query = $this->applyDatatableFilters($query, $filters, $actor);
 
@@ -102,10 +139,12 @@ class UserController extends Controller
             ->editColumn('nama', fn (User $user): string => $this->userDatatablePresenter->nameColumn($user))
             ->editColumn('email', fn (User $user): string => $this->userDatatablePresenter->emailColumn($user))
             ->addColumn('account_status', fn (User $user): string => $this->userDatatablePresenter->accountStatusColumn($user))
+            ->addColumn('security_status', fn (User $user): string => $this->userDatatablePresenter->securityStatusColumn($user))
+            ->addColumn('used_position', fn (User $user): string => $this->userDatatablePresenter->usedPositionColumn($user))
             ->editColumn('positions_count', fn (User $user): string => $this->userDatatablePresenter->positionsCountColumn($user))
             ->addColumn('positions_total_raw', fn (User $user): int => (int) $user->positions_count)
             ->addColumn('actions', fn (User $user): string => $this->userDatatablePresenter->actionsColumn($user, $actor))
-            ->rawColumns(['nik', 'nama', 'email', 'account_status', 'positions_count', 'actions'])
+            ->rawColumns(['nik', 'nama', 'email', 'account_status', 'security_status', 'used_position', 'positions_count', 'actions'])
             ->toJson();
     }
 
@@ -294,17 +333,13 @@ class UserController extends Controller
             }])
             ->orderBy('nama')
             ->get()
-            ->map(function ($user) use ($open) {
+            ->map(function ($user) {
                 $position = $user->positions->first();
                 $data = [
                     'id' => EncryptedId::encode($position->id),
                     'user_id' => EncryptedId::encode($user->id),
                     'nama' => $user->nama,
                 ];
-
-                if ($open) {
-                    $data['position_id'] = $position->id;
-                }
 
                 return $data;
             });
@@ -419,6 +454,19 @@ class UserController extends Controller
         if ($filters['unit_kerja_id'] !== null) {
             $positions->where('unit_kerja_id', $filters['unit_kerja_id']);
         }
+    }
+
+    private function eagerLoadDatatableDisplayPosition(Builder|Relation $positions, ?UserPosition $actor): void
+    {
+        $query = $positions instanceof Relation ? $positions->getQuery() : $positions;
+
+        $this->userManagementAccessService->applyVisiblePositionsScope($query, $actor);
+
+        $query->with([
+            'jabatan:id,nama',
+            'instansi:id,nama',
+            'unitKerja:id,nama',
+        ]);
     }
 
     /**

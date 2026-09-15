@@ -9,6 +9,7 @@ use App\Models\Document;
 use App\Models\Payment\TU as PaymentTU;
 use App\Services\Document\DocumentHistoryService;
 use App\Services\User\ActivePositionService;
+use App\Services\User\PositionIdentityResolver;
 use App\Support\EncryptedId;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -18,6 +19,8 @@ use Yajra\DataTables\Facades\DataTables;
 
 class SPP extends Controller
 {
+    public function __construct(private readonly PositionIdentityResolver $positionIdentityResolver) {}
+
     private const PAYMENT_TYPE = 'TU';
 
     private const SRC_TYPE = 'SPP';
@@ -85,7 +88,7 @@ class SPP extends Controller
 
             $jabatanId = (int) $user->jabatan->id;
             $unitKerjaId = (int) $user->unitKerja->id;
-            $actorPptkId = (int) (($user->actingPptkUser) ? $user->actingPptkUser->id : $user->id);
+            $actorPptkId = (int) $this->positionIdentityResolver->pptkActorPosition($user)->getKey();
             $assignedExpr = "REPLACE(COALESCE(spp.assigned_to,''), ' ', '')";
             $submitExpr = "REPLACE(COALESCE(spp.submit,''), ' ', '')";
 
@@ -108,9 +111,9 @@ class SPP extends Controller
                         return;
                     }
 
-                    $q->where('spp.id_unit_kerja', $unitKerjaId);
-
                     if (in_array($jabatanId, [9, 10], true)) {
+                        $q->where('spp.id_unit_kerja', $unitKerjaId);
+
                         $q->where(function ($scope) use ($jabatanId, $assignedExpr, $submitExpr) {
                             $scope->whereRaw("FIND_IN_SET(?, {$assignedExpr})", [(string) $jabatanId])
                                 ->orWhereRaw("FIND_IN_SET(?, {$submitExpr})", [(string) $jabatanId]);
@@ -120,8 +123,10 @@ class SPP extends Controller
                     }
 
                     if ($jabatanId === 8) {
+                        $q->where('spp.id_unit_kerja', $unitKerjaId);
+
                         $q->where(function ($scope) use ($assignedExpr, $submitExpr, $actorPptkId) {
-                            $scope->where('spp.users_to', $actorPptkId)
+                            $scope->whereIn('spp.users_to', $this->positionIdentityResolver->equivalentIds($actorPptkId))
                                 ->where(function ($ownedFlow) use ($assignedExpr, $submitExpr) {
                                     $ownedFlow->whereRaw("FIND_IN_SET('8', {$assignedExpr})")
                                         ->orWhereRaw("FIND_IN_SET('8', {$submitExpr})");
@@ -132,6 +137,8 @@ class SPP extends Controller
                     }
 
                     if ($jabatanId === 5) {
+                        $q->where('spp.id_unit_kerja', $unitKerjaId);
+
                         $q->where(function ($scope) use ($assignedExpr, $submitExpr) {
                             $scope->whereRaw("FIND_IN_SET('5', {$assignedExpr})")
                                 ->orWhereRaw("FIND_IN_SET('5', {$submitExpr})");
@@ -141,6 +148,7 @@ class SPP extends Controller
                     }
 
                     if ($jabatanId === 6) {
+                        $q->where('spp.id_unit_kerja', $unitKerjaId);
                         $q->where(function ($scope) use ($assignedExpr, $submitExpr) {
                             $scope->whereRaw("FIND_IN_SET('6', {$assignedExpr})")
                                 ->orWhereRaw("FIND_IN_SET('6', {$submitExpr})");
@@ -150,6 +158,10 @@ class SPP extends Controller
                     }
 
                     if ($jabatanId === 7) {
+                        $q->where(function ($qs) use ($unitKerjaId) {
+                            $qs->where('spp.id_unit_kerja', $unitKerjaId)
+                                ->orWhere('uk.skpd_id', $unitKerjaId);
+                        });
                         $q->where(function ($scope) use ($assignedExpr, $submitExpr) {
                             $scope->whereRaw("FIND_IN_SET('7', {$assignedExpr})")
                                 ->orWhere(function ($history) use ($submitExpr) {
@@ -210,7 +222,7 @@ class SPP extends Controller
                     $isAssignedToOtherPptk = $jabatanId === 8
                         && in_array('8', $assignedArr, true)
                         && ! is_null($row->users_to)
-                        && (int) $row->users_to !== $actorPptkId;
+                        && ! $this->positionIdentityResolver->contains($actorPptkId, (int) $row->users_to);
                     $isFlowWithBpp = in_array('10', $submitArr, true) || in_array('10', $assignedArr, true);
                     $canSubmit = $this->canSubmitByFlow($jabatanId, $submitCount, $submitArr, $signedByViewer, $isFlowWithBpp);
 
@@ -326,7 +338,7 @@ class SPP extends Controller
                     $isAssignedToOtherPptk = $jabatanId === 8
                         && in_array('8', $assignedArr, true)
                         && ! is_null($row->users_to)
-                        && (int) $row->users_to !== $actorPptkId;
+                        && ! $this->positionIdentityResolver->contains($actorPptkId, (int) $row->users_to);
                     $isFlowWithBpp = in_array('10', $submitArr, true) || in_array('10', $assignedArr, true);
                     $canSubmit = $this->canSubmitByFlow($jabatanId, $submitCount, $submitArr, $signedByViewer, $isFlowWithBpp);
 
@@ -1131,7 +1143,7 @@ class SPP extends Controller
 
         $jabatanId = (int) $user->jabatan->id;
         $unitKerjaId = (int) $user->unitKerja->id;
-        $actorPptkId = (int) (($user->actingPptkUser) ? $user->actingPptkUser->id : $user->id);
+        $actorPptkId = (int) $this->positionIdentityResolver->pptkActorPosition($user)->getKey();
         if (! in_array($jabatanId, [1, 9, 10, 8, 5, 6], true)) {
             Log::channel('payment_tu')->warning('SPP TU submit blocked: forbidden role', [
                 'doc_id' => $sppId,
@@ -1309,7 +1321,7 @@ class SPP extends Controller
 
         $jabatanId = (int) $user->jabatan->id;
         $unitKerjaId = (int) $user->unitKerja->id;
-        $actorPptkId = (int) (($user->actingPptkUser) ? $user->actingPptkUser->id : $user->id);
+        $actorPptkId = (int) $this->positionIdentityResolver->pptkActorPosition($user)->getKey();
         if (! in_array($jabatanId, [1, 9, 10], true)) {
             Log::channel('payment_tu')->warning('SPP TU submit_pptk blocked: forbidden role', [
                 'doc_id' => $sppId,
@@ -1482,7 +1494,12 @@ class SPP extends Controller
         $assigned = $this->csvToArray($document->assigned_to);
         $submit = $this->csvToArray($document->submit);
 
-        if ($jabatanId === 8 && ! is_null($document->users_to) && $actorPptkId && (int) $document->users_to !== $actorPptkId) {
+        if (
+            $jabatanId === 8
+            && ! is_null($document->users_to)
+            && $actorPptkId
+            && ! $this->positionIdentityResolver->contains($actorPptkId, (int) $document->users_to)
+        ) {
             return false;
         }
 

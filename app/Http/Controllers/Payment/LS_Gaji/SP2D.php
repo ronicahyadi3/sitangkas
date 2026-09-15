@@ -10,6 +10,7 @@ use App\Models\Jabatan;
 use App\Models\Payment\LS_GAJI;
 use App\Services\Document\DocumentHistoryService;
 use App\Services\User\ActivePositionService;
+use App\Services\User\PositionIdentityResolver;
 use App\Support\EncryptedId;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -19,6 +20,8 @@ use Yajra\DataTables\Facades\DataTables;
 
 class SP2D extends Controller
 {
+    public function __construct(private readonly PositionIdentityResolver $positionIdentityResolver) {}
+
     protected function storeFile($file, $directory, ?array &$storedFiles = null)
     {
         $filename = Str::uuid()->toString().'.pdf';
@@ -220,18 +223,21 @@ class SP2D extends Controller
             }
             $jabatanId = $user->jabatan->id;
             $jabatanNameMap = Jabatan::query()->pluck('nama', 'id')->toArray();
-            $userId = ($user->actingBudUser) ? $user->actingBudUser->id : $user->id;
+            $userIds = in_array((int) $jabatanId, [2, 3], true)
+                ? $this->positionIdentityResolver->equivalentIds(
+                    $this->positionIdentityResolver->budActorPosition($user),
+                )
+                : [];
 
             Log::channel('payment_ls_gaji')->debug('SP2D LS Gaji json request', [
-                'has_acting_bud' => $user->actingBudUser !== null,
+                'has_acting_bud' => $user->relationLoaded('actingBudUserPosition'),
                 'duration_ms' => (int) round((microtime(true) - $startedAt) * 1000),
             ]);
 
             $dataQuery = LS_GAJI::rootQuery()
                 ->tap(fn ($q) => LS_GAJI::withSp2d($q))
                 ->leftJoin('user_positions as user_pos_to', function ($join) {
-                    $join->on('user_pos_to.id', '=', 'document.users_to')
-                        ->whereNull('user_pos_to.deleted_at');
+                    $join->on('user_pos_to.id', '=', 'document.users_to');
                 })
                 ->leftJoin('users as users_to_data', function ($join) {
                     $join->on('users_to_data.id', '=', 'user_pos_to.user_id')
@@ -253,8 +259,8 @@ class SP2D extends Controller
                     'unit_kerjas_sp2d.nama as unit_kerja',
                     'users_to_data.nama as user_name',
                 ])
-                ->when(in_array($jabatanId, [2, 3]), function ($q) use ($userId) {
-                    $q->where('document.users_to', $userId);
+                ->when(in_array($jabatanId, [2, 3]), function ($q) use ($userIds) {
+                    $q->whereIn('document.users_to', $userIds);
                 });
 
             $btn = static function (

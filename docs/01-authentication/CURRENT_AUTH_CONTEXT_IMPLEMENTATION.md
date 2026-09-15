@@ -1,6 +1,6 @@
 # Current Auth Context Implementation
 
-Last updated: 2026-08-18.
+Last updated: 2026-08-24.
 
 Dokumen ini menjelaskan kondisi implementasi login context SITANGKAS saat ini.
 AI agent harus membaca file ini setelah `AUTH_CONTEXT_DECISIONS.md` sebelum
@@ -14,7 +14,8 @@ Status implementasi: active implementation.
 Flow yang sudah ada:
 
 - login credential melalui `POST /login`;
-- pemilihan posisi nyata melalui `GET/POST /login/context`;
+- pemilihan posisi nyata melalui `GET/POST /positions`;
+- `GET /login/context` hanya legacy/compatibility redirect ke `/positions`;
 - pemilihan acting context Admin Super melalui `GET/POST /login/post`;
 - endpoint options untuk postLogin di bawah `/login/post/options/*`;
 - dashboard internal memakai middleware `has.position`, `mfa.verified`,
@@ -37,8 +38,9 @@ Route penting:
 - `GET /login` -> `login`;
 - `POST /login` -> `login.store`;
 - `POST /logout` -> `logout`;
-- `GET /login/context` -> `login.context`;
-- `POST /login/context` -> `login.context.store`;
+- `GET /positions` -> `positions.index`;
+- `POST /positions` -> `positions.store`;
+- `GET /login/context` -> `login.context.legacy`;
 - `GET /login/mfa` -> `login.mfa`;
 - `POST /login/mfa` -> `login.mfa.store`;
 - `GET /login/mfa/setup` -> `login.mfa.setup`;
@@ -64,8 +66,8 @@ Route penting:
   `throttle:auth-mfa`;
 - route Management Users berada di prefix `users.*` dan memakai middleware
   `user.management`;
-- route keamanan akun Management Users mencakup force password change,
-  lock/unlock, dan reset MFA browser untuk Admin Super;
+- route keamanan akun Management Users mencakup force password change, reset
+  password Admin Super, lock/unlock, dan reset MFA browser untuk Admin Super;
 - route parameter Management Users `{user}` dan nested `{position}` memakai
   encrypted route key dari model binding `User` dan `UserPosition`; numeric ID
   polos ditolak oleh binding;
@@ -90,7 +92,9 @@ Auth actions:
 - `app/Actions/Auth/VerifyTotpChallenge.php`;
 - `app/Actions/Auth/VerifyRecoveryCodeChallenge.php`;
 - `app/Actions/Auth/RegenerateMfaRecoveryCodes.php`;
-- `app/Actions/Auth/ResetUserMfa.php`.
+- `app/Actions/Auth/ResetUserMfa.php`;
+- `app/Actions/Auth/SelectUserPositionContext.php`.
+- `app/Actions/UserSecurity/ResetUserPassword.php`.
 
 Console commands:
 
@@ -105,7 +109,7 @@ Console commands:
 Controllers:
 
 - `app/Http/Controllers/Auth/AuthenticatedSessionController.php`;
-- `app/Http/Controllers/Auth/LoginContextController.php`;
+- `app/Http/Controllers/Auth/PositionContextController.php`;
 - `app/Http/Controllers/Auth/AdminSuperActingContextController.php`;
 - `app/Http/Controllers/Auth/MissingActivePositionController.php`;
 - `app/Http/Controllers/Auth/MfaChallengeController.php`;
@@ -120,11 +124,12 @@ Controllers:
 Requests:
 
 - `app/Http/Requests/Auth/StoreAuthenticatedSessionRequest.php`;
-- `app/Http/Requests/Auth/StoreLoginContextRequest.php`;
+- `app/Http/Requests/Auth/StorePositionContextRequest.php`;
 - `app/Http/Requests/Auth/StoreAdminSuperActingContextRequest.php`;
 - `app/Http/Requests/Auth/VerifyMfaChallengeRequest.php`;
 - `app/Http/Requests/Auth/ConfirmTotpEnrollmentRequest.php`;
-- `app/Http/Requests/Profile/RegenerateMfaRecoveryCodesRequest.php`.
+- `app/Http/Requests/Profile/RegenerateMfaRecoveryCodesRequest.php`;
+- `app/Http/Requests/User/ResetUserPasswordRequest.php`.
 
 Services and middleware:
 
@@ -154,7 +159,7 @@ Services and middleware:
 Views:
 
 - `resources/views/auth/login.blade.php`;
-- `resources/views/auth/context.blade.php`;
+- `resources/views/users/positions-switch.blade.php`;
 - `resources/views/auth/mfa-challenge.blade.php`;
 - `resources/views/auth/mfa-setup.blade.php`;
 - `resources/views/auth/postLogin.blade.php`;
@@ -388,8 +393,8 @@ Aturan penting:
 
 - jika posisi otomatis saat login adalah Admin Super karena `last_used_at`
   terakhir menunjuk Admin Super, nilai remember dipaksa `false`;
-- jika user mengganti real active position ke Admin Super melalui
-  `login.context`, remember cookie/token dimatikan;
+- jika user mengganti real active position ke Admin Super melalui `/positions`,
+  remember cookie/token dimatikan;
 - saat Admin Super submit `login.post`, remember cookie/token juga dimatikan
   sebagai safeguard;
 - Admin Super acting context tidak pernah dipulihkan dari remember cookie;
@@ -611,12 +616,14 @@ Catatan:
 
 ## Flow Ganti Real Position
 
-`login.context` hanya menerima `user_position_id`.
+`/positions` adalah route canonical untuk memilih real position dan hanya
+menerima `user_position_id`. Route lama `GET /login/context` hanya legacy
+redirect/compatibility ke `/positions`.
 
 Saat user memilih posisi:
 
-1. `StoreLoginContextRequest` memvalidasi posisi milik user.
-2. `LoginContextController` memanggil `CurrentUserContext::activatePosition()`.
+1. `StorePositionContextRequest` memvalidasi posisi milik user.
+2. `PositionContextController` memanggil action `SelectUserPositionContext`.
 3. Acting context lama dibersihkan.
 4. `last_used_at` posisi diperbarui.
 5. Audit context switch dicatat.
@@ -714,7 +721,7 @@ Audit yang sudah dipakai:
 
 - login success/failed/blocked/lockout;
 - login otomatis melalui remember cookie untuk non-Admin Super;
-- context switch `login.context`;
+- context switch `/positions`;
 - context switch Admin Super `login.post`;
 - session revoked karena single-device atau remember policy;
 - logout.
@@ -760,5 +767,5 @@ menjalankan test suite/test command tanpa konfirmasi eksplisit terlebih dahulu.
 - Jangan mengubah `activePosition()` kembali menjadi real position only.
 - Jangan membaca `acting_*` langsung di modul bisnis.
 - Jangan membuat row `user_positions` baru untuk pilihan acting Admin Super.
-- Jangan mengganti `login.post` menjadi alias dari `login.context`.
+- Jangan mengganti `login.post` menjadi alias dari `/positions`.
 - Jangan menjalankan test suite tanpa konfirmasi user.
