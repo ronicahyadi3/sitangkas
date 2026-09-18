@@ -2,8 +2,13 @@
 
 namespace App\Providers;
 
+use App\Contracts\Esign\EsignGateway;
+use App\Services\Esign\BsreClient;
+use App\Services\Esign\BsreConfiguration;
+use App\Services\User\ActivePositionService;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 
@@ -14,7 +19,15 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->singleton(BsreConfiguration::class, function (): BsreConfiguration {
+            $configuration = config('services.bsre_esign', []);
+
+            return BsreConfiguration::fromArray(
+                is_array($configuration) ? $configuration : []
+            );
+        });
+
+        $this->app->bind(EsignGateway::class, BsreClient::class);
     }
 
     /**
@@ -22,6 +35,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        Blade::if('accessJabatan', function (array|int $jabatanIds): bool {
+            return app(ActivePositionService::class)->hasJabatan((array) $jabatanIds);
+        });
+
         RateLimiter::for('auth-login', function (Request $request): array {
             return [
                 Limit::perMinute(10)->by($this->loginThrottleKey($request)),

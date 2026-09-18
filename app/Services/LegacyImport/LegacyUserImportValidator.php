@@ -4,10 +4,12 @@ namespace App\Services\LegacyImport;
 
 use App\Data\LegacyImport\LegacyUserAccount;
 use App\Data\LegacyImport\LegacyUserAccountAggregation;
+use App\Data\LegacyImport\LegacyUserAccountStatusResolution;
 use App\Data\LegacyImport\LegacyUserImportPasswordPolicy;
 use App\Data\LegacyImport\LegacyUserImportValidation;
 use App\Data\LegacyImport\LegacyUserPositionClassification;
 use App\Data\LegacyImport\LegacyUserPositionProjection;
+use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Connection;
 use Illuminate\Database\DatabaseManager;
@@ -26,19 +28,34 @@ final class LegacyUserImportValidator
      *     accounts: array<string, mixed>,
      *     identity: array<string, mixed>,
      *     organization: array<string, mixed>,
-     *     positions: array<string, mixed>
+     *     positions: array<string, mixed>,
+     *     status: array<string, mixed>
      * }  $analysis
      */
     public function validateBeforeImport(
         LegacyUserAccountAggregation $accountAggregation,
         LegacyUserPositionClassification $positionClassification,
+        LegacyUserAccountStatusResolution $accountStatusResolution,
         LegacyUserImportPasswordPolicy $passwordPolicy,
         array $analysis,
     ): LegacyUserImportValidation {
         $projectionValidation = $this->validateProjection($accountAggregation, $positionClassification);
+        $accountStatusValidation = $this->validateAccountStatusResolution(
+            $accountAggregation,
+            $positionClassification,
+            $accountStatusResolution,
+        );
         $passwordValidation = $this->validatePasswordPolicy($accountAggregation, $passwordPolicy);
-        $checks = [...$projectionValidation->checks, ...$passwordValidation->checks];
-        $blockers = [...$projectionValidation->blockers, ...$passwordValidation->blockers];
+        $checks = [
+            ...$projectionValidation->checks,
+            ...$accountStatusValidation->checks,
+            ...$passwordValidation->checks,
+        ];
+        $blockers = [
+            ...$projectionValidation->blockers,
+            ...$accountStatusValidation->blockers,
+            ...$passwordValidation->blockers,
+        ];
         $projection = $projectionValidation->metrics['projection'];
         $target = $this->targetPreflightMetrics($accountAggregation, $positionClassification);
 
@@ -60,6 +77,7 @@ final class LegacyUserImportValidator
             blockers: $blockers,
             metrics: [
                 'projection' => $projection,
+                'account_status' => $accountStatusValidation->metrics['account_status'],
                 'password_policy' => $passwordValidation->metrics['password_policy'],
                 'target' => $target,
             ],
@@ -73,18 +91,107 @@ final class LegacyUserImportValidator
     public function validateAfterImport(
         LegacyUserAccountAggregation $accountAggregation,
         LegacyUserPositionClassification $positionClassification,
+        LegacyUserAccountStatusResolution $accountStatusResolution,
+        LegacyUserImportPasswordPolicy $passwordPolicy,
     ): LegacyUserImportValidation {
         $projectionValidation = $this->validateProjection($accountAggregation, $positionClassification);
-        $checks = $projectionValidation->checks;
-        $blockers = $projectionValidation->blockers;
+        $accountStatusValidation = $this->validateAccountStatusResolution(
+            $accountAggregation,
+            $positionClassification,
+            $accountStatusResolution,
+        );
+        $checks = [...$projectionValidation->checks, ...$accountStatusValidation->checks];
+        $blockers = [...$projectionValidation->blockers, ...$accountStatusValidation->blockers];
         $projection = $projectionValidation->metrics['projection'];
-        $target = $this->importedTargetMetrics($accountAggregation, $positionClassification);
+        $target = $this->importedTargetMetrics(
+            $accountAggregation,
+            $positionClassification,
+            $accountStatusResolution,
+            $passwordPolicy,
+        );
+
+        $this->addCheck(
+            $checks,
+            $blockers,
+            'target.users_count',
+            $target['expected_users_count'],
+            $target['actual_users_count'],
+            'jumlah akun hasil import',
+        );
+        $this->addCheck(
+            $checks,
+            $blockers,
+            'target.user_positions_count',
+            $target['expected_user_positions_count'],
+            $target['actual_user_positions_count'],
+            'jumlah posisi hasil import',
+        );
+        $this->addCheck(
+            $checks,
+            $blockers,
+            'target.users_sha256',
+            $target['expected_users_sha256'],
+            $target['actual_users_sha256'],
+            'fingerprint akun hasil import',
+        );
+        $this->addCheck(
+            $checks,
+            $blockers,
+            'target.user_positions_sha256',
+            $target['expected_user_positions_sha256'],
+            $target['actual_user_positions_sha256'],
+            'fingerprint posisi hasil import',
+        );
+        $this->addCheck(
+            $checks,
+            $blockers,
+            'target.combined_sha256',
+            $target['expected_combined_sha256'],
+            $target['actual_combined_sha256'],
+            'fingerprint gabungan target hasil import',
+        );
+        $this->addCheck(
+            $checks,
+            $blockers,
+            'target.users_max_id',
+            $target['expected_users_max_id'],
+            $target['actual_users_max_id'],
+            'ID maksimum akun hasil import',
+        );
+        $this->addCheck(
+            $checks,
+            $blockers,
+            'target.user_positions_max_id',
+            $target['expected_user_positions_max_id'],
+            $target['actual_user_positions_max_id'],
+            'ID maksimum posisi hasil import',
+        );
+        $this->addCheck(
+            $checks,
+            $blockers,
+            'target.users_id_auto_increment',
+            1,
+            $target['users_id_auto_increment'] ? 1 : 0,
+            'struktur AUTO_INCREMENT akun',
+        );
+        $this->addCheck(
+            $checks,
+            $blockers,
+            'target.user_positions_id_auto_increment',
+            1,
+            $target['user_positions_id_auto_increment'] ? 1 : 0,
+            'struktur AUTO_INCREMENT posisi',
+        );
 
         $this->addZeroChecks($checks, $blockers, [
             'target.missing_user_ids' => count($target['missing_user_ids']),
             'target.unexpected_user_ids' => count($target['unexpected_user_ids']),
             'target.user_projection_mismatches' => count($target['user_projection_mismatch_ids']),
+            'target.user_status_projection_mismatches' => count($target['user_status_projection_mismatch_ids']),
+            'target.missing_user_status_changed_at' => count($target['missing_user_status_changed_at_ids']),
+            'target.unexpected_user_status_changed_by' => count($target['unexpected_user_status_changed_by_ids']),
             'target.blank_user_passwords' => count($target['blank_user_password_ids']),
+            'target.user_password_projection_mismatches' => count($target['user_password_projection_mismatch_ids']),
             'target.missing_position_ids' => count($target['missing_position_ids']),
             'target.unexpected_position_ids' => count($target['unexpected_position_ids']),
             'target.position_projection_mismatches' => count($target['position_projection_mismatch_ids']),
@@ -101,6 +208,7 @@ final class LegacyUserImportValidator
             blockers: $blockers,
             metrics: [
                 'projection' => $projection,
+                'account_status' => $accountStatusValidation->metrics['account_status'],
                 'target' => $target,
             ],
         );
@@ -132,6 +240,129 @@ final class LegacyUserImportValidator
             checks: $checks,
             blockers: $blockers,
             metrics: ['projection' => $projection],
+        );
+    }
+
+    public function validateAccountStatusResolution(
+        LegacyUserAccountAggregation $accountAggregation,
+        LegacyUserPositionClassification $positionClassification,
+        LegacyUserAccountStatusResolution $accountStatusResolution,
+    ): LegacyUserImportValidation {
+        $checks = [];
+        $blockers = [];
+        $accountIds = [];
+        $activeCanonicalPositionByUserId = [];
+
+        foreach ($accountAggregation->accounts as $account) {
+            $accountIds[$account->id] = $account;
+        }
+
+        foreach ($positionClassification->positions as $position) {
+            if ($position->isCanonical && $position->isActive && $position->resultDeletedAt === null) {
+                $activeCanonicalPositionByUserId[$position->userId] = true;
+            }
+        }
+
+        $resolvedIds = [];
+        $projectionMismatchIds = [];
+
+        foreach ($accountStatusResolution->statuses() as $status) {
+            $resolvedIds[$status->userId] = true;
+            $account = $accountIds[$status->userId] ?? null;
+
+            if (! $account instanceof LegacyUserAccount) {
+                continue;
+            }
+
+            $hasActiveCanonicalPosition = isset($activeCanonicalPositionByUserId[$account->id]);
+            $expectedStatus = $hasActiveCanonicalPosition
+                ? User::STATUS_ACTIVE
+                : User::STATUS_INACTIVE;
+            $expectedReason = match (true) {
+                $hasActiveCanonicalPosition => LegacyUserAccountStatusResolver::ActiveReason,
+                $account->allSourceRowsDeleted => LegacyUserAccountStatusResolver::AllPositionsDeletedReason,
+                default => LegacyUserAccountStatusResolver::InactiveReason,
+            };
+
+            if (
+                $status->status !== $expectedStatus
+                || $status->reason !== $expectedReason
+                || $status->hasActiveCanonicalPosition !== $hasActiveCanonicalPosition
+                || $status->allSourceRowsDeleted !== $account->allSourceRowsDeleted
+            ) {
+                $projectionMismatchIds[] = $account->id;
+            }
+        }
+
+        $missingAccountIds = array_values(array_diff(array_keys($accountIds), array_keys($resolvedIds)));
+        $unexpectedAccountIds = array_values(array_diff(array_keys($resolvedIds), array_keys($accountIds)));
+        $metrics = [
+            ...$accountStatusResolution->toAnalysis(),
+            'missing_account_ids' => $this->sortedUniqueIds($missingAccountIds),
+            'unexpected_account_ids' => $this->sortedUniqueIds($unexpectedAccountIds),
+            'projection_mismatch_ids' => $this->sortedUniqueIds($projectionMismatchIds),
+        ];
+        $expected = config('legacy_import.users.expected', []);
+
+        $this->addCheck(
+            $checks,
+            $blockers,
+            'account_status.strategy',
+            LegacyUserAccountStatusResolver::Strategy,
+            $accountStatusResolution->strategy,
+            'strategi status akun yang disetujui',
+        );
+        $this->addCheck(
+            $checks,
+            $blockers,
+            'account_status.active_account_count',
+            (int) ($expected['active_account_count'] ?? 0),
+            $metrics['active_account_count'],
+            'snapshot status akun yang disetujui',
+        );
+        $this->addCheck(
+            $checks,
+            $blockers,
+            'account_status.inactive_account_count',
+            (int) ($expected['inactive_account_count'] ?? 0),
+            $metrics['inactive_account_count'],
+            'snapshot status akun yang disetujui',
+        );
+        $this->addCheck(
+            $checks,
+            $blockers,
+            'account_status.inactive_non_deleted_account_count',
+            (int) ($expected['inactive_non_deleted_account_count'] ?? 0),
+            $metrics['inactive_non_deleted_account_count'],
+            'snapshot status akun yang disetujui',
+        );
+        $this->addCheck(
+            $checks,
+            $blockers,
+            'account_status.all_source_rows_deleted_account_count',
+            (int) ($expected['all_source_rows_deleted_account_count'] ?? 0),
+            $metrics['all_source_rows_deleted_account_count'],
+            'snapshot status akun yang disetujui',
+        );
+        $this->addCheck(
+            $checks,
+            $blockers,
+            'account_status.resolution_sha256',
+            (string) ($expected['account_status_resolution_sha256'] ?? ''),
+            $metrics['resolution_sha256'],
+            'snapshot status akun yang disetujui',
+        );
+        $this->addZeroChecks($checks, $blockers, [
+            'account_status.missing_accounts' => count($metrics['missing_account_ids']),
+            'account_status.unexpected_accounts' => count($metrics['unexpected_account_ids']),
+            'account_status.projection_mismatches' => count($metrics['projection_mismatch_ids']),
+        ], 'invariant status akun');
+
+        return new LegacyUserImportValidation(
+            stage: 'account_status',
+            checks: $checks,
+            blockers: $blockers,
+            metrics: ['account_status' => $metrics],
         );
     }
 
@@ -199,7 +430,7 @@ final class LegacyUserImportValidator
     /**
      * @param  list<array{name: string, expected: int|string, actual: int|string, passed: bool}>  $checks
      * @param  list<string>  $blockers
-     * @param  array{source: array<string, mixed>, accounts: array<string, mixed>, identity: array<string, mixed>, organization: array<string, mixed>, positions: array<string, mixed>}  $analysis
+     * @param  array{source: array<string, mixed>, accounts: array<string, mixed>, identity: array<string, mixed>, organization: array<string, mixed>, positions: array<string, mixed>, status: array<string, mixed>}  $analysis
      */
     private function addSnapshotChecks(array &$checks, array &$blockers, array $analysis): void
     {
@@ -229,7 +460,7 @@ final class LegacyUserImportValidator
     /**
      * @param  list<array{name: string, expected: int|string, actual: int|string, passed: bool}>  $checks
      * @param  list<string>  $blockers
-     * @param  array{source: array<string, mixed>, accounts: array<string, mixed>, identity: array<string, mixed>, organization: array<string, mixed>, positions: array<string, mixed>}  $analysis
+     * @param  array{source: array<string, mixed>, accounts: array<string, mixed>, identity: array<string, mixed>, organization: array<string, mixed>, positions: array<string, mixed>, status: array<string, mixed>}  $analysis
      */
     private function addAnalysisInvariantChecks(array &$checks, array &$blockers, array $analysis): void
     {
@@ -238,6 +469,7 @@ final class LegacyUserImportValidator
         $identity = $analysis['identity'];
         $organization = $analysis['organization'];
         $positions = $analysis['positions'];
+        $status = $analysis['status'];
 
         $this->addZeroChecks($checks, $blockers, [
             'source.duplicate_ids' => $source['row_count'] - $source['unique_id_count'],
@@ -255,6 +487,7 @@ final class LegacyUserImportValidator
             'positions.invalid_canonical_contexts' => $positions['invalid_canonical_context_count'],
             'positions.accounts_without_canonical_position' => $positions['account_without_canonical_position_count'],
             'positions.aliases_without_canonical_target' => $positions['alias_without_canonical_target_count'],
+            'status.unaccounted_accounts' => $accounts['account_count'] - $status['active_account_count'] - $status['inactive_account_count'],
         ], 'invariant import');
     }
 
@@ -395,6 +628,8 @@ final class LegacyUserImportValidator
     private function importedTargetMetrics(
         LegacyUserAccountAggregation $accountAggregation,
         LegacyUserPositionClassification $positionClassification,
+        LegacyUserAccountStatusResolution $accountStatusResolution,
+        LegacyUserImportPasswordPolicy $passwordPolicy,
     ): array {
         $connection = $this->database->connection();
         $expectedAccountIds = array_map(
@@ -406,24 +641,74 @@ final class LegacyUserImportValidator
             $positionClassification->positions,
         );
         $targetUsers = $connection->table('users')->orderBy('id')->get([
-            'id', 'nik', 'nip', 'nama', 'email', 'password',
+            'id', 'nik', 'nip', 'nama', 'email', 'password', 'status',
+            'status_reason', 'status_changed_at', 'status_changed_by_user_id',
+            'account_type', 'must_change_password', 'source_system', 'external_id',
+            'created_at', 'updated_at',
         ])->keyBy('id');
         $targetPositions = $connection->table('user_positions')->orderBy('id')->get([
             'id', 'user_id', 'jabatan_id', 'instansi_id', 'unit_kerja_id',
             'is_active', 'is_canonical', 'canonical_user_position_id',
             'legacy_duplicate_reason', 'ended_at', 'deactivated_at',
             'deactivation_reason', 'created_at', 'updated_at', 'deleted_at',
+            'source_system', 'external_id',
         ])->keyBy('id');
         $targetAccountIds = $this->sortedUniqueIds($targetUsers->keys()->all());
         $targetPositionIds = $this->sortedUniqueIds($targetPositions->keys()->all());
         $expectedAccountIds = $this->sortedUniqueIds($expectedAccountIds);
         $expectedPositionIds = $this->sortedUniqueIds($expectedPositionIds);
+        $targetStatus = $this->targetUserStatusMetrics(
+            $accountStatusResolution,
+            $targetUsers->all(),
+        );
+        $expectedUserRows = $this->expectedUserFingerprintRows(
+            $accountAggregation,
+            $accountStatusResolution,
+            $passwordPolicy,
+        );
+        $actualUserRows = $this->actualUserFingerprintRows($targetUsers->all());
+        $expectedPositionRows = $this->expectedPositionFingerprintRows($positionClassification);
+        $actualPositionRows = $this->actualPositionFingerprintRows($targetPositions->all());
+        $expectedUsersFingerprint = $this->fingerprintRows($expectedUserRows);
+        $actualUsersFingerprint = $this->fingerprintRows($actualUserRows);
+        $expectedPositionsFingerprint = $this->fingerprintRows($expectedPositionRows);
+        $actualPositionsFingerprint = $this->fingerprintRows($actualPositionRows);
 
         return [
+            'expected_users_count' => count($expectedAccountIds),
+            'actual_users_count' => count($targetAccountIds),
+            'expected_user_positions_count' => count($expectedPositionIds),
+            'actual_user_positions_count' => count($targetPositionIds),
+            'expected_users_sha256' => $expectedUsersFingerprint,
+            'actual_users_sha256' => $actualUsersFingerprint,
+            'expected_user_positions_sha256' => $expectedPositionsFingerprint,
+            'actual_user_positions_sha256' => $actualPositionsFingerprint,
+            'expected_combined_sha256' => $this->combinedTargetFingerprint(
+                $expectedUsersFingerprint,
+                $expectedPositionsFingerprint,
+            ),
+            'actual_combined_sha256' => $this->combinedTargetFingerprint(
+                $actualUsersFingerprint,
+                $actualPositionsFingerprint,
+            ),
+            'expected_users_max_id' => $this->maximumId($expectedAccountIds),
+            'actual_users_max_id' => $this->maximumId($targetAccountIds),
+            'required_users_next_id' => $this->nextIdAfter($expectedAccountIds),
+            'users_id_auto_increment' => $this->idColumnIsAutoIncrement($connection, 'users'),
+            'expected_user_positions_max_id' => $this->maximumId($expectedPositionIds),
+            'actual_user_positions_max_id' => $this->maximumId($targetPositionIds),
+            'required_user_positions_next_id' => $this->nextIdAfter($expectedPositionIds),
+            'user_positions_id_auto_increment' => $this->idColumnIsAutoIncrement($connection, 'user_positions'),
             'missing_user_ids' => array_values(array_diff($expectedAccountIds, $targetAccountIds)),
             'unexpected_user_ids' => array_values(array_diff($targetAccountIds, $expectedAccountIds)),
             'user_projection_mismatch_ids' => $this->userProjectionMismatchIds($accountAggregation, $targetUsers->all()),
+            ...$targetStatus,
             'blank_user_password_ids' => $this->blankTargetUserPasswordIds($targetUsers->all()),
+            'user_password_projection_mismatch_ids' => $this->userPasswordProjectionMismatchIds(
+                $accountAggregation,
+                $passwordPolicy,
+                $targetUsers->all(),
+            ),
             'missing_position_ids' => array_values(array_diff($expectedPositionIds, $targetPositionIds)),
             'unexpected_position_ids' => array_values(array_diff($targetPositionIds, $expectedPositionIds)),
             'position_projection_mismatch_ids' => $this->positionProjectionMismatchIds($positionClassification, $targetPositions->all()),
@@ -452,12 +737,58 @@ final class LegacyUserImportValidator
                 || $this->nullableString($target->nip) !== $account->nip
                 || (string) $target->nama !== $account->name
                 || $this->nullableString($target->email) !== $account->email
+                || (string) $target->account_type !== User::ACCOUNT_TYPE_PERSONAL
+                || (string) $target->source_system !== 'legacy'
+                || (string) $target->external_id !== (string) $account->id
             ) {
                 $mismatchIds[] = $account->id;
             }
         }
 
         return $this->sortedUniqueIds($mismatchIds);
+    }
+
+    /**
+     * @param  array<int|string, object>  $targetUsers
+     * @return array{
+     *     user_status_projection_mismatch_ids: list<int>,
+     *     missing_user_status_changed_at_ids: list<int>,
+     *     unexpected_user_status_changed_by_ids: list<int>
+     * }
+     */
+    private function targetUserStatusMetrics(
+        LegacyUserAccountStatusResolution $accountStatusResolution,
+        array $targetUsers,
+    ): array {
+        $projectionMismatchIds = [];
+        $missingStatusChangedAtIds = [];
+        $unexpectedStatusChangedByIds = [];
+
+        foreach ($accountStatusResolution->statuses() as $status) {
+            $target = $targetUsers[$status->userId] ?? null;
+
+            if (
+                $target === null
+                || (string) $target->status !== $status->status
+                || (string) $target->status_reason !== $status->reason
+            ) {
+                $projectionMismatchIds[] = $status->userId;
+            }
+
+            if ($target !== null && $target->status_changed_at === null) {
+                $missingStatusChangedAtIds[] = $status->userId;
+            }
+
+            if ($target !== null && $target->status_changed_by_user_id !== null) {
+                $unexpectedStatusChangedByIds[] = $status->userId;
+            }
+        }
+
+        return [
+            'user_status_projection_mismatch_ids' => $this->sortedUniqueIds($projectionMismatchIds),
+            'missing_user_status_changed_at_ids' => $this->sortedUniqueIds($missingStatusChangedAtIds),
+            'unexpected_user_status_changed_by_ids' => $this->sortedUniqueIds($unexpectedStatusChangedByIds),
+        ];
     }
 
     /**
@@ -471,6 +802,32 @@ final class LegacyUserImportValidator
         foreach ($targetUsers as $user) {
             if ((string) $user->password === '') {
                 $userIds[] = (int) $user->id;
+            }
+        }
+
+        return $this->sortedUniqueIds($userIds);
+    }
+
+    /**
+     * @param  array<int|string, object>  $targetUsers
+     * @return list<int>
+     */
+    private function userPasswordProjectionMismatchIds(
+        LegacyUserAccountAggregation $accountAggregation,
+        LegacyUserImportPasswordPolicy $passwordPolicy,
+        array $targetUsers,
+    ): array {
+        $userIds = [];
+
+        foreach ($accountAggregation->accounts as $account) {
+            $target = $targetUsers[$account->id] ?? null;
+
+            if (
+                $target === null
+                || ! hash_equals($passwordPolicy->passwordHashFor($account), (string) $target->password)
+                || (bool) $target->must_change_password !== $passwordPolicy->mustChangePassword
+            ) {
+                $userIds[] = $account->id;
             }
         }
 
@@ -510,6 +867,8 @@ final class LegacyUserImportValidator
                 || $this->dateString($target->ended_at) !== $this->dateString($position->endedAt)
                 || $this->dateTimeString($target->deactivated_at) !== $this->dateTimeString($position->deactivatedAt)
                 || $this->nullableString($target->deactivation_reason) !== $position->deactivationReason
+                || (string) $target->source_system !== 'legacy'
+                || (string) $target->external_id !== (string) $position->id
                 || $this->dateTimeString($target->created_at) !== $this->dateTimeString($position->sourceCreatedAt)
                 || $this->dateTimeString($target->updated_at) !== $this->dateTimeString($position->sourceUpdatedAt)
                 || $this->dateTimeString($target->deleted_at) !== $this->dateTimeString($position->resultDeletedAt)
@@ -519,6 +878,185 @@ final class LegacyUserImportValidator
         }
 
         return $this->sortedUniqueIds($mismatchIds);
+    }
+
+    /** @return list<array<string, mixed>> */
+    private function expectedUserFingerprintRows(
+        LegacyUserAccountAggregation $accountAggregation,
+        LegacyUserAccountStatusResolution $accountStatusResolution,
+        LegacyUserImportPasswordPolicy $passwordPolicy,
+    ): array {
+        $rows = [];
+
+        foreach ($accountAggregation->accounts as $account) {
+            $status = $accountStatusResolution->forUser($account->id);
+            $rows[] = [
+                'id' => $account->id,
+                'nik' => $account->nik,
+                'nip' => $account->nip,
+                'nama' => $account->name,
+                'email' => $account->email,
+                'account_type' => User::ACCOUNT_TYPE_PERSONAL,
+                'status' => $status?->status,
+                'status_reason' => $status?->reason,
+                'must_change_password' => $passwordPolicy->mustChangePassword ? 1 : 0,
+                'source_system' => 'legacy',
+                'external_id' => (string) $account->id,
+                'created_at' => $this->dateTimeString($account->sourceCreatedAt),
+                'updated_at' => $this->dateTimeString($account->sourceUpdatedAt),
+            ];
+        }
+
+        return $this->sortFingerprintRows($rows);
+    }
+
+    /**
+     * @param  array<int|string, object>  $targetUsers
+     * @return list<array<string, mixed>>
+     */
+    private function actualUserFingerprintRows(array $targetUsers): array
+    {
+        $rows = [];
+
+        foreach ($targetUsers as $user) {
+            $rows[] = [
+                'id' => (int) $user->id,
+                'nik' => (string) $user->nik,
+                'nip' => $this->nullableString($user->nip),
+                'nama' => (string) $user->nama,
+                'email' => $this->nullableString($user->email),
+                'account_type' => (string) $user->account_type,
+                'status' => (string) $user->status,
+                'status_reason' => $this->nullableString($user->status_reason),
+                'must_change_password' => (bool) $user->must_change_password ? 1 : 0,
+                'source_system' => (string) $user->source_system,
+                'external_id' => (string) $user->external_id,
+                'created_at' => $this->dateTimeString($user->created_at),
+                'updated_at' => $this->dateTimeString($user->updated_at),
+            ];
+        }
+
+        return $this->sortFingerprintRows($rows);
+    }
+
+    /** @return list<array<string, mixed>> */
+    private function expectedPositionFingerprintRows(
+        LegacyUserPositionClassification $positionClassification,
+    ): array {
+        $rows = [];
+
+        foreach ($positionClassification->positions as $position) {
+            $rows[] = [
+                'id' => $position->id,
+                'user_id' => $position->userId,
+                'jabatan_id' => $position->jabatanId,
+                'instansi_id' => $position->instansiId,
+                'unit_kerja_id' => $position->unitKerjaId,
+                'is_active' => $position->isActive ? 1 : 0,
+                'is_canonical' => $position->isCanonical ? 1 : 0,
+                'canonical_user_position_id' => $position->canonicalUserPositionId,
+                'legacy_duplicate_reason' => $position->legacyDuplicateReason,
+                'ended_at' => $this->dateString($position->endedAt),
+                'deactivated_at' => $this->dateTimeString($position->deactivatedAt),
+                'deactivation_reason' => $position->deactivationReason,
+                'source_system' => 'legacy',
+                'external_id' => (string) $position->id,
+                'created_at' => $this->dateTimeString($position->sourceCreatedAt),
+                'updated_at' => $this->dateTimeString($position->sourceUpdatedAt),
+                'deleted_at' => $this->dateTimeString($position->resultDeletedAt),
+            ];
+        }
+
+        return $this->sortFingerprintRows($rows);
+    }
+
+    /**
+     * @param  array<int|string, object>  $targetPositions
+     * @return list<array<string, mixed>>
+     */
+    private function actualPositionFingerprintRows(array $targetPositions): array
+    {
+        $rows = [];
+
+        foreach ($targetPositions as $position) {
+            $rows[] = [
+                'id' => (int) $position->id,
+                'user_id' => (int) $position->user_id,
+                'jabatan_id' => (int) $position->jabatan_id,
+                'instansi_id' => (int) $position->instansi_id,
+                'unit_kerja_id' => (int) $position->unit_kerja_id,
+                'is_active' => (bool) $position->is_active ? 1 : 0,
+                'is_canonical' => (bool) $position->is_canonical ? 1 : 0,
+                'canonical_user_position_id' => $this->nullableInteger($position->canonical_user_position_id),
+                'legacy_duplicate_reason' => $this->nullableString($position->legacy_duplicate_reason),
+                'ended_at' => $this->dateString($position->ended_at),
+                'deactivated_at' => $this->dateTimeString($position->deactivated_at),
+                'deactivation_reason' => $this->nullableString($position->deactivation_reason),
+                'source_system' => (string) $position->source_system,
+                'external_id' => (string) $position->external_id,
+                'created_at' => $this->dateTimeString($position->created_at),
+                'updated_at' => $this->dateTimeString($position->updated_at),
+                'deleted_at' => $this->dateTimeString($position->deleted_at),
+            ];
+        }
+
+        return $this->sortFingerprintRows($rows);
+    }
+
+    /**
+     * @param  list<array<string, mixed>>  $rows
+     * @return list<array<string, mixed>>
+     */
+    private function sortFingerprintRows(array $rows): array
+    {
+        usort(
+            $rows,
+            static fn (array $left, array $right): int => $left['id'] <=> $right['id'],
+        );
+
+        return $rows;
+    }
+
+    /** @param list<array<string, mixed>> $rows */
+    private function fingerprintRows(array $rows): string
+    {
+        $context = hash_init('sha256');
+
+        foreach ($rows as $row) {
+            hash_update(
+                $context,
+                json_encode($row, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)."\n",
+            );
+        }
+
+        return hash_final($context);
+    }
+
+    private function combinedTargetFingerprint(string $usersFingerprint, string $positionsFingerprint): string
+    {
+        return hash('sha256', "users:{$usersFingerprint}\nuser_positions:{$positionsFingerprint}\n");
+    }
+
+    /** @param list<int> $ids */
+    private function nextIdAfter(array $ids): int
+    {
+        return $ids === [] ? 1 : max($ids) + 1;
+    }
+
+    /** @param list<int> $ids */
+    private function maximumId(array $ids): int
+    {
+        return $ids === [] ? 0 : max($ids);
+    }
+
+    private function idColumnIsAutoIncrement(Connection $connection, string $table): bool
+    {
+        $result = $connection->selectOne(
+            'SELECT EXTRA AS column_extra FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?',
+            [$connection->getDatabaseName(), $table, 'id'],
+        );
+
+        return str_contains(Str::lower((string) ($result->column_extra ?? '')), 'auto_increment');
     }
 
     /**
@@ -562,7 +1100,7 @@ final class LegacyUserImportValidator
 
     /**
      * @param  list<int>  $validPositionIds
-     * @return array<string, list<int>>
+     * @return array<string, int|list<int>>
      */
     private function historicalReferenceCoverage(
         Connection $connection,
@@ -570,24 +1108,35 @@ final class LegacyUserImportValidator
         string $prefix,
     ): array {
         $validIds = array_fill_keys($validPositionIds, true);
+        $documentUploadedBy = $this->referenceCoverage($connection, 'document', 'uploaded_by', $validIds);
+        $documentUsersTo = $this->referenceCoverage($connection, 'document', 'users_to', $validIds);
+        $documentProcessUser = $this->referenceCoverage($connection, 'document_process', 'id_user', $validIds);
 
         return [
-            $prefix.'_document_uploaded_by_ids' => $this->uncoveredReferenceIds($connection, 'document', 'uploaded_by', $validIds),
-            $prefix.'_document_users_to_ids' => $this->uncoveredReferenceIds($connection, 'document', 'users_to', $validIds),
-            $prefix.'_document_process_user_ids' => $this->uncoveredReferenceIds($connection, 'document_process', 'id_user', $validIds),
+            $prefix.'_document_uploaded_by_reference_count' => $documentUploadedBy['reference_count'],
+            $prefix.'_document_uploaded_by_covered_count' => $documentUploadedBy['covered_count'],
+            $prefix.'_document_uploaded_by_ids' => $documentUploadedBy['uncovered_ids'],
+            $prefix.'_document_users_to_reference_count' => $documentUsersTo['reference_count'],
+            $prefix.'_document_users_to_covered_count' => $documentUsersTo['covered_count'],
+            $prefix.'_document_users_to_ids' => $documentUsersTo['uncovered_ids'],
+            $prefix.'_document_process_user_reference_count' => $documentProcessUser['reference_count'],
+            $prefix.'_document_process_user_covered_count' => $documentProcessUser['covered_count'],
+            $prefix.'_document_process_user_ids' => $documentProcessUser['uncovered_ids'],
         ];
     }
 
     /**
      * @param  array<int, true>  $validIds
-     * @return list<int>
+     * @return array{reference_count: int, covered_count: int, uncovered_ids: list<int>}
      */
-    private function uncoveredReferenceIds(
+    private function referenceCoverage(
         Connection $connection,
         string $table,
         string $column,
         array $validIds,
     ): array {
+        $referenceCount = 0;
+        $coveredCount = 0;
         $uncoveredIds = [];
         $referenceIds = $connection->table($table)
             ->whereNotNull($column)
@@ -596,13 +1145,20 @@ final class LegacyUserImportValidator
 
         foreach ($referenceIds as $referenceId) {
             $referenceId = (int) $referenceId;
+            $referenceCount++;
 
-            if (! isset($validIds[$referenceId])) {
+            if (isset($validIds[$referenceId])) {
+                $coveredCount++;
+            } else {
                 $uncoveredIds[] = $referenceId;
             }
         }
 
-        return $this->sortedUniqueIds($uncoveredIds);
+        return [
+            'reference_count' => $referenceCount,
+            'covered_count' => $coveredCount,
+            'uncovered_ids' => $this->sortedUniqueIds($uncoveredIds),
+        ];
     }
 
     /**

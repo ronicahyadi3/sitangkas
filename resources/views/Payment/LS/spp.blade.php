@@ -79,8 +79,10 @@
     @include('components.informations.detail')
     @include('components.informations.history')
     @unless ($isAuditor)
-        @include('components.informations.pdfview')
-        @include('components.esign.esign')
+        @if (Route::has('esign.validate'))
+             @include('components.informations.pdfview')
+            @include('components.esign.esign')
+        @endif
         @include('components.confirmations.denied')
         @include('components.confirmations.delete')
         @include('components.confirmations.verify')

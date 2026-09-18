@@ -53,12 +53,68 @@ Ini ringkasan aturan yang tidak boleh dilanggar lintas domain.
   `../99-legacy/LEGACY_USERS_IMPORT_DECISIONS.md`. Pipeline read-only sudah
   mencakup source reader, organization resolver, account aggregator, position
   classifier, analyzer `--dry-run`, dan `LegacyUserImportValidator`.
-- Action write legacy `ImportLegacyUsers` sudah tersedia, tetapi safety gate
-  `legacy_import.execution.enabled` wajib tetap `false` sampai keputusan
-  transformasi dikunci. Opsi `--commit` dan audit batch belum dibuat.
-- Action import legacy tidak boleh dipanggil dari route, controller, scheduler,
-  job, Tinker, atau command lain sebelum entry point resmi disetujui. Keberadaan
-  class action bukan izin untuk menjalankan import.
+- Action write legacy `ImportLegacyUsers` sudah tersedia. Safety gate
+  `legacy_import.execution.enabled` saat ini `true` karena diaktifkan operator
+  untuk maintenance attempt 2026-09-16. AI agent tidak boleh menjalankan
+  `--commit` secara otomatis; setelah commit berhasil atau attempt dibatalkan,
+  gate wajib dikembalikan ke `false`. Opsi
+  `--commit` dan `--fingerprint=` sudah terdaftar pada command. Mode commit
+  wajib menghitung ulang analyzer read-only, membandingkan fingerprint penuh,
+  mensyaratkan 0 blocker, dan meminta konfirmasi ketik interaktif berupa
+  `IMPORT LEGACY USERS {prefix fingerprint}`. `--no-interaction` wajib ditolak;
+  setelah konfirmasi command memanggil action, structured log, dan writer
+  laporan `completed`/`failed`.
+- Validator pasca-import wajib tetap dijalankan di dalam transaksi sebelum
+  commit. Validator mencocokkan jumlah row dan fingerprint SHA-256 akun,
+  posisi, serta target gabungan; memvalidasi password tanpa mencatat material
+  password/hash; memeriksa status, canonical/alias, referensi histori
+  `document`/`document_process`; mencocokkan ID maksimum; dan memastikan kolom
+  primary key memakai atribut `AUTO_INCREMENT`. Jangan memakai nilai
+  `information_schema.TABLES.AUTO_INCREMENT` sebagai blocker sebelum commit
+  karena metadata tersebut dapat stale selama explicit-ID insert masih berada
+  dalam transaksi. Blocker invariant wajib me-rollback seluruh import.
+- Attempt commit 2026-09-16 05:23 UTC di-rollback penuh pada stage
+  `post_import`; target sesudahnya tetap 0 `users` dan 0 `user_positions`.
+  Penyebabnya hanya dua false negative counter `AUTO_INCREMENT`. Validator
+  sudah diganti menjadi pemeriksaan ID maksimum dan atribut schema. Jangan
+  reset/truncate target atau menghidupkan kembali pemeriksaan counter tersebut.
+- Fingerprint source maintenance attempt saat ini adalah
+  `db31cc474ae465954797422f204143f669c125f1363e218e59796cb5e9f7ccf3`.
+  Fingerprint boleh dipakai ulang hanya jika dry-run terbaru tetap sama dan
+  blocker tetap 0.
+- Import users legacy bersifat one-time. Jangan membuat tabel/model
+  `legacy_user_import_batches` atau audit event per row. Bukti eksekusi memakai
+  laporan JSON private, structured log yang disanitasi, fingerprint sumber,
+  backup target, dan transaksi rollback.
+- Laporan commit users wajib ditulis melalui
+  `LegacyUserImportCommitReportWriter` ke disk private. Laporan gagal hanya
+  menerima stage, failure code, jumlah blocker, dan fingerprint opsional;
+  jangan meneruskan exception mentah atau material sensitif.
+- Strategi password produksi import legacy sudah final:
+  `preserve_legacy_hash_force_change`. Hash canonical dipertahankan dan seluruh
+  akun hasil import wajib mengganti password setelah login pertama.
+- Shared password import hanya merupakan override development lokal. Default
+  harus nonaktif, nilai password tidak boleh berada di repository/audit/log,
+  dan resolver wajib memblokir override pada environment selain `local`.
+- Dry-run wajib memvalidasi password policy dan hanya menampilkan metadata
+  strategi; password maupun hash tidak boleh masuk laporan JSON atau console.
+- Status akun legacy sudah diputuskan: `active` hanya jika minimal satu posisi
+  canonical aktif, nondeleted, dan referensinya valid; selain itu `inactive`.
+  Baseline yang harus divalidasi adalah 930 active dan 123 inactive, terdiri
+  dari 62 akun tanpa posisi aktif dan 61 akun dengan seluruh row terhapus.
+- File SK legacy hanya boleh diimpor bila file fisiknya tersedia dan valid.
+  Missing, rusak, `.filepart`, dan file orphan di-skip serta dilaporkan; jangan
+  menghapus atau memperbarui sumber legacy yang read-only.
+- `public/SuratKeterangan` hanya staging source, bukan storage final. Dokumen SK
+  hasil import wajib berada pada disk private dan diunduh melalui authorization.
+- Import users/positions memakai `file_sk_strategy=defer`; dokumen diproses oleh
+  analyzer/action terpisah setelah `user_positions` tersedia.
+- Keputusan `file_sk_strategy=defer` sudah dikunci. Gate users importer yang
+  sedang aktif tidak mengizinkan import file SK; dokumen tetap proses terpisah.
+- Action import legacy hanya boleh dipanggil oleh
+  `legacy:import-users --commit` setelah guard fingerprint dan konfirmasi
+  operator. Jangan memanggilnya dari route, controller, scheduler, job, Tinker,
+  atau command lain.
 - Sebelum import user legacy, target `users` dan `user_positions` harus tetap
   kosong. Validator preflight harus lulus dan fingerprint sumber harus sama
   dengan snapshot yang disetujui.
@@ -108,6 +164,216 @@ Ini ringkasan aturan yang tidak boleh dilanggar lintas domain.
 - Fresh install harus divalidasi dari urutan migration dan foreign key, bukan hanya dari `php -l`.
 - Jika migration menyentuh tabel master atau posisi pengguna, baca `../06-migrations/FRESH_INSTALL_READINESS.md`.
 - Jangan menjalankan migration production sebelum konflik order, missing table, dan duplicate constraint selesai.
+
+## BSrE, TTE, dan validasi dokumen
+
+- Sumber keputusan integrasi berada di `../08-esign/README.md` dan tiga dokumen
+  detail yang dirujuknya. Collection Postman 2.2.0-beta dan project lama hanya
+  merupakan bukti referensi, bukan spesifikasi produksi yang lengkap.
+- Integrasi baru menargetkan eSign Client 2.2.0/API v2. Concrete service client
+  wajib bernama `BsreClient`, bukan `BsreV22Client`.
+- Vertical slice pertama hanya mengimplementasikan signing NIK + passphrase.
+  NIK + TOTP, email + passphrase, dan email + TOTP tetap backlog eksplisit;
+  jangan memperluas scope sebelum jalur awal stabil.
+- Browser tidak boleh memanggil BSrE secara langsung. Basic Auth, endpoint
+  internal provider, signer identity sensitif, dan material credential hanya
+  boleh berada pada boundary backend dan secret store/environment server.
+- Konfigurasi runtime eSign hanya dibaca melalui `services.bsre_esign` dan
+  `BsreConfiguration`. Saat aktif, URL, credential service, TLS, timeout,
+  default reason/location, dan seluruh path `/api/v2/*` harus lulus validasi
+  fail-closed sebelum provider dipanggil. Source/example selalu default
+  `BSRE_ESIGN_ENABLED=false` dan `BSRE_ESIGN_ALLOW_INSECURE_HTTP=false`.
+- Endpoint HTTP yang diberikan pemilik hanya diizinkan melalui opt-in lokal
+  `BSRE_ESIGN_ALLOW_INSECURE_HTTP=true`; jangan menyalin pengecualian ini ke
+  environment lain tanpa keputusan deployment eksplisit.
+- Boundary provider resmi adalah `App\Contracts\Esign\EsignGateway` dengan
+  implementasi `App\Services\Esign\BsreClient`. Consumer bisnis tidak boleh
+  bergantung langsung pada Laravel HTTP client atau response vendor.
+- Scope payload sign yang aktif hanya NIK+passphrase, invisible, dan tepat satu
+  PDF. `BsreClient` tidak melakukan auto-retry. Connection/5xx sign menjadi
+  `esign.outcome_unknown`; raw request/response dan exception transport tidak
+  boleh disimpan atau diteruskan.
+- Seluruh TTE runtime berjalan asynchronous dari sisi user melalui dedicated
+  queue `signatures`; HTTP BSrE tetap sinkron di dalam worker. Setelah request
+  final commit dan `202`, tutup modal/browser atau putus koneksi user tidak
+  membatalkan proses server.
+- Passphrase signer hanya boleh disimpan sementara pada secret store/cache
+  private terenkripsi ber-TTL. Passphrase tidak boleh masuk database, session
+  Laravel, event/audit, log, exception context, frontend persistence,
+  `failed_jobs`, atau serialized queue payload; job hanya membawa opaque secret
+  reference/attempt ID dan secret dihapus pada terminal state.
+- Job sign memakai `tries=1` dan `BsreClient` tidak auto-retry sign. Timeout atau
+  koneksi ambigu setelah request mungkin terkirim menjadi attempt `unknown` dan
+  step `reconciliation_required`; sign baru dilarang sampai reconciliation.
+- Signing attempt mengikuti state minimum `prepared -> signing -> validating ->
+  succeeded|failed|unknown`. Timeout setelah request terkirim harus menjadi
+  `unknown`; jangan otomatis mengulangi sign karena dapat menghasilkan tanda
+  tangan ganda.
+- Enum/state final berada di `app/Enums/Esign`: workflow
+  `draft|active|completed|rejected|needs_review`; step
+  `pending|active|signing|reconciliation_required|completed|rejected|skipped|needs_review`;
+  attempt `prepared|signing|validating|succeeded|failed|unknown`. Transition
+  hanya boleh melalui persistence/state service, bukan update bebas controller.
+- `esign_attempts.document_id` memakai signed `INT`, nullable hanya untuk
+  histori legacy orphan, wajib untuk runtime baru, immutable setelah insert,
+  dan diindeks bersama `created_at`. Nilainya diambil dari workflow server-side,
+  bukan dari frontend.
+- File sumber, signed PDF, dan bukti verifikasi disimpan pada storage private.
+  Integritas file baru memakai SHA-256, staging sebelum final, versioning, dan
+  download melalui authorization; jangan memakai public path mentah.
+- Keputusan lifecycle detail berada di
+  `../08-esign/ESIGN_DOCUMENT_LIFECYCLE_AND_REPORTING_COMPATIBILITY.md`.
+  `document_artifacts` mengatalogkan byte/version chain, `esign_attempts`
+  menyimpan summary percobaan, dan `esign_attempt_events` menyimpan chronology
+  append-only. Ketiganya tidak boleh digabung menjadi JSON histori pada tabel
+  legacy.
+- Aplikasi lain masih bergantung pada `before_signs` dan `after_signs` untuk
+  laporan. Pertahankan contract dan compatibility dual-write append-only;
+  jangan menghapus atau mengubah semantik kolom/status lama sepihak. Mapping,
+  parity, dan consumer cutover tidak otomatis menghentikan write atau memberi
+  izin drop. Freeze/read-only/archive/drop memerlukan seluruh gate dan keputusan
+  pengguna baru pada
+  `../08-esign/LEGACY_OPERATIONAL_TABLES_COMPATIBILITY.md`.
+- Enam tabel `document`, `document_process`, `anggaran_kegiatan`,
+  `anggaran_kegiatan_temp`, `before_signs`, dan `after_signs` tetap menjadi
+  kontrak operasional/kompatibilitas. Tidak boleh rename, drop, mengubah tipe,
+  atau mengubah arti kolom/status tanpa keputusan baru dan analisis consumer.
+- `before_signs`, `after_signs`, dan `document_process` bersifat append-only
+  pada alur normal. Invalid, zero-byte, orphan, dan ambigu dipertahankan sebagai
+  evidence serta diberi `needs_review`, bukan dihapus/diperbaiki otomatis.
+- `document` tetap operational projection untuk controller/Blade lama;
+  workflow/step canonical menjadi state terstruktur TTE. Kolom CSV `status`,
+  `submit`, dan `assigned_to` tetap ditulis untuk kompatibilitas dan wajib
+  direkonsiliasi dengan canonical.
+- `anggaran_kegiatan_temp` tetap katalog pagu/rekening dan
+  `anggaran_kegiatan` tetap alokasi rekening per SPP. Audit perubahan anggaran
+  memakai event terpisah; jangan memasukkan histori besar ke row operasional.
+- File invalid/zero-byte dan artifact historis adalah evidence sensitif. Jangan
+  menghapus, menimpa, atau memindahkannya; registrasikan status secara logis dan
+  jangan menjadikannya current artifact.
+- URL QR canonical baru adalah `/verify/{public_id}` dan harus resolve exact
+  immutable artifact version. URL legacy `/File_{TYPE}/sign/{uuid}.pdf` tetap
+  harus bekerja melalui resolver/alias karena QR lama tidak dapat diubah tanpa
+  merusak PDF signed.
+- Legacy URL melakukan exact mapping dan redirect `302` selama migrasi; `301`
+  hanya setelah parity stabil. Jangan mengarahkan QR versi lama ke latest
+  artifact.
+- Halaman verify publik hanya menampilkan status validasi, nomor dokumen bila
+  ada, nama signer dari verified PDF/certificate, dan tanggal signature dalam
+  `Asia/Jakarta`. Jangan tampilkan NIK, nominal, path, response vendor, actor
+  internal, raw certificate, atau hash internal.
+- PDF tidak boleh diunduh publik. Guest hanya melihat login action; route
+  download membutuhkan `auth` dan policy dokumen, dirender server-side,
+  di-stream dari private storage, dan diaudit. Login saja tidak memberi akses
+  lintas unit/role/tahun.
+- `document_artifact_signatures` adalah read model signature per exact artifact
+  agar halaman QR tidak memanggil BSrE setiap request. Halaman public verify
+  memakai Blade + Bootstrap/Argon; Svelte tetap untuk modal internal.
+- Satu logical storage root diperbolehkan, tetapi jangan membuat satu flat
+  directory. File baru dipartisi berdasarkan role (`source`, `signed`,
+  `failed-output`) dan tanggal/prefix; tipe dokumen menjadi metadata database.
+- Tahun/bulan storage ditentukan per artifact. Prioritas source adalah
+  `document_process` action `UPLOAD`, lalu `document.created_at`,
+  `before_signs`, dan filesystem; prioritas signed adalah `document_process`
+  action `TTE`, lalu paired `after_signs`, dan filesystem. Jangan memakai
+  aktivitas terakhir dokumen atau menebak match ambigu.
+- Target akhir memigrasikan semua file dari `File_{TYPE}` ke
+  `{source|signed|failed-output}/{YYYY}/{MM}/{uuid-prefix}/{uuid}.pdf` melalui
+  copy-verify-activate. Project baru saat ini hanya memuat subset sekitar 90
+  hari; file 2024-2025 harus diambil dan diverifikasi dari source/archive lama
+  sebelum folder legacy boleh dihapus.
+- Jangan direct-move atau menghapus folder legacy sebelum size/SHA-256,
+  signature/`ByteRange`, chain, manifest, backup/restore, route compatibility,
+  dan rollback window lulus. Invalid/zero-byte tetap merupakan evidence yang
+  wajib dipertahankan.
+- Semua mapping/backfill TTE wajib mengikuti
+  `../08-esign/ESIGN_RESUMABLE_MIGRATION_RUNBOOK.md`: persistent checkpoint per
+  dokumen/artifact, high-watermark, item state machine, lease expiry, unique
+  source key, idempotent handler, heartbeat, pause/resume, throttling, dan
+  recovery manifest adalah requirement production.
+- Checkpoint item mapping disimpan pada `esign_migration_items.current_stage`
+  dengan urutan `discovered -> metadata_mapped -> file_copied ->
+  checksum_verified -> canonical_activated -> completed`. Status item final
+  adalah `pending|processing|succeeded|retryable_failed|needs_review|failed`.
+- Queue mapping bersifat at-least-once dan terpisah dari queue TTE/traffic
+  utama. Duplicate job harus aman; `retry_after` harus melebihi timeout. Sign
+  BSrE tetap tidak auto-retry, sedangkan mapping/read-only verify boleh retry
+  secara rate-limited dengan backoff.
+- Mapping berjalan dengan expand-migrate-contract, canonical-first read dengan
+  legacy fallback, serta high-watermark + catch-up. Satu item gagal tidak boleh
+  menghentikan layanan atau item lain.
+- Mapping command tidak pernah menghapus source. Tabel compatibility tetap
+  append-only sesuai keputusan aktif. Delete folder legacy hanya melalui
+  decommission command/phase terpisah setelah parity, backup/restore,
+  compatibility route, observation, dan rollback gate lulus. Perubahan
+  lifecycle tabel memerlukan keputusan pengguna baru.
+- Server adalah sumber kebenaran untuk dokumen, posisi halaman, signer,
+  authorization, workflow state, dan nama/path file. Jangan mempercayai NIK,
+  path, status, atau koordinat tanpa validasi dari browser.
+- Implementasi awal hanya mempunyai mode bisnis `SELF_SIGN`.
+  `PREPARE_FOR_SIGNER` tidak boleh diimplementasikan tanpa keputusan scope baru.
+- Semua signer, termasuk Admin Super, menempatkan QR/footer sendiri, memeriksa
+  preview, dan memasukkan passphrase miliknya sendiri. Modal tidak meminta NIK;
+  backend menyelesaikan NIK dari real authenticated user/certificate owner.
+- Admin Super acting context tidak memberi hak proxy-sign, impersonation, atau
+  hak sign universal. Acting context tidak mengubah certificate owner. Admin
+  Super hanya dapat sign bila dirinya signer sah pada workflow step aktif.
+- Bila user Admin Super mempunyai dan memilih posisi bisnis nyata yang assigned
+  kepadanya, ia beroperasi sebagai pengguna biasa pada posisi tersebut dan
+  bukan acting like. Acting hanya untuk effective position yang bukan posisi
+  nyata miliknya. Create/upload diperbolehkan melalui kedua context sesuai role
+  dan scope, tetapi TTE tetap `SELF_SIGN` tanpa proxy certificate.
+- Menutup/Batal pada placement atau preview sebelum final sign tidak membuat
+  audit, history, atau `esign_attempts`. Attempt persisten baru dibuat saat
+  tombol sign ditekan; temporary context dibersihkan langsung atau melalui TTL.
+- SP2D mempunyai tepat satu signer BUD atau Kuasa BUD sesuai assignment
+  Verifikator BUD. Penerima assignment dapat menolak seluruh paket sebelum BANK
+  menetapkan `finished_at`; artifact/history lama tidak dihapus.
+- Reject langkah hanya dilakukan penerima setelah submit dan mengembalikan paket
+  kepada pembuat untuk revisi/resubmit. Data legacy yang ambigu ditandai
+  `needs_review`, bukan dihapus atau diperbaiki otomatis.
+- TTE multi-signer selalu sequential. Result artifact satu step menjadi source
+  artifact step berikutnya; setiap step mempunyai placement sendiri.
+- Matrix authorization/workflow canonical berada di
+  `../08-esign/ESIGN_AUTHORIZATION_AND_WORKFLOW_MATRIX.md`. Jangan menyimpulkan
+  hak create/sign/download hanya dari tombol Blade atau numeric role legacy.
+- Frontend TTE/validasi memakai Svelte sebagai island dalam halaman Blade dan
+  dibangun dengan Vite yang sudah ada; jangan mengubah aplikasi menjadi SPA
+  penuh atau memakai SvelteKit tanpa keputusan baru.
+- Implementasi eSign wajib backend-first. Jangan memasang dependency Svelte atau
+  membangun modal eSign sebelum Phase 0-7 dan Backend Ready Gate pada
+  `../08-esign/ESIGN_V2_IMPLEMENTATION_PLAN.md` selesai.
+- Bootstrap 5 dan custom Argon Dashboard Pro 2 adalah sistem visual utama UI
+  TTE. Gunakan komponen/class dan Bootstrap JavaScript API yang sudah dimuat
+  layout; Svelte hanya mengelola state/interaksi. Jangan memakai utility
+  Tailwind atau membundel ulang Bootstrap/Argon untuk komponen eSign.
+- Custom CSS eSign harus minimal, ter-scope di bawah `.esign-ui`/`.esign-modal`,
+  memakai token Bootstrap/Argon, mewarisi Open Sans, dan mengikuti
+  `body.dark-version`. Jangan mengubah asset Argon vendor secara langsung.
+- UX mempertahankan modal seperti project lama, tetapi implementasi baru hanya
+  mempunyai dua root modal: signing modal dengan internal state/step dan
+  validation modal. Jangan mempertahankan nested modal, jQuery global,
+  positional array payload, atau HTML string dari response.
+- Kemampuan multi-file, aturan mapping `file[]` ke `signatureProperties[]`,
+  response sukses/gagal, ukuran file, timeout, dan mode visible/invisible wajib
+  dibuktikan di sandbox 2.2.0 sebelum production. Default awal adalah satu file
+  per request provider.
+- Credential lama yang pernah berada di kode/config harus dianggap terekspos:
+  inventarisasi, revoke/rotate bila masih valid, pindahkan pengganti ke secret
+  store, dan sanitasi history/deployment artifact sesuai runbook keamanan.
+- Containment source/config/runtime lokal sudah dilakukan sesuai
+  `../08-esign/PHASE_0_SECURITY_CONTAINMENT_REPORT.md`, tetapi rotasi credential
+  BSrE masih direkomendasikan. Default source/example
+  `BSRE_ESIGN_ENABLED` wajib tetap `false`. Pada 17 September 2026 pemilik
+  secara eksplisit mengaktifkan `.env` lokal dan mengarahkan probe terbatas ke
+  production karena tidak tersedia environment development. Pengecualian ini
+  tidak boleh disalin otomatis ke deployment lain.
+- Bukti request statis dan matrix live Phase 1 berada di
+  `../08-esign/PHASE_1_SANDBOX_CONTRACT_REPORT.md`. Status, failed auth, TOTP,
+  certificate chain, verify PDF unsigned/valid/invalid, dan invisible sign
+  NIK+passphrase satu file sudah diprobe secara tersanitasi. Jangan menganggap
+  visible signing, encrypted/modified verification, koordinat, timeout, limit,
+  atau multi-file telah terbukti.
 
 ## Testing permission
 

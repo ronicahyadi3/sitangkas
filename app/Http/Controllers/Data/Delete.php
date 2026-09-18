@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Controllers\Data;
 
 use App\Http\Controllers\Controller;
@@ -10,23 +12,31 @@ use App\Models\Payment\GU_UK as PaymentGU_UK;
 use App\Models\Payment\KKPD as PaymentKKPD;
 use App\Models\Payment\TU as PaymentTU;
 use App\Models\Payment\UP as PaymentUP;
+use App\Models\UserPosition;
 use App\Services\Document\DocumentHistoryService;
+use App\Services\Document\DocumentOrganizationScope;
 use App\Services\User\ActivePositionService;
 use App\Services\User\PositionIdentityResolver;
+use App\Services\User\YearAccessService;
 use App\Support\EncryptedId;
-use DB;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class Delete extends Controller
 {
-    public function __construct(private readonly PositionIdentityResolver $positionIdentityResolver) {}
+    public function __construct(
+        private readonly PositionIdentityResolver $positionIdentityResolver,
+        private readonly DocumentOrganizationScope $documentOrganizationScope,
+    ) {}
 
     public function delete(
         Request $request,
         DocumentHistoryService $documentHistoryService,
-        ActivePositionService $activePosition
-    ) {
+        ActivePositionService $activePosition,
+        YearAccessService $yearAccess,
+    ): JsonResponse {
         Log::channel('module_document_data')->info('Document Delete Request', [
             'hash' => $request->id,
         ]);
@@ -59,6 +69,24 @@ class Delete extends Controller
         }
 
         $actor = $activePosition->get();
+        if (! $actor instanceof UserPosition || ! $actor->jabatan) {
+            return response()->json([
+                'status' => 403,
+                'message' => 'Posisi aktif tidak valid',
+            ], 403);
+        }
+
+        if (
+            ! $yearAccess->canWrite($actor)
+            || $yearAccess->selectedYear() > $yearAccess->currentYear()
+            || (int) $mainDoc->created_at?->year !== $yearAccess->selectedYear()
+        ) {
+            return response()->json([
+                'status' => 403,
+                'message' => 'Dokumen tidak dapat diubah pada tahun anggaran ini',
+            ], 403);
+        }
+
         if (! $this->canAccessDocument($mainDoc, $actor)) {
             Log::channel('module_document_data')->warning('Document Delete Forbidden', [
                 'doc_id' => $mainDoc->id,
@@ -486,6 +514,7 @@ class Delete extends Controller
         Log::channel('module_document_data')->info('Document Delete Success', [
             'doc_id' => $mainDoc->id,
         ]);
+        $yearAccess->recordHistoricalWriteUsage($actor);
 
         return response()->json([
             'status' => 200,
@@ -493,9 +522,9 @@ class Delete extends Controller
         ]);
     }
 
-    private function canAccessDocument(Document $document, $position): bool
+    private function canAccessDocument(Document $document, UserPosition $position): bool
     {
-        if (! $position || ! $position->jabatan) {
+        if (! $position->jabatan) {
             return false;
         }
 
@@ -609,7 +638,7 @@ class Delete extends Controller
                 return true;
             }
 
-            return (int) ($document->unitKerja?->skpd_id ?? 0) === (int) $unitKerjaId;
+            return $this->documentOrganizationScope->containsUnit($position, $document->id_unit_kerja);
         }
 
         if ($document->payment_type === PaymentGU_SKPD::PAYMENT_TYPE && $document->src_type === 'NPD' && $jabatanId === 8) {
@@ -629,7 +658,7 @@ class Delete extends Controller
                 return true;
             }
 
-            return (int) ($document->unitKerja?->skpd_id ?? 0) === (int) $unitKerjaId;
+            return $this->documentOrganizationScope->containsUnit($position, $document->id_unit_kerja);
         }
 
         if ($document->payment_type === PaymentGU_SKPD::PAYMENT_TYPE && $document->src_type === 'LPJ') {
@@ -641,7 +670,7 @@ class Delete extends Controller
                 return true;
             }
 
-            return (int) ($document->unitKerja?->skpd_id ?? 0) === (int) $unitKerjaId;
+            return $this->documentOrganizationScope->containsUnit($position, $document->id_unit_kerja);
         }
 
         if ($document->payment_type === PaymentGU_SKPD::PAYMENT_TYPE && $document->src_type === 'SPM') {
@@ -653,7 +682,7 @@ class Delete extends Controller
                 return true;
             }
 
-            return (int) ($document->unitKerja?->skpd_id ?? 0) === (int) $unitKerjaId;
+            return $this->documentOrganizationScope->containsUnit($position, $document->id_unit_kerja);
         }
 
         if ($document->payment_type === PaymentTU::PAYMENT_TYPE) {
@@ -739,7 +768,7 @@ class Delete extends Controller
                     return true;
                 }
 
-                return (int) ($document->unitKerja?->skpd_id ?? 0) === (int) $unitKerjaId;
+                return $this->documentOrganizationScope->containsUnit($position, $document->id_unit_kerja);
             }
 
             if ($document->src_type === 'SPM' && $jabatanId === 7) {
@@ -747,7 +776,7 @@ class Delete extends Controller
                     return true;
                 }
 
-                return (int) ($document->unitKerja?->skpd_id ?? 0) === (int) $unitKerjaId;
+                return $this->documentOrganizationScope->containsUnit($position, $document->id_unit_kerja);
             }
 
             return false;
@@ -767,7 +796,7 @@ class Delete extends Controller
                     return true;
                 }
 
-                return (int) ($document->unitKerja?->skpd_id ?? 0) === (int) $unitKerjaId;
+                return $this->documentOrganizationScope->containsUnit($position, $document->id_unit_kerja);
             }
 
             if ($document->src_type === 'SPM' && $jabatanId === 7) {
@@ -775,7 +804,7 @@ class Delete extends Controller
                     return true;
                 }
 
-                return (int) ($document->unitKerja?->skpd_id ?? 0) === (int) $unitKerjaId;
+                return $this->documentOrganizationScope->containsUnit($position, $document->id_unit_kerja);
             }
 
             if ($document->src_type === 'SP2D') {
@@ -809,7 +838,7 @@ class Delete extends Controller
             return true;
         }
 
-        if ((int) ($document->unitKerja?->skpd_id ?? 0) === (int) $unitKerjaId) {
+        if ($this->documentOrganizationScope->containsUnit($position, $document->id_unit_kerja)) {
             return true;
         }
 

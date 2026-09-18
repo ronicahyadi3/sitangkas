@@ -33,8 +33,45 @@ Per 2026-09-14, pipeline read-only sudah tersedia sampai validator preflight dan
 validator pasca-insert. Dry-run terakhir menghasilkan 1.053 akun, 1.143 posisi
 canonical, 371 alias, dan 0 blocker; tabel target `users` serta
 `user_positions` tetap kosong. Per 2026-09-15, action transaksional sudah dibuat
-tetapi safety gate masih disabled dan action belum memiliki entry point.
-`--commit` belum tersedia. Mulai setiap pekerjaan lanjutan dari bagian
+dan per 2026-09-16 sudah terhubung ke entry point command, structured log, serta
+writer laporan commit. Safety gate diaktifkan sementara oleh operator pada
+maintenance attempt 2026-09-16.
+Strategi password produksi sudah dikunci ke
+`preserve_legacy_hash_force_change`; override shared password hanya boleh untuk
+environment `local`, default nonaktif, dan tidak boleh tercatat dalam laporan.
+Resolver, validator, config, dan ringkasan dry-run status akun sudah selesai:
+930 akun diproyeksikan active dan 123 inactive dengan checksum resolusi yang
+dikunci. Strategi file SK sudah dikunci ke `defer`; users importer menunda SK
+ke importer dokumen terpisah yang hanya
+mengambil file fisik valid. Analyzer SK read-only dan command
+`legacy:import-user-position-documents --dry-run` sudah tersedia serta lulus
+dengan 0 blocker. Snapshot `public/SuratKeterangan` mencocokkan 522 dari 1.514
+path dan hanya 518 file lolos pemeriksaan ketat; source tetap harus dibekukan
+dan hasil import kelak disimpan private.
+Safety gate `legacy_import.execution.enabled` saat ini `true` untuk maintenance
+attempt, bukan sebagai konfigurasi permanen.
+Karena import users hanya dilakukan satu kali, tidak akan dibuat tabel audit
+batch. Bukti eksekusi akan memakai laporan commit JSON private, structured log
+yang disanitasi, fingerprint sumber, backup target, dan transaksi rollback.
+Writer laporan commit private untuk status `completed` dan `failed` sudah
+tersedia. Opsi `--commit` dan `--fingerprint=` sudah terdaftar, tetapi mode
+commit hanya menjalankan analyzer read-only terbaru, membandingkan fingerprint,
+memastikan 0 blocker, dan meminta konfirmasi ketik yang terikat pada fingerprint.
+Commit pertama pada 2026-09-16 05:23 UTC menerima fingerprint dan konfirmasi,
+kemudian di-rollback pada stage `post_import` karena dua false negative saat
+membaca counter `information_schema.TABLES.AUTO_INCREMENT` sebelum commit.
+Target tetap 0 `users` dan 0 `user_positions`. Validator sudah diperbaiki untuk
+memeriksa ID maksimum dan atribut `AUTO_INCREMENT` kolom `id`; counter yang
+dapat stale tidak lagi menjadi blocker. Retry commit oleh operator masih
+pending dan gate wajib dikembalikan ke `false` setelah berhasil atau dibatalkan.
+Validator pasca-import sudah lengkap dan tetap dijalankan di dalam transaksi:
+jumlah row, fingerprint deterministik akun/posisi/target gabungan, proyeksi
+password tanpa mengekspos hash, status dan canonical/alias, cakupan referensi
+`document`/`document_process`, ID maksimum, serta atribut `AUTO_INCREMENT`
+kolom primary key diverifikasi sebelum commit. Counter metadata tabel tidak
+dibaca sebagai blocker selama transaksi karena dapat stale sebelum commit.
+Kegagalan invariant menyebabkan rollback.
+Mulai setiap pekerjaan lanjutan dari bagian
 "Handoff cepat untuk AI agent" pada
 [LEGACY_USERS_IMPORT_DECISIONS.md](LEGACY_USERS_IMPORT_DECISIONS.md).
 

@@ -2,6 +2,7 @@
 
 namespace App\Services\LegacyImport;
 
+use App\Data\LegacyImport\LegacyUserPositionDocumentReference;
 use App\Data\LegacyImport\LegacyUserRow;
 use Illuminate\Database\Connection;
 use Illuminate\Database\DatabaseManager;
@@ -73,6 +74,22 @@ final class LegacyUserSourceReader
         return $this->query()
             ->lazyById($chunkSize, 'id')
             ->map(static fn (stdClass $row): LegacyUserRow => LegacyUserRow::fromDatabaseRow($row));
+    }
+
+    /**
+     * @return LazyCollection<int, LegacyUserPositionDocumentReference>
+     */
+    public function lazyDocumentReferences(int $chunkSize = self::DefaultChunkSize): LazyCollection
+    {
+        if ($chunkSize < 1) {
+            throw new InvalidArgumentException('Legacy user chunk size must be greater than zero.');
+        }
+
+        return $this->connection()
+            ->table(self::TableName)
+            ->select(['id', 'file_sk'])
+            ->lazyById($chunkSize, 'id')
+            ->map(static fn (stdClass $row): LegacyUserPositionDocumentReference => LegacyUserPositionDocumentReference::fromDatabaseRow($row));
     }
 
     private function query(): Builder

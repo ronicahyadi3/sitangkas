@@ -12,8 +12,8 @@ use App\Models\AnggaranKegiatanTemp;
 use App\Models\Document;
 use App\Models\Jabatan;
 use App\Models\Payment\LS;
-use App\Models\UnitKerja;
 use App\Services\Document\DocumentHistoryService;
+use App\Services\Document\DocumentOrganizationScope;
 use App\Services\User\ActivePositionService;
 use App\Services\User\PositionIdentityResolver;
 use App\Support\EncryptedId;
@@ -25,7 +25,10 @@ use Yajra\DataTables\Facades\DataTables;
 
 class SPP extends Controller
 {
-    public function __construct(private readonly PositionIdentityResolver $positionIdentityResolver) {}
+    public function __construct(
+        private readonly PositionIdentityResolver $positionIdentityResolver,
+        private readonly DocumentOrganizationScope $documentOrganizationScope,
+    ) {}
 
     protected function storeFile($file, $directory, ?array &$storedFiles = null)
     {
@@ -87,7 +90,9 @@ class SPP extends Controller
         $verify = ! is_null($data->verify_spp);
 
         $dataById = array_column($allJabatan, 'nama', 'id');
-        $rejectedBy = $dataById[$data->rejected_by_spp] ?? null;
+        $rejectedBy = $data->rejected_by_spp === null
+            ? null
+            : ($dataById[$data->rejected_by_spp] ?? null);
 
         if (! is_null($data->denied_billing_at)) {
             return '<span type="button" class="btn btn-sm btn-danger show-document"
@@ -235,7 +240,9 @@ class SPP extends Controller
     protected function auditorStatusBadge(object $data, array $allJabatan): string
     {
         $dataById = array_column($allJabatan, 'nama', 'id');
-        $rejectedBy = $dataById[$data->rejected_by_spp] ?? null;
+        $rejectedBy = $data->rejected_by_spp === null
+            ? null
+            : ($dataById[$data->rejected_by_spp] ?? null);
 
         $badge = static function (string $class, string $icon, string $label): string {
             return sprintf(
@@ -348,7 +355,10 @@ class SPP extends Controller
                     $dataQuery = $dataQuery
                         ->where(function ($query) use ($userUnit) {
                             $query->where('document.id_unit_kerja', $userUnit)
-                                ->orWhere('unit_kerja_spp.skpd_id', $userUnit);
+                                ->orWhereIn(
+                                    'document.id_unit_kerja',
+                                    $this->documentOrganizationScope->accessibleUnitIdsForUnit((int) $userUnit),
+                                );
                         })
                         ->whereRaw("FIND_IN_SET(?, {$assignedExpr})", ['7']);
                     break;
@@ -1289,7 +1299,7 @@ class SPP extends Controller
                     ]);
 
                 foreach ($docs as $doc) {
-                    $documentHistoryService->edited(
+                    $documentHistoryService->submit(
                         $doc->id,
                         $doc->src_name,
                         $userUnit
@@ -1473,20 +1483,20 @@ class SPP extends Controller
                     ], 400);
                 }
 
-                foreach ($docs as $doc) {
-                    $documentHistoryService->edited(
-                        $doc->id,
-                        $doc->src_name,
-                        $user->unitKerja->id
-                    );
-                }
-
                 Document::whereIn('id', $docs->pluck('id'))
                     ->update([
                         'submit' => $userJabatan,
                         'assigned_to' => 8,
                         'users_to' => $userTo,
                     ]);
+
+                foreach ($docs as $doc) {
+                    $documentHistoryService->submit(
+                        $doc->id,
+                        $doc->src_name,
+                        $user->unitKerja->id
+                    );
+                }
 
                 Log::channel('payment_ls')->info('SPP LS Submit PPTK success', [
                     'doc_id' => $docId,
@@ -1531,11 +1541,7 @@ class SPP extends Controller
             return true;
         }
 
-        $skpdId = UnitKerja::query()
-            ->whereKey($document->id_unit_kerja)
-            ->value('skpd_id');
-
-        if ((int) $skpdId === (int) $unitKerjaId) {
+        if ($this->documentOrganizationScope->containsUnit($unitKerjaId, $document->id_unit_kerja)) {
             return true;
         }
 

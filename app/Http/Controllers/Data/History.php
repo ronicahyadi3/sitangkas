@@ -1,13 +1,18 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Controllers\Data;
 
 use App\Http\Controllers\Controller;
 use App\Models\Document;
 use App\Models\DocumentHistory;
+use App\Services\Document\DocumentOrganizationScope;
 use App\Services\User\ActivePositionService;
 use App\Services\User\PositionIdentityResolver;
 use App\Support\EncryptedId;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -15,9 +20,14 @@ use Yajra\DataTables\Facades\DataTables;
 
 class History extends Controller
 {
-    public function __construct(private readonly PositionIdentityResolver $positionIdentityResolver) {}
+    private ?int $selectedYear = null;
 
-    public function history(Request $request, ActivePositionService $activePosition)
+    public function __construct(
+        private readonly PositionIdentityResolver $positionIdentityResolver,
+        private readonly DocumentOrganizationScope $documentOrganizationScope,
+    ) {}
+
+    public function history(Request $request, ActivePositionService $activePosition): JsonResponse
     {
         $startedAt = microtime(true);
 
@@ -66,6 +76,7 @@ class History extends Controller
             }
 
             $userLevel = (int) $actor->jabatan->id;
+            $this->selectedYear = $activePosition->selectedYear();
             $includeDeleted = $userLevel === 13;
             $userUnit = $actor->unitKerja?->id;
             $actorIds = in_array($userLevel, [4, 8], true)
@@ -136,7 +147,7 @@ class History extends Controller
                                                     ->orWhere('document.src_type', '!=', 'NPD');
                                             })->where(function ($defaultRule) use ($userLevel, $userUnit) {
                                                 $defaultRule->where('document.id_unit_kerja', $userUnit)
-                                                    ->orWhere('uk.skpd_id', $userUnit)
+                                                    ->orWhereIn('document.id_unit_kerja', $this->documentOrganizationScope->accessibleUnitIdsForUnit((int) $userUnit))
                                                     ->orWhereRaw("FIND_IN_SET(?, COALESCE(document.assigned_to, ''))", [(string) $userLevel]);
                                             });
                                         });
@@ -150,7 +161,7 @@ class History extends Controller
                                                 ->where('document.src_type', 'TBP')
                                                 ->where(function ($tbpRule) use ($userUnit) {
                                                     $tbpRule->where('document.id_unit_kerja', $userUnit)
-                                                        ->orWhere('uk.skpd_id', $userUnit);
+                                                        ->orWhereIn('document.id_unit_kerja', $this->documentOrganizationScope->accessibleUnitIdsForUnit((int) $userUnit));
                                                 });
                                         })->orWhere(function ($defaultScope) use ($userLevel, $userUnit) {
                                             $defaultScope->where(function ($excludeGuSkpdTbp) {
@@ -158,7 +169,7 @@ class History extends Controller
                                                     ->orWhere('document.src_type', '!=', 'TBP');
                                             })->where(function ($defaultRule) use ($userLevel, $userUnit) {
                                                 $defaultRule->where('document.id_unit_kerja', $userUnit)
-                                                    ->orWhere('uk.skpd_id', $userUnit)
+                                                    ->orWhereIn('document.id_unit_kerja', $this->documentOrganizationScope->accessibleUnitIdsForUnit((int) $userUnit))
                                                     ->orWhereRaw("FIND_IN_SET(?, COALESCE(document.assigned_to, ''))", [(string) $userLevel]);
                                             });
                                         });
@@ -172,7 +183,7 @@ class History extends Controller
                                                 ->where('document.src_type', 'LPJ')
                                                 ->where(function ($lpjRule) use ($userUnit) {
                                                     $lpjRule->where('document.id_unit_kerja', $userUnit)
-                                                        ->orWhere('uk.skpd_id', $userUnit);
+                                                        ->orWhereIn('document.id_unit_kerja', $this->documentOrganizationScope->accessibleUnitIdsForUnit((int) $userUnit));
                                                 });
                                         })->orWhere(function ($defaultScope) use ($userLevel, $userUnit) {
                                             $defaultScope->where(function ($excludeGuSkpdLpj) {
@@ -180,7 +191,7 @@ class History extends Controller
                                                     ->orWhere('document.src_type', '!=', 'LPJ');
                                             })->where(function ($defaultRule) use ($userLevel, $userUnit) {
                                                 $defaultRule->where('document.id_unit_kerja', $userUnit)
-                                                    ->orWhere('uk.skpd_id', $userUnit)
+                                                    ->orWhereIn('document.id_unit_kerja', $this->documentOrganizationScope->accessibleUnitIdsForUnit((int) $userUnit))
                                                     ->orWhereRaw("FIND_IN_SET(?, COALESCE(document.assigned_to, ''))", [(string) $userLevel]);
                                             });
                                         });
@@ -194,7 +205,7 @@ class History extends Controller
                                                 ->where('document.src_type', 'SPM')
                                                 ->where(function ($spmRule) use ($userUnit) {
                                                     $spmRule->where('document.id_unit_kerja', $userUnit)
-                                                        ->orWhere('uk.skpd_id', $userUnit);
+                                                        ->orWhereIn('document.id_unit_kerja', $this->documentOrganizationScope->accessibleUnitIdsForUnit((int) $userUnit));
                                                 });
                                         })->orWhere(function ($defaultScope) use ($userLevel, $userUnit, $actorIds) {
                                             $defaultScope->where(function ($excludeGuSkpdSpm) {
@@ -202,7 +213,7 @@ class History extends Controller
                                                     ->orWhere('document.src_type', '!=', 'SPM');
                                             })->where(function ($defaultRule) use ($userLevel, $userUnit, $actorIds) {
                                                 $defaultRule->where('document.id_unit_kerja', $userUnit)
-                                                    ->orWhere('uk.skpd_id', $userUnit)
+                                                    ->orWhereIn('document.id_unit_kerja', $this->documentOrganizationScope->accessibleUnitIdsForUnit((int) $userUnit))
                                                     ->orWhere(function ($sp2dOwn) use ($actorIds) {
                                                         $sp2dOwn->where('document.src_type', 'SP2D')
                                                             ->whereIn('document.uploaded_by', $actorIds);
@@ -225,7 +236,7 @@ class History extends Controller
                                                     ->orWhere('document.src_type', '!=', 'SP2D');
                                             })->where(function ($defaultRule) use ($userLevel, $userUnit) {
                                                 $defaultRule->where('document.id_unit_kerja', $userUnit)
-                                                    ->orWhere('uk.skpd_id', $userUnit)
+                                                    ->orWhereIn('document.id_unit_kerja', $this->documentOrganizationScope->accessibleUnitIdsForUnit((int) $userUnit))
                                                     ->orWhereRaw("FIND_IN_SET(?, COALESCE(document.assigned_to, ''))", [(string) $userLevel]);
                                             });
                                         });
@@ -234,7 +245,7 @@ class History extends Controller
                                     }
 
                                     $rule->where('document.id_unit_kerja', $userUnit)
-                                        ->orWhere('uk.skpd_id', $userUnit)
+                                        ->orWhereIn('document.id_unit_kerja', $this->documentOrganizationScope->accessibleUnitIdsForUnit((int) $userUnit))
                                         ->orWhereRaw("FIND_IN_SET(?, COALESCE(document.assigned_to, ''))", [(string) $userLevel]);
                                 });
                         })->orWhere(function ($guUk) use ($userLevel, $userUnit, $actorIds, $actorBudIds, $scopeUnitId, $documentId) {
@@ -256,6 +267,7 @@ class History extends Controller
                                                     $sub->select(DB::raw(1))
                                                         ->from('document as family_docs')
                                                         ->whereNull('family_docs.deleted_at')
+                                                        ->whereYear('family_docs.created_at', $this->selectedYear)
                                                         ->where('family_docs.payment_type', 'GU_UK')
                                                         ->where('family_docs.src_type', 'SP2D')
                                                         ->whereIn('family_docs.users_to', $actorBudIds)
@@ -285,7 +297,7 @@ class History extends Controller
                                     if (in_array($userLevel, [9, 5], true) && $scopeUnitId) {
                                         $rule->where(function ($scope) use ($scopeUnitId) {
                                             $scope->where('document.id_unit_kerja', $scopeUnitId)
-                                                ->orWhere('uk.skpd_id', $scopeUnitId);
+                                                ->orWhereIn('document.id_unit_kerja', $this->documentOrganizationScope->accessibleUnitIdsForUnit((int) $scopeUnitId));
                                         });
 
                                         return;
@@ -428,7 +440,7 @@ class History extends Controller
                         $isSigned
                     );
 
-                    return '<button type="button" class="btn btn-sm '.$btnClass.' view-pdf" data-url="'.$url.'" data-wenk-pos="top" data-wenk="'.$tooltip.'" data-wenk-color="'.$color.'"> <i class="far fa-check-square"></i> '.$row->src_type.' '.$label.'</button>';
+                    return '<button type="button" class="btn btn-sm '.e($btnClass).' view-pdf" data-url="'.e($url).'" data-wenk-pos="top" data-wenk="'.e($tooltip).'" data-wenk-color="'.e($color).'"> <i class="far fa-check-square"></i> '.e($row->src_type).' '.e($label).'</button>';
                 })
 
                 ->addColumn('pengirim', function ($row) {
@@ -476,7 +488,7 @@ class History extends Controller
         }
     }
 
-    public static function generateUrl($srcType, $srcName, $isSigned = false)
+    public static function generateUrl(string $srcType, string $srcName, bool $isSigned = false): string
     {
         $basePath = $isSigned ? "/File_{$srcType}/signs/" : "/File_{$srcType}/";
 
@@ -485,16 +497,7 @@ class History extends Controller
 
     private function resolveScopeUnitId(int $unitKerjaId): ?int
     {
-        $unit = DB::table('unit_kerjas')
-            ->select(['id', 'skpd_id'])
-            ->where('id', $unitKerjaId)
-            ->first();
-
-        if (! $unit) {
-            return null;
-        }
-
-        return (int) ($unit->skpd_id ?: $unit->id);
+        return $this->documentOrganizationScope->scopeUnitIdForUnit($unitKerjaId);
     }
 
     private function resolveHistoryFamilyIds(int $documentId, bool $includeDeleted = false): array
@@ -557,11 +560,16 @@ class History extends Controller
         return $anchorId;
     }
 
-    private function documentQuery(bool $includeDeleted = false)
+    private function documentQuery(bool $includeDeleted = false): Builder
     {
-        return $includeDeleted
+        $query = $includeDeleted
             ? Document::withTrashed()
             : Document::query();
+
+        return $query->when(
+            $this->selectedYear !== null,
+            fn (Builder $query): Builder => $query->whereYear('document.created_at', $this->selectedYear),
+        );
     }
 
     private function familyHasSp2dTargetAccess(array $familyIds, array $actorBudIds): bool
@@ -572,6 +580,7 @@ class History extends Controller
 
         return Document::query()
             ->whereNull('deleted_at')
+            ->when($this->selectedYear !== null, fn (Builder $query): Builder => $query->whereYear('document.created_at', $this->selectedYear))
             ->whereIn('id', $familyIds)
             ->where('src_type', 'SP2D')
             ->whereIn('users_to', $actorBudIds)
@@ -586,6 +595,7 @@ class History extends Controller
 
         return Document::query()
             ->whereNull('deleted_at')
+            ->when($this->selectedYear !== null, fn (Builder $query): Builder => $query->whereYear('document.created_at', $this->selectedYear))
             ->whereIn('id', $familyIds)
             ->where(function ($query) use ($actorIds) {
                 $query->whereRaw("FIND_IN_SET('4', COALESCE(assigned_to, ''))")

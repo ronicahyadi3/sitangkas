@@ -62,14 +62,16 @@
                                     <span class="input-group-text"><i class="fa-solid fa-address-card"></i></span>
                                     <input type="number" class="form-control ps-1"
                                         placeholder="Nomor Induk Kependudukan (NIK)"
-                                        aria-label="Nomor Induk Kependudukan (NIK)" id="Exchange" name="Exchange">
+                                        aria-label="Nomor Induk Kependudukan (NIK)" id="Exchange" name="Exchange"
+                                        autocomplete="off" inputmode="numeric">
                                 </div>
                             @endif
                             <label>Passphrase</label>
                             <div class="input-group mb-2">
                                 <span class="input-group-text"><i class="fa-solid fa-key"></i></span>
                                 <input type="password" class="form-control ps-1" placeholder="Passphrase"
-                                    aria-label="Passphrase" id="Tokenize" name="Tokenize">
+                                    aria-label="Passphrase" id="Tokenize" name="Tokenize" autocomplete="off"
+                                    autocapitalize="none" spellcheck="false">
                                 <span class="input-group-text toggle-password" role="button" tabindex="0"
                                     data-target="#Tokenize" data-timeout="5000" aria-label="Toggle password visibility">
                                     <i class="fas fa-eye-slash"></i>

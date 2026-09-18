@@ -77,7 +77,7 @@
 
                 $.ajax({
                     type: 'GET',
-                    url: "{{ url('/users/pptk') }}",
+                    url: "{{ route('payment.options.pptk') }}",
                     dataType: 'json',
                     success: function(data) {
                         const options = data.map(item => new Option(item.nama, item.id, false, false));

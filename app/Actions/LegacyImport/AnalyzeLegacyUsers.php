@@ -13,6 +13,7 @@ use App\Data\LegacyImport\LegacyUserPositionProjection;
 use App\Data\LegacyImport\LegacyUserRow;
 use App\Services\LegacyImport\LegacyOrganizationResolver;
 use App\Services\LegacyImport\LegacyUserAccountAggregator;
+use App\Services\LegacyImport\LegacyUserAccountStatusResolver;
 use App\Services\LegacyImport\LegacyUserImportPasswordPolicyResolver;
 use App\Services\LegacyImport\LegacyUserImportValidator;
 use App\Services\LegacyImport\LegacyUserPositionClassifier;
@@ -27,6 +28,7 @@ final class AnalyzeLegacyUsers
         private LegacyOrganizationResolver $organizationResolver,
         private LegacyUserAccountAggregator $accountAggregator,
         private LegacyUserPositionClassifier $positionClassifier,
+        private LegacyUserAccountStatusResolver $accountStatusResolver,
         private LegacyUserImportValidator $validator,
         private LegacyUserImportPasswordPolicyResolver $passwordPolicyResolver,
     ) {}
@@ -107,6 +109,10 @@ final class AnalyzeLegacyUsers
             $accountAggregation,
             $organizationResolutions,
         );
+        $accountStatusResolution = $this->accountStatusResolver->resolveConfigured(
+            $accountAggregation,
+            $positionClassification,
+        );
         $source = $this->sourceAnalysis($sourceIds, $identityGroups, $sourceFingerprint, $expected);
         $accounts = $this->accountAnalysis($accountAggregation);
         $identity = $this->identityAnalysis(
@@ -129,13 +135,15 @@ final class AnalyzeLegacyUsers
             'source_active_row_count' => $sourceActiveRowCount,
             'deleted_row_count' => $deletedRowCount,
             'nondeleted_row_count' => count($sourceIds) - $deletedRowCount,
+            ...$accountStatusResolution->toAnalysis(),
         ];
 
         $validation = $this->validator->validateBeforeImport(
             $accountAggregation,
             $positionClassification,
+            $accountStatusResolution,
             $passwordPolicy,
-            compact('source', 'accounts', 'identity', 'organization', 'positions'),
+            compact('source', 'accounts', 'identity', 'organization', 'positions', 'status'),
         );
 
         $analysis = new LegacyUserImportAnalysis(
@@ -156,6 +164,7 @@ final class AnalyzeLegacyUsers
         return new LegacyUserImportPlan(
             analysis: $analysis,
             accountAggregation: $accountAggregation,
+            accountStatusResolution: $accountStatusResolution,
             positionClassification: $positionClassification,
         );
     }

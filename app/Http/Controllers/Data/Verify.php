@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Controllers\Data;
 
 use App\Http\Controllers\Controller;
@@ -9,23 +11,31 @@ use App\Models\Payment\GU_UK as PaymentGU_UK;
 use App\Models\Payment\KKPD as PaymentKKPD;
 use App\Models\Payment\TU as PaymentTU;
 use App\Models\Payment\UP as PaymentUP;
+use App\Models\UserPosition;
 use App\Services\Document\DocumentHistoryService;
+use App\Services\Document\DocumentOrganizationScope;
 use App\Services\User\ActivePositionService;
 use App\Services\User\PositionIdentityResolver;
+use App\Services\User\YearAccessService;
 use App\Support\EncryptedId;
-use DB;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class Verify extends Controller
 {
-    public function __construct(private readonly PositionIdentityResolver $positionIdentityResolver) {}
+    public function __construct(
+        private readonly PositionIdentityResolver $positionIdentityResolver,
+        private readonly DocumentOrganizationScope $documentOrganizationScope,
+    ) {}
 
     public function verify(
         Request $request,
         DocumentHistoryService $documentHistoryService,
-        ActivePositionService $activePosition
-    ) {
+        ActivePositionService $activePosition,
+        YearAccessService $yearAccess,
+    ): JsonResponse {
         Log::channel('module_document_data')->info('Document Verify Request', [
             'hash' => $request->id,
         ]);
@@ -58,6 +68,24 @@ class Verify extends Controller
         }
 
         $actor = $activePosition->get();
+        if (! $actor instanceof UserPosition || ! $actor->jabatan) {
+            return response()->json([
+                'status' => 403,
+                'message' => 'Posisi aktif tidak valid',
+            ], 403);
+        }
+
+        if (
+            ! $yearAccess->canWrite($actor)
+            || $yearAccess->selectedYear() > $yearAccess->currentYear()
+            || (int) $mainDoc->created_at?->year !== $yearAccess->selectedYear()
+        ) {
+            return response()->json([
+                'status' => 403,
+                'message' => 'Dokumen tidak dapat diubah pada tahun anggaran ini',
+            ], 403);
+        }
+
         if (! $this->canAccessDocument($mainDoc, $actor)) {
             Log::channel('module_document_data')->warning('Document Verify Forbidden', [
                 'doc_id' => $mainDoc->id,
@@ -411,6 +439,7 @@ class Verify extends Controller
         Log::channel('module_document_data')->info('Document Verify Success', [
             'doc_id' => $mainDoc->id,
         ]);
+        $yearAccess->recordHistoricalWriteUsage($actor);
 
         return response()->json([
             'status' => 200,
@@ -418,9 +447,9 @@ class Verify extends Controller
         ]);
     }
 
-    private function canAccessDocument(Document $document, $position): bool
+    private function canAccessDocument(Document $document, UserPosition $position): bool
     {
-        if (! $position || ! $position->jabatan) {
+        if (! $position->jabatan) {
             return false;
         }
 
@@ -467,7 +496,7 @@ class Verify extends Controller
                 }
 
                 return (int) $document->id_unit_kerja === (int) $unitKerjaId
-                    || (int) ($document->unitKerja?->skpd_id ?? 0) === (int) $unitKerjaId;
+                    || $this->documentOrganizationScope->containsUnit($position, $document->id_unit_kerja);
             }
 
             if ((int) $document->id_unit_kerja !== (int) $unitKerjaId) {
@@ -498,7 +527,7 @@ class Verify extends Controller
             return true;
         }
 
-        if ((int) ($document->unitKerja?->skpd_id ?? 0) === (int) $unitKerjaId) {
+        if ($this->documentOrganizationScope->containsUnit($position, $document->id_unit_kerja)) {
             return true;
         }
 

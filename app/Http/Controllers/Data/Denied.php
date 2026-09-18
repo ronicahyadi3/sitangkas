@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Controllers\Data;
 
 use App\Http\Controllers\Controller;
@@ -9,23 +11,31 @@ use App\Models\Payment\GU_UK as PaymentGU_UK;
 use App\Models\Payment\KKPD as PaymentKKPD;
 use App\Models\Payment\TU as PaymentTU;
 use App\Models\Payment\UP as PaymentUP;
+use App\Models\UserPosition;
 use App\Services\Document\DocumentHistoryService;
+use App\Services\Document\DocumentOrganizationScope;
 use App\Services\User\ActivePositionService;
 use App\Services\User\PositionIdentityResolver;
+use App\Services\User\YearAccessService;
 use App\Support\EncryptedId;
-use DB;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class Denied extends Controller
 {
-    public function __construct(private readonly PositionIdentityResolver $positionIdentityResolver) {}
+    public function __construct(
+        private readonly PositionIdentityResolver $positionIdentityResolver,
+        private readonly DocumentOrganizationScope $documentOrganizationScope,
+    ) {}
 
     public function denied(
         Request $request,
         DocumentHistoryService $documentHistoryService,
-        ActivePositionService $activePosition
-    ) {
+        ActivePositionService $activePosition,
+        YearAccessService $yearAccess,
+    ): JsonResponse {
         Log::channel('module_document_data')->info('Document Denied Request', [
             'hash' => $request->id,
         ]);
@@ -44,19 +54,21 @@ class Denied extends Controller
             ], 400);
         }
 
-        $notes = (string) $request->notes;
-        if (trim($notes) === '') {
+        $notes = trim((string) $request->notes);
+        if ($notes === '' || mb_strlen($notes) > 255) {
             Log::channel('module_document_data')->warning('Document Denied Missing Notes', [
                 'hash' => $request->id,
             ]);
 
             return response()->json([
                 'status' => 422,
-                'message' => 'Catatan penolakan wajib diisi',
+                'message' => $notes === ''
+                    ? 'Catatan penolakan wajib diisi'
+                    : 'Catatan penolakan maksimal 255 karakter',
             ], 422);
         }
         $userData = $activePosition->get();
-        if (! $userData || ! $userData->jabatan) {
+        if (! $userData instanceof UserPosition || ! $userData->jabatan) {
             Log::channel('module_document_data')->warning('Document Denied Invalid Actor Position');
 
             return response()->json([
@@ -64,7 +76,7 @@ class Denied extends Controller
                 'message' => 'Posisi aktif tidak valid',
             ], 403);
         }
-        $jabatanId = $userData->jabatan->id;
+        $jabatanId = (int) $userData->jabatan->id;
 
         $mainDoc = Document::with('unitKerja')->find($id);
 
@@ -77,6 +89,17 @@ class Denied extends Controller
                 'status' => 404,
                 'message' => 'Dokumen tidak ditemukan',
             ], 404);
+        }
+
+        if (
+            ! $yearAccess->canWrite($userData)
+            || $yearAccess->selectedYear() > $yearAccess->currentYear()
+            || (int) $mainDoc->created_at?->year !== $yearAccess->selectedYear()
+        ) {
+            return response()->json([
+                'status' => 403,
+                'message' => 'Dokumen tidak dapat diubah pada tahun anggaran ini',
+            ], 403);
         }
 
         if (! $this->canAccessDocument($mainDoc, $userData)) {
@@ -280,6 +303,7 @@ class Denied extends Controller
         Log::channel('module_document_data')->info('Document Denied Success', [
             'doc_id' => $mainDoc->id,
         ]);
+        $yearAccess->recordHistoricalWriteUsage($userData);
 
         return response()->json([
             'status' => 200,
@@ -287,9 +311,9 @@ class Denied extends Controller
         ]);
     }
 
-    private function canAccessDocument(Document $document, $position): bool
+    private function canAccessDocument(Document $document, UserPosition $position): bool
     {
-        if (! $position || ! $position->jabatan) {
+        if (! $position->jabatan) {
             return false;
         }
 
@@ -350,7 +374,7 @@ class Denied extends Controller
                     return true;
                 }
 
-                return (int) ($document->unitKerja?->skpd_id ?? 0) === (int) $scopeUnitId;
+                return $this->documentOrganizationScope->containsUnit($scopeUnitId, $document->id_unit_kerja);
             }
 
             if ($document->src_type === 'SPM') {
@@ -412,7 +436,7 @@ class Denied extends Controller
                 return true;
             }
 
-            return (int) ($document->unitKerja?->skpd_id ?? 0) === (int) $unitKerjaId;
+            return $this->documentOrganizationScope->containsUnit($position, $document->id_unit_kerja);
         }
 
         if (in_array($document->payment_type, ['LS', 'LS_GAJI'], true) && $document->src_type === 'SP2D') {
@@ -439,7 +463,7 @@ class Denied extends Controller
                 return true;
             }
 
-            return (int) ($document->unitKerja?->skpd_id ?? 0) === (int) $unitKerjaId;
+            return $this->documentOrganizationScope->containsUnit($position, $document->id_unit_kerja);
         }
 
         if ($document->payment_type === PaymentGU_SKPD::PAYMENT_TYPE && $document->src_type === 'SPM') {
@@ -451,7 +475,7 @@ class Denied extends Controller
                 return true;
             }
 
-            return (int) ($document->unitKerja?->skpd_id ?? 0) === (int) $unitKerjaId;
+            return $this->documentOrganizationScope->containsUnit($position, $document->id_unit_kerja);
         }
 
         if ($document->payment_type === PaymentGU_SKPD::PAYMENT_TYPE && $document->src_type === 'SP2D') {
@@ -541,8 +565,7 @@ class Denied extends Controller
                     return true;
                 }
 
-                $documentUnit = $document->unitKerja;
-                if ($jabatanId === 5 && (int) ($documentUnit?->skpd_id ?? 0) === (int) $unitKerjaId) {
+                if ($jabatanId === 5 && $this->documentOrganizationScope->containsUnit($position, $document->id_unit_kerja)) {
                     return true;
                 }
 
@@ -585,8 +608,7 @@ class Denied extends Controller
                     return true;
                 }
 
-                $documentUnit = $document->unitKerja;
-                if ($jabatanId === 5 && (int) ($documentUnit?->skpd_id ?? 0) === (int) $unitKerjaId) {
+                if ($jabatanId === 5 && $this->documentOrganizationScope->containsUnit($position, $document->id_unit_kerja)) {
                     return true;
                 }
 
@@ -602,7 +624,7 @@ class Denied extends Controller
             return true;
         }
 
-        if ((int) ($document->unitKerja?->skpd_id ?? 0) === (int) $unitKerjaId) {
+        if ($this->documentOrganizationScope->containsUnit($position, $document->id_unit_kerja)) {
             return true;
         }
 
@@ -1253,15 +1275,6 @@ class Denied extends Controller
 
     private function resolveScopeUnitId(int $unitKerjaId): ?int
     {
-        $unit = DB::table('unit_kerjas')
-            ->select(['id', 'skpd_id'])
-            ->where('id', $unitKerjaId)
-            ->first();
-
-        if (! $unit) {
-            return null;
-        }
-
-        return (int) ($unit->skpd_id ?: $unit->id);
+        return $this->documentOrganizationScope->scopeUnitIdForUnit($unitKerjaId);
     }
 }

@@ -164,13 +164,21 @@ dipindahkan menjadi record:
 user_position_documents.user_position_id = user_positions.id
 user_position_documents.document_type = appointment_sk
 user_position_documents.storage_disk = private
-user_position_documents.file_path = file_sk_path lama
+user_position_documents.file_path = path hasil salinan pada disk private
 user_position_documents.original_name = basename(file_sk_path lama)
 user_position_documents.version = 1
 user_position_documents.is_primary = true
 user_position_documents.verification_status = draft
 user_position_documents.source_system = legacy
+user_position_documents.external_id = legacy-user:{legacy_id}:file-sk
 ```
+
+Keputusan import 2026-09-15: importer users/positions memakai strategi `defer`.
+Dokumen diproses terpisah dan hanya file fisik yang tersedia serta valid yang
+boleh disalin. Path legacy yang missing, PDF rusak, `.filepart`, dan file fisik
+orphan tidak dibuatkan row target. `public/SuratKeterangan` hanya staging source;
+path publik lama tidak boleh menjadi `file_path` final. Detail snapshot dan
+manifest berada di `../99-legacy/LEGACY_USERS_IMPORT_DECISIONS.md`.
 
 `started_at`, `ended_at`, dan `is_active` dari dump tetap dapat dipetakan langsung, tetapi data soft-delete yang masih `is_active = 1` harus dibersihkan terlebih dahulu.
 

@@ -81,6 +81,30 @@ return [
             'replace_placeholders' => true,
         ],
 
+        'module_document_data' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/module-document-data.log'),
+            'level' => env('LOG_LEVEL', 'debug'),
+            'days' => env('LOG_DAILY_DAYS', 14),
+            'replace_placeholders' => true,
+        ],
+
+        'module_esign' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/module-esign.log'),
+            'level' => env('LOG_LEVEL', 'debug'),
+            'days' => env('LOG_DAILY_DAYS', 14),
+            'replace_placeholders' => true,
+        ],
+
+        'payment_ls' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/payment-ls.log'),
+            'level' => env('LOG_LEVEL', 'debug'),
+            'days' => env('LOG_DAILY_DAYS', 14),
+            'replace_placeholders' => true,
+        ],
+
         'slack' => [
             'driver' => 'slack',
             'url' => env('LOG_SLACK_WEBHOOK_URL'),

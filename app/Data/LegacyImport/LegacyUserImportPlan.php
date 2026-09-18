@@ -7,6 +7,7 @@ final readonly class LegacyUserImportPlan
     public function __construct(
         public LegacyUserImportAnalysis $analysis,
         public LegacyUserAccountAggregation $accountAggregation,
+        public LegacyUserAccountStatusResolution $accountStatusResolution,
         public LegacyUserPositionClassification $positionClassification,
     ) {}
 
@@ -16,7 +17,8 @@ final readonly class LegacyUserImportPlan
      *     accounts: array<string, mixed>,
      *     identity: array<string, mixed>,
      *     organization: array<string, mixed>,
-     *     positions: array<string, mixed>
+     *     positions: array<string, mixed>,
+     *     status: array<string, mixed>
      * }
      */
     public function validationInput(): array
@@ -27,6 +29,7 @@ final readonly class LegacyUserImportPlan
             'identity' => $this->analysis->identity,
             'organization' => $this->analysis->organization,
             'positions' => $this->analysis->positions,
+            'status' => $this->analysis->status,
         ];
     }
 }

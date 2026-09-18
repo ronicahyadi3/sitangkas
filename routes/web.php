@@ -8,6 +8,16 @@ use App\Http\Controllers\Auth\MissingActivePositionController;
 use App\Http\Controllers\Auth\PositionContextController;
 use App\Http\Controllers\Auth\TotpEnrollmentController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\Data\Delete as DocumentDeleteController;
+use App\Http\Controllers\Data\Denied as DocumentDeniedController;
+use App\Http\Controllers\Data\Detail as DocumentDetailController;
+use App\Http\Controllers\Data\DetailTbp as DocumentDetailTbpController;
+use App\Http\Controllers\Data\History as DocumentHistoryController;
+use App\Http\Controllers\Data\Rekening as DocumentRekeningController;
+use App\Http\Controllers\Data\Verify as DocumentVerifyController;
+use App\Http\Controllers\Payment\LS\SP2D as LsSp2dController;
+use App\Http\Controllers\Payment\LS\SPM as LsSpmController;
+use App\Http\Controllers\Payment\LS\SPP as LsSppController;
 use App\Http\Controllers\Profile\MfaRecoveryCodeController;
 use App\Http\Controllers\Profile\SecurityController;
 use App\Http\Controllers\Realtime\OnlinePresenceController;
@@ -116,6 +126,48 @@ Route::middleware(['auth', 'account.accessible', 'single.device.session'])->grou
         Route::get('/ajax/options/unit-kerja', [AjaxOptionsController::class, 'unitKerja'])
             ->middleware('throttle:auth-context-options')
             ->name('ajax.options.unitkerja');
+
+        Route::prefix('document')->name('document.')->group(function (): void {
+            Route::get('/detail', [DocumentDetailController::class, 'detail'])->name('detail');
+            Route::get('/detail-tbp', [DocumentDetailTbpController::class, 'detail'])->name('detail_tbp');
+            Route::post('/history', [DocumentHistoryController::class, 'history'])->name('history');
+            Route::post('/delete', [DocumentDeleteController::class, 'delete'])->name('delete');
+            Route::post('/denied', [DocumentDeniedController::class, 'denied'])->name('denied');
+            Route::post('/verify', [DocumentVerifyController::class, 'verify'])->name('verify');
+            Route::post('/sub-kegiatan', [DocumentRekeningController::class, 'subKegiatan'])->name('sub_kegiatan');
+            Route::post('/rekening', [DocumentRekeningController::class, 'rekening'])->name('rekening');
+            Route::get('/rekening/detail', [DocumentRekeningController::class, 'rekeningDetail'])->name('rekening.detail');
+        });
+
+        Route::get('/payment/options/pptk', [UserController::class, 'pptk'])
+            ->middleware('throttle:auth-context-options')
+            ->name('payment.options.pptk');
+
+        Route::prefix('ls')->name('ls.')->group(function (): void {
+            Route::get('/spp', [LsSppController::class, 'index'])->name('spp.index');
+            Route::get('/spp/json', [LsSppController::class, 'json'])->name('spp.json');
+            Route::post('/spp', [LsSppController::class, 'store'])->name('spp.store');
+            Route::get('/spp/{id}/edit', [LsSppController::class, 'edit'])->name('spp.edit');
+            Route::post('/spp/update/{id}', [LsSppController::class, 'update'])->name('spp.update');
+            Route::post('/spp/submit', [LsSppController::class, 'submit'])->name('spp.submit');
+            Route::post('/spp/submit/pptk', [LsSppController::class, 'submit_pptk'])->name('spp.submit.pptk');
+
+            Route::get('/spm', [LsSpmController::class, 'index'])->name('spm.index');
+            Route::get('/spm/json', [LsSpmController::class, 'json'])->name('spm.json');
+            Route::get('/spm/spp/json', [LsSpmController::class, 'formJson'])->name('spm.spp.json');
+            Route::post('/spm', [LsSpmController::class, 'store'])->name('spm.store');
+            Route::get('/spm/{id}/edit', [LsSpmController::class, 'edit'])->name('spm.edit');
+            Route::post('/spm/update/{id}', [LsSpmController::class, 'update'])->name('spm.update');
+            Route::post('/spm/submit', [LsSpmController::class, 'submit'])->name('spm.submit');
+
+            Route::get('/sp2d', [LsSp2dController::class, 'index'])->name('sp2d.index');
+            Route::get('/sp2d/json', [LsSp2dController::class, 'json'])->name('sp2d.json');
+            Route::get('/sp2d/spm/json', [LsSp2dController::class, 'formJson'])->name('sp2d.spp.json');
+            Route::post('/sp2d', [LsSp2dController::class, 'store'])->name('sp2d.store');
+            Route::get('/sp2d/{id}/edit', [LsSp2dController::class, 'edit'])->name('sp2d.edit');
+            Route::post('/sp2d/update/{id}', [LsSp2dController::class, 'update'])->name('sp2d.update');
+            Route::post('/sp2d/submit', [LsSp2dController::class, 'submit'])->name('sp2d.submit');
+        });
 
         Route::prefix('users')->name('users.')->middleware('user.management')->scopeBindings()->group(function (): void {
             Route::get('/datatable', [UserController::class, 'datatable'])

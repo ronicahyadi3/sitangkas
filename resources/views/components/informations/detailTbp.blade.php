@@ -10,9 +10,8 @@
                             </h3>
                             <p class="mb-0">Informasi daftar TBP yang terhubung pada dokumen ini</p>
                         </div>
-                        <button type="button" class="close" data-bs-dismiss="modal" aria-label="Close"
-                            style="z-index: 2;">
-                            <span aria-hidden="true">&times;</span>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"
+                            style="z-index: 2;">x
                         </button>
                     </div>
                     <div class="card-body">

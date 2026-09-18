@@ -28,8 +28,10 @@ ini dan sudah dipisah menjadi beberapa lapis:
 ### Rancangan Import Users Legacy
 
 Keputusan desain import `dump-keuangan-202609090855.sql` sudah disetujui dan
-diimplementasikan bertahap; mode `--commit` belum tersedia. Akun target akan
-dibentuk berdasarkan NIK unik,
+diimplementasikan bertahap. Opsi `--commit` dan `--fingerprint=` sudah
+terdaftar. Mode commit menghitung ulang analyzer read-only dan memeriksa
+fingerprint, meminta konfirmasi operator, lalu memanggil action yang masih
+diblokir safety gate. Akun target akan dibentuk berdasarkan NIK unik,
 sedangkan seluruh row legacy tetap dipertahankan sebagai `user_positions`
 dengan kontrak:
 
@@ -53,7 +55,8 @@ canonical, daftar equivalent IDs, pemeriksaan authorization, dan filter query
 untuk histori yang masih menyimpan ID alias. Resolver sudah dipakai pada
 controller `Data` dan pembayaran untuk ownership `uploaded_by`/`users_to`,
 termasuk acting context PPTK/BUD. Index ownership pada `document` dan
-`document_process` juga sudah diterapkan. Import `--commit` belum tersedia.
+`document_process` juga sudah diterapkan. Opsi import `--commit` sudah
+terdaftar, tetapi belum dapat dieksekusi.
 Sumber keputusan dan daftar pekerjaan berada di
 `../99-legacy/LEGACY_USERS_IMPORT_DECISIONS.md`.
 

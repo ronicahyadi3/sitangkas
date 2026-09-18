@@ -272,6 +272,20 @@ klasifikasi dan importnya harus mengikuti
 
 Dokumen SK tidak disimpan langsung sebagai `file_sk_path` pada `user_positions`.
 
+Untuk import users legacy, keputusan 2026-09-15 adalah memakai
+`file_sk_strategy=defer` pada importer users/positions. Hanya file fisik SK yang
+tersedia dan valid yang boleh diimpor oleh pipeline dokumen terpisah; missing,
+rusak, `.filepart`, dan orphan di-skip serta dilaporkan. Folder
+`public/SuratKeterangan` hanya staging source dan tidak boleh menjadi storage
+final. Baca `../99-legacy/LEGACY_USERS_IMPORT_DECISIONS.md` sebelum mengubah
+pipeline ini.
+
+Known issue: `CreateManagedUserPosition` dan `UpdateManagedUserPosition` masih
+memakai `store('sk', 'public')`. Jangan menganggap implementasi tersebut sudah
+memenuhi invariant dokumen private. Sebelum produksi, pindahkan upload baru dan
+download ke storage/endpoint berotorisasi dengan rencana migrasi file yang sudah
+ada.
+
 Gunakan `user_position_documents` karena satu posisi dapat memiliki:
 
 - SK penetapan awal;
@@ -312,7 +326,10 @@ AI agent tidak boleh menyimpan pada `metadata`, `notes`, atau kolom lain:
 ## Legacy users.sql identity contract
 
 Keputusan khusus untuk `dump-keuangan-202609090855.sql` sudah disetujui dan
-diimplementasikan bertahap; mode `--commit` belum tersedia:
+diimplementasikan bertahap. Opsi `--commit` dan `--fingerprint=` sudah
+terdaftar. Mode commit menghitung ulang analyzer read-only dan memeriksa
+fingerprint, meminta konfirmasi operator, lalu memanggil action yang masih
+diblokir safety gate:
 
 ```text
 legacy users.id = target user_positions.id

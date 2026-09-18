@@ -62,7 +62,6 @@ class LS
                 'document.created_at as created_at_spp',
 
                 'unit_kerja_spp.nama as unit_kerja_spp',
-                'unit_kerja_spp.skpd_id as skpd_id_spp',
             ]);
     }
 

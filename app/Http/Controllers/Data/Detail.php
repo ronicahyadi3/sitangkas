@@ -1,12 +1,17 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Controllers\Data;
 
 use App\Http\Controllers\Controller;
 use App\Models\Document;
+use App\Services\Document\DocumentOrganizationScope;
 use App\Services\User\ActivePositionService;
 use App\Services\User\PositionIdentityResolver;
 use App\Support\EncryptedId;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -14,9 +19,14 @@ use Yajra\DataTables\Facades\DataTables;
 
 class Detail extends Controller
 {
-    public function __construct(private readonly PositionIdentityResolver $positionIdentityResolver) {}
+    private ?int $selectedYear = null;
 
-    public function detail(Request $request, ActivePositionService $user)
+    public function __construct(
+        private readonly PositionIdentityResolver $positionIdentityResolver,
+        private readonly DocumentOrganizationScope $documentOrganizationScope,
+    ) {}
+
+    public function detail(Request $request, ActivePositionService $user): JsonResponse
     {
         $startedAt = microtime(true);
 
@@ -58,6 +68,7 @@ class Detail extends Controller
         }
 
         $userLevel = (int) $userData->jabatan->id;
+        $this->selectedYear = $user->selectedYear();
         $includeDeleted = $userLevel === 13;
         $userUnit = $userData->unitKerja?->id;
         $actorIds = in_array($userLevel, [4, 8], true)
@@ -122,7 +133,7 @@ class Detail extends Controller
                                                 ->orWhere('document.src_type', '!=', 'NPD');
                                         })->where(function ($defaultRule) use ($userUnit, $userLevel) {
                                             $defaultRule->where('document.id_unit_kerja', $userUnit)
-                                                ->orWhere('unit_kerjas.skpd_id', $userUnit)
+                                                ->orWhereIn('document.id_unit_kerja', $this->documentOrganizationScope->accessibleUnitIdsForUnit((int) $userUnit))
                                                 ->orWhereRaw("FIND_IN_SET(?, COALESCE(document.assigned_to, ''))", [(string) $userLevel]);
                                         });
                                     });
@@ -136,7 +147,7 @@ class Detail extends Controller
                                             ->where('document.src_type', 'TBP')
                                             ->where(function ($tbpRule) use ($userUnit) {
                                                 $tbpRule->where('document.id_unit_kerja', $userUnit)
-                                                    ->orWhere('unit_kerjas.skpd_id', $userUnit);
+                                                    ->orWhereIn('document.id_unit_kerja', $this->documentOrganizationScope->accessibleUnitIdsForUnit((int) $userUnit));
                                             });
                                     })->orWhere(function ($defaultScope) use ($userUnit, $userLevel, $scopeUnitId) {
                                         $defaultScope->where(function ($excludeGuSkpdTbp) {
@@ -144,7 +155,7 @@ class Detail extends Controller
                                                 ->orWhere('document.src_type', '!=', 'TBP');
                                         })->where(function ($defaultRule) use ($userUnit, $userLevel, $scopeUnitId) {
                                             $defaultRule->where('document.id_unit_kerja', $userUnit)
-                                                ->orWhere('unit_kerjas.skpd_id', $userUnit)
+                                                ->orWhereIn('document.id_unit_kerja', $this->documentOrganizationScope->accessibleUnitIdsForUnit((int) $userUnit))
                                                 ->orWhereRaw("FIND_IN_SET(?, COALESCE(document.assigned_to, ''))", [(string) $userLevel]);
 
                                             $this->applyLsParentUnitDetailScope($defaultRule, $userLevel, $scopeUnitId);
@@ -160,7 +171,7 @@ class Detail extends Controller
                                             ->where('document.src_type', 'LPJ')
                                             ->where(function ($lpjRule) use ($userUnit) {
                                                 $lpjRule->where('document.id_unit_kerja', $userUnit)
-                                                    ->orWhere('unit_kerjas.skpd_id', $userUnit);
+                                                    ->orWhereIn('document.id_unit_kerja', $this->documentOrganizationScope->accessibleUnitIdsForUnit((int) $userUnit));
                                             });
                                     })->orWhere(function ($defaultScope) use ($userUnit, $userLevel) {
                                         $defaultScope->where(function ($excludeGuSkpdLpj) {
@@ -168,7 +179,7 @@ class Detail extends Controller
                                                 ->orWhere('document.src_type', '!=', 'LPJ');
                                         })->where(function ($defaultRule) use ($userUnit, $userLevel) {
                                             $defaultRule->where('document.id_unit_kerja', $userUnit)
-                                                ->orWhere('unit_kerjas.skpd_id', $userUnit)
+                                                ->orWhereIn('document.id_unit_kerja', $this->documentOrganizationScope->accessibleUnitIdsForUnit((int) $userUnit))
                                                 ->orWhereRaw("FIND_IN_SET(?, COALESCE(document.assigned_to, ''))", [(string) $userLevel]);
                                         });
                                     });
@@ -182,7 +193,7 @@ class Detail extends Controller
                                             ->whereIn('document.src_type', ['SPM', 'SP', 'SPTJM', 'SP_PENGAJUAN'])
                                             ->where(function ($spmRule) use ($userUnit) {
                                                 $spmRule->where('document.id_unit_kerja', $userUnit)
-                                                    ->orWhere('unit_kerjas.skpd_id', $userUnit);
+                                                    ->orWhereIn('document.id_unit_kerja', $this->documentOrganizationScope->accessibleUnitIdsForUnit((int) $userUnit));
                                             });
                                     })->orWhere(function ($defaultScope) use ($userUnit, $userLevel) {
                                         $defaultScope->where(function ($excludeGuSkpdSpm) {
@@ -190,7 +201,7 @@ class Detail extends Controller
                                                 ->orWhereNotIn('document.src_type', ['SPM', 'SP', 'SPTJM', 'SP_PENGAJUAN']);
                                         })->where(function ($defaultRule) use ($userUnit, $userLevel) {
                                             $defaultRule->where('document.id_unit_kerja', $userUnit)
-                                                ->orWhere('unit_kerjas.skpd_id', $userUnit)
+                                                ->orWhereIn('document.id_unit_kerja', $this->documentOrganizationScope->accessibleUnitIdsForUnit((int) $userUnit))
                                                 ->orWhereRaw("FIND_IN_SET(?, COALESCE(document.assigned_to, ''))", [(string) $userLevel]);
                                         });
                                     });
@@ -209,7 +220,7 @@ class Detail extends Controller
                                                 ->orWhere('document.src_type', '!=', 'SP2D');
                                         })->where(function ($defaultRule) use ($userUnit, $userLevel) {
                                             $defaultRule->where('document.id_unit_kerja', $userUnit)
-                                                ->orWhere('unit_kerjas.skpd_id', $userUnit)
+                                                ->orWhereIn('document.id_unit_kerja', $this->documentOrganizationScope->accessibleUnitIdsForUnit((int) $userUnit))
                                                 ->orWhereRaw("FIND_IN_SET(?, COALESCE(document.assigned_to, ''))", [(string) $userLevel]);
                                         });
                                     });
@@ -218,7 +229,7 @@ class Detail extends Controller
                                 }
 
                                 $rule->where('document.id_unit_kerja', $userUnit)
-                                    ->orWhere('unit_kerjas.skpd_id', $userUnit)
+                                    ->orWhereIn('document.id_unit_kerja', $this->documentOrganizationScope->accessibleUnitIdsForUnit((int) $userUnit))
                                     ->orWhereRaw("FIND_IN_SET(?, COALESCE(document.assigned_to, ''))", [(string) $userLevel]);
 
                                 $this->applyLsParentUnitDetailScope($rule, $userLevel, $scopeUnitId);
@@ -242,6 +253,7 @@ class Detail extends Controller
                                                 $sub->select(DB::raw(1))
                                                     ->from('document as family_docs')
                                                     ->whereNull('family_docs.deleted_at')
+                                                    ->whereYear('family_docs.created_at', $this->selectedYear)
                                                     ->where('family_docs.payment_type', 'GU_UK')
                                                     ->where('family_docs.src_type', 'SP2D')
                                                     ->whereIn('family_docs.users_to', $actorBudIds)
@@ -262,6 +274,7 @@ class Detail extends Controller
                                                 $sub->select(DB::raw(1))
                                                     ->from('document as family_docs')
                                                     ->whereNull('family_docs.deleted_at')
+                                                    ->whereYear('family_docs.created_at', $this->selectedYear)
                                                     ->where('family_docs.payment_type', 'GU_UK')
                                                     ->where(function ($family) use ($id) {
                                                         $family->where('family_docs.id', $id)
@@ -277,7 +290,7 @@ class Detail extends Controller
                                 if (in_array($userLevel, [9, 5], true) && $scopeUnitId) {
                                     $rule->where(function ($scope) use ($scopeUnitId) {
                                         $scope->where('document.id_unit_kerja', $scopeUnitId)
-                                            ->orWhere('unit_kerjas.skpd_id', $scopeUnitId);
+                                            ->orWhereIn('document.id_unit_kerja', $this->documentOrganizationScope->accessibleUnitIdsForUnit((int) $scopeUnitId));
                                     });
 
                                     return;
@@ -394,7 +407,8 @@ class Detail extends Controller
         $submit = $this->csvToArray($data->submit);
         $statusList = $this->csvToArray($data->status);
         $fileUrl = $this->generateUrl($data->src_type, $data->src_name, $status);
-        $downloadName = $data->unit_kerja.' - '.str_replace('/', '|', $data->nomor).' - '.explode(' ', $data->created_at)[0].'.pdf';
+        $documentDate = optional($data->created_at)->format('Y-m-d') ?? 'tanggal-tidak-tersedia';
+        $downloadName = $data->unit_kerja.' - '.str_replace('/', '|', (string) $data->nomor).' - '.$documentDate.'.pdf';
         $hasAuthority = in_array((int) $id, $authority['id_jabatan'], true);
         $isAssigned = in_array((string) $id, $assignedTo, true);
         $isSubmitted = in_array((string) $id, $submit, true);
@@ -417,7 +431,7 @@ class Detail extends Controller
                 $result .= $this->generateButton('success', 'Tampilkan', 'green', $authority['path'], $data->src_name, $status, true);
             }
 
-            $result .= '<a href="'.$fileUrl.'" type="button" class="btn btn-sm btn-primary" download="'.$downloadName.'" target="_blank" data-wenk-pos="top" data-wenk="Download" data-wenk-color="green"><i class="fas fa-file-download"></i> Download</a>';
+            $result .= '<a href="'.e($fileUrl).'" type="button" class="btn btn-sm btn-primary" download="'.e($downloadName).'" target="_blank" data-wenk-pos="top" data-wenk="Download" data-wenk-color="green"><i class="fas fa-file-download"></i> Download</a>';
 
             return $result;
         }
@@ -458,7 +472,7 @@ class Detail extends Controller
                 $result .= $this->generateButton('success', 'Tampilkan', 'green', '/File_spj_fungsional/', $data->spj_fungsional, false, true);
             }
         }
-        $result .= '<a href="'.$fileUrl.'" type="button" class="btn btn-sm btn-primary" download="'.$downloadName.'" target="_blank" data-wenk-pos="top" data-wenk="Download" data-wenk-color="green"><i class="fas fa-file-download"></i> Download</a>';
+        $result .= '<a href="'.e($fileUrl).'" type="button" class="btn btn-sm btn-primary" download="'.e($downloadName).'" target="_blank" data-wenk-pos="top" data-wenk="Download" data-wenk-color="green"><i class="fas fa-file-download"></i> Download</a>';
 
         return $result;
     }
@@ -469,7 +483,10 @@ class Detail extends Controller
         $tooltip = $isPdf ? 'Tampilkan' : $text;
         $errorIcon = $color == 'red' ? '<i class="fas fa-exclamation-triangle"></i> ' : '<i class="fas fa-file-signature"></i>';
 
-        return '<span type="button" class="btn btn-sm btn-'.$btnClass.' '.($isPdf ? 'view-pdf' : 'signModal').'" data-url="'.($isPdf ? $filePath : '').'" data-doc="'.($isPdf ? '' : $filePath).'" data-urls="'.$path.'sign/" data-location="'.$path.'" data-wenk-pos="top" data-wenk="'.$tooltip.'" data-wenk-color="'.$color.'" data-files="'.$fileName.'" data-status="'.$status.'"">'.$errorIcon.' '.$text.'</span>';
+        $dataUrl = $isPdf ? $filePath : '';
+        $documentPath = $isPdf ? '' : $filePath;
+
+        return '<span type="button" class="btn btn-sm btn-'.e($btnClass).' '.($isPdf ? 'view-pdf' : 'signModal').'" data-url="'.e($dataUrl).'" data-doc="'.e($documentPath).'" data-urls="'.e($path.'sign/').'" data-location="'.e($path).'" data-wenk-pos="top" data-wenk="'.e($tooltip).'" data-wenk-color="'.e($color).'" data-files="'.e($fileName).'" data-status="'.e($status).'">'.$errorIcon.' '.e($text).'</span>';
     }
 
     public function findTypeFiles($data)
@@ -610,16 +627,7 @@ class Detail extends Controller
 
     private function resolveScopeUnitId(int $unitKerjaId): ?int
     {
-        $unit = DB::table('unit_kerjas')
-            ->select(['id', 'skpd_id'])
-            ->where('id', $unitKerjaId)
-            ->first();
-
-        if (! $unit) {
-            return null;
-        }
-
-        return (int) ($unit->skpd_id ?: $unit->id);
+        return $this->documentOrganizationScope->scopeUnitIdForUnit($unitKerjaId);
     }
 
     private function resolveDetailFamilyIds(int $documentId, bool $includeDeleted = false): array
@@ -682,11 +690,16 @@ class Detail extends Controller
         return $anchorId;
     }
 
-    private function documentQuery(bool $includeDeleted = false)
+    private function documentQuery(bool $includeDeleted = false): Builder
     {
-        return $includeDeleted
+        $query = $includeDeleted
             ? Document::withTrashed()
             : Document::query();
+
+        return $query->when(
+            $this->selectedYear !== null,
+            fn (Builder $query): Builder => $query->whereYear('document.created_at', $this->selectedYear),
+        );
     }
 
     private function familyHasSp2dTargetAccess(array $familyIds, array $actorBudIds): bool
@@ -697,6 +710,7 @@ class Detail extends Controller
 
         return Document::query()
             ->whereNull('deleted_at')
+            ->when($this->selectedYear !== null, fn (Builder $query): Builder => $query->whereYear('document.created_at', $this->selectedYear))
             ->whereIn('id', $familyIds)
             ->where('src_type', 'SP2D')
             ->whereIn('users_to', $actorBudIds)
@@ -711,6 +725,7 @@ class Detail extends Controller
 
         return Document::query()
             ->whereNull('deleted_at')
+            ->when($this->selectedYear !== null, fn (Builder $query): Builder => $query->whereYear('document.created_at', $this->selectedYear))
             ->whereIn('id', $familyIds)
             ->where(function ($query) use ($actorIds) {
                 $query->whereRaw("FIND_IN_SET('4', COALESCE(assigned_to, ''))")

@@ -4,11 +4,13 @@ Dokumentasi ini disusun sebagai peta konteks untuk manusia dan AI agent. Mulai d
 
 ## Cara pakai cepat
 
-1. Baca `00-ai-agent/DOCS_ROUTER.md`.
-2. Pilih cluster sesuai kebutuhan pekerjaan.
-3. Baca `README.md` di cluster tersebut.
-4. Buka file detail table, migration, atau rule yang ditunjuk.
-5. Untuk pekerjaan migration atau fresh install, selalu baca `06-migrations/FRESH_INSTALL_READINESS.md`.
+1. Baca `00-ai-agent/README.md` dan gunakan Laravel Boost sesuai prioritas tool
+   yang dijelaskan di sana.
+2. Baca `00-ai-agent/DOCS_ROUTER.md`.
+3. Pilih cluster sesuai kebutuhan pekerjaan.
+4. Baca `README.md` di cluster tersebut.
+5. Buka file detail table, migration, atau rule yang ditunjuk.
+6. Untuk pekerjaan migration atau fresh install, selalu baca `06-migrations/FRESH_INSTALL_READINESS.md`.
 
 Untuk pekerjaan login context, Admin Super acting context, dashboard/navbar
 context, atau `CurrentUserContext`, wajib baca:
@@ -36,6 +38,24 @@ atau message helper realtime, wajib baca:
 3. `07-realtime/AI_AGENT_REVERB_REALTIME_CONTEXT.md`
 4. `07-realtime/ONLINE_PRESENCE_DECISIONS.md`
 
+Untuk pekerjaan BSrE/eSign Client 2.2.0, TTE, verifikasi dokumen, modal
+penandatanganan, Svelte, Vite, Bootstrap/Argon, main CSS, atau PDF viewer TTE,
+wajib baca:
+
+1. `08-esign/README.md`
+2. `08-esign/ESIGN_V2_CONTRACT_AND_BACKEND.md`
+3. `08-esign/ESIGN_DOCUMENT_LIFECYCLE_AND_REPORTING_COMPATIBILITY.md` bila
+   menyentuh lifecycle file, QR, storage, attempt/event, atau kompatibilitas
+   `before_signs`/`after_signs`
+4. `08-esign/ESIGN_RESUMABLE_MIGRATION_RUNBOOK.md` bila menyentuh mapping
+   resumable, zero-downtime, queue/lease, pause/resume, recovery, atau cleanup
+5. `08-esign/ESIGN_V2_FRONTEND_MODAL.md`
+6. `08-esign/ESIGN_V2_IMPLEMENTATION_PLAN.md`
+
+Dokumen cluster tersebut adalah sumber keputusan integrasi baru. Kode project
+lama dan collection Postman hanya menjadi bukti referensi; jangan menyalin
+credential, hardcoded signer, atau pola keamanan legacy.
+
 Untuk pekerjaan migrasi payment LS, SPP/SPM/SP2D LS, dokumen pendukung,
 anggaran LS, TTE/billing/bank yang diperlukan LS, baca:
 
@@ -51,8 +71,20 @@ baca `99-legacy/LEGACY_USERS_IMPORT_DECISIONS.md`. Dokumen tersebut menetapkan
 bahwa `uuid` dan `access` tidak digunakan, akun dibuat berdasarkan NIK unik,
 dan ID row legacy dipertahankan sebagai `user_positions.id` untuk kompatibilitas
 `document` dan `document_process`. Pipeline read-only beserta validator sudah
-lulus. Action transaksional sudah dibuat dalam kondisi disabled dan belum
-terhubung ke entry point; opsi `--commit` belum tersedia.
+lulus. Action transaksional, entry point command, structured log, dan writer
+laporan commit sudah terhubung. Safety gate sedang aktif sementara untuk
+maintenance attempt 2026-09-16. Attempt pertama di-rollback penuh karena false
+negative metadata counter `AUTO_INCREMENT`; target tetap kosong dan validator
+sudah diperbaiki memakai ID maksimum serta atribut schema. Retry tetap harus
+dijalankan operator, lalu gate dikembalikan ke `false`. Strategi password
+produksi mempertahankan hash legacy canonical dan mewajibkan perubahan
+password; shared password hanya boleh sebagai override development `local`.
+Status akun final diturunkan dari posisi canonical aktif. SK legacy ditunda ke
+importer terpisah dan hanya file fisik valid yang
+boleh disalin dari staging `public/SuratKeterangan` ke storage private. Opsi
+`--commit` dan `--fingerprint=` sudah terdaftar. Mode commit menghitung ulang
+analyzer read-only, memeriksa fingerprint, meminta konfirmasi operator, lalu
+memanggil action.
 
 ## Cluster
 
@@ -66,6 +98,7 @@ terhubung ke entry point; opsi `--commit` belum tersedia.
 | `05-relationships` | Relasi lintas tabel, integrity rules, rollback dependency | Saat mengecek foreign key, dependency, audit lintas domain |
 | `06-migrations` | Readiness fresh install dan catatan masalah migration | Saat review migration, install baru, rollback, atau deployment database |
 | `07-realtime` | Reverb, presence channel, online monitoring, realtime notification, message helper | Saat mengubah WebSocket, broadcasting, Echo, online status, atau notifikasi realtime |
+| `08-esign` | Arsitektur BSrE/eSign Client 2.2.0, kontrak backend, modal Svelte/Vite dengan Bootstrap/Argon, keamanan, performa, dan rollout | Saat mengubah TTE, validasi PDF, sertifikat signer, UI modal, atau koneksi eSign |
 | `99-legacy` | Referensi project lama, pemetaan data legacy, aturan import, analisis dan rencana payment LS | Saat migrasi/import data lama, mencontoh fitur lama, atau melanjutkan implementasi LS |
 
 ## Prinsip umum

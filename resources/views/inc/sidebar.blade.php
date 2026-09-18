@@ -2,14 +2,14 @@
     $sidebarContext = app(\App\Services\Auth\CurrentUserContext::class);
     $sidebarActor = auth()->check() ? $sidebarContext->activePosition(request()) : null;
 
-    $sidebarRoleId = (int) ($sidebarActor?->jabatan_id ?? 0);
+    $sidebarRoleCode = (string) ($sidebarActor?->jabatan?->kode ?? '');
     $sidebarWorkspaceConfig = config('sidebar_workspaces', []);
 
     $sidebarRouteMeta = $sidebarWorkspaceConfig['route_meta'] ?? [];
     $sidebarGroupMeta = $sidebarWorkspaceConfig['group_meta'] ?? [];
     $sidebarUserManagementAccess = app(\App\Services\User\UserManagementAccessService::class);
     $sidebarManagementActor = app(\App\Services\User\ActivePositionService::class)->managementActor();
-    $sidebarRoleMeta = $sidebarWorkspaceConfig['roles'][$sidebarRoleId] ?? [
+    $sidebarRoleMeta = $sidebarWorkspaceConfig['roles'][$sidebarRoleCode] ?? [
         'label' => $sidebarActor?->jabatan?->nama,
         'workspace_routes' => [],
         'notes' => null,
@@ -80,6 +80,9 @@
         'users.audit-trail' => 'fa-solid fa-clock-rotate-left text-warning',
         'positions.index' => 'fa-solid fa-id-badge text-primary',
         'bank.sp2d.index' => 'fa-solid fa-file-invoice-dollar text-secondary',
+        'ls.spp.index' => 'fa-solid fa-file-circle-plus text-primary',
+        'ls.spm.index' => 'fa-solid fa-file-signature text-primary',
+        'ls.sp2d.index' => 'fa-solid fa-file-circle-check text-primary',
         'kkpd.spp.index' => 'fa-solid fa-file-invoice-dollar text-secondary',
         'kkpd.lpj.index' => 'fa-solid fa-file-waveform text-secondary',
     ];

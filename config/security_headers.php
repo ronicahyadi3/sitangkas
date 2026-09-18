@@ -44,6 +44,7 @@ return [
             'style-src' => [
                 "'self'",
                 "'unsafe-inline'",
+                'http://127.0.0.1:5173',
                 'https://fonts.googleapis.com',
                 'https://cdnjs.cloudflare.com',
                 'https://cdn.datatables.net',
@@ -53,6 +54,7 @@ return [
             'script-src' => [
                 "'self'",
                 "'unsafe-inline'",
+                'http://127.0.0.1:5173',
                 'https://code.jquery.com',
                 'https://cdn.datatables.net',
                 'https://cdn.jsdelivr.net',
@@ -67,6 +69,9 @@ return [
             ],
             'connect-src' => [
                 "'self'",
+                'http://127.0.0.1:5173',
+                'ws://127.0.0.1:5173',
+                'ws://localhost:8081',
                 'https://ka-f.fontawesome.com',
                 'https://www.google.com',
                 'https://www.gstatic.com',

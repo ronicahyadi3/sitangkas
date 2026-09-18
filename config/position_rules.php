@@ -77,6 +77,17 @@ return [
     'unit_kerja' => [
         'bkad_code' => 'SKPD_BKAD',
 
+        'document_scope_root_by_instansi_code' => [
+            'DIKBUD' => 'SKPD_DIKBUD',
+            'DINKES' => 'SKPD_DINKES',
+            'SETDA' => 'SKPD_SETDA',
+            'KEC_LOWOKWARU' => 'KEC_LOWOKWARU',
+            'KEC_KLOJEN' => 'KEC_KLOJEN',
+            'KEC_BLIMBING' => 'KEC_BLIMBING',
+            'KEC_SUKUN' => 'KEC_SUKUN',
+            'KEC_KEDUNGKANDANG' => 'KEC_KEDUNGKANDANG',
+        ],
+
         'kecamatan_root_codes' => [
             'KEC_LOWOKWARU',
             'KEC_KLOJEN',

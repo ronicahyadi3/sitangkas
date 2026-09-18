@@ -4,8 +4,7 @@
             <div class="modal-content">
                 <div class="modal-header pb-0">
                     <h5 class="modal-title">Unggah Dokumen Billing</h5>
-                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                        <span aria-hidden="true">&times;</span>
+                    <button type="button" class="btn-close" data-dismiss="modal" aria-label="Close">x
                     </button>
                 </div>
                 <div class="m-1" id="progres-loadings">

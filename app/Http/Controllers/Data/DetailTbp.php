@@ -1,21 +1,29 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Controllers\Data;
 
 use App\Http\Controllers\Controller;
 use App\Models\Document;
+use App\Models\UserPosition;
+use App\Services\Document\DocumentOrganizationScope;
 use App\Services\User\ActivePositionService;
 use App\Services\User\PositionIdentityResolver;
 use App\Support\EncryptedId;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Yajra\DataTables\Facades\DataTables;
 
 class DetailTbp extends Controller
 {
-    public function __construct(private readonly PositionIdentityResolver $positionIdentityResolver) {}
+    public function __construct(
+        private readonly PositionIdentityResolver $positionIdentityResolver,
+        private readonly DocumentOrganizationScope $documentOrganizationScope,
+    ) {}
 
-    public function detail(Request $request, ActivePositionService $activePosition)
+    public function detail(Request $request, ActivePositionService $activePosition): JsonResponse
     {
         Log::channel('module_document_data')->info('Document Detail TBP Request', [
             'hash' => $request->id,
@@ -50,7 +58,11 @@ class DetailTbp extends Controller
             ], 403);
         }
 
-        $document = Document::with('unitKerja')->find($id);
+        $selectedYear = $activePosition->selectedYear();
+        $document = Document::query()
+            ->with('unitKerja')
+            ->whereYear('created_at', $selectedYear)
+            ->find($id);
         if (! $document) {
             return response()->json([
                 'status' => 404,
@@ -75,25 +87,26 @@ class DetailTbp extends Controller
             ->where('document.src_type', 'TBP')
             ->where('document.payment_type', $document->payment_type)
             ->where('document.parent_id', $lpjId)
+            ->whereYear('document.created_at', $selectedYear)
             ->whereNull('document.deleted_at')
             ->select('document.*', 'unit_kerjas.nama as unit_kerja')
             ->orderByDesc('document.created_at');
 
         return DataTables::of($tbpQuery)
             ->addIndexColumn()
-            ->addColumn('action', function ($row) {
+            ->addColumn('action', function (object $row): string {
                 $url = ! is_null($row->status)
                     ? '/File_TBP/signs/'.$row->src_name
                     : '/File_TBP/'.$row->src_name;
                 $downloadName = $row->unit_kerja.' - '.str_replace('/', '|', (string) $row->nomor).' - '.optional($row->created_at)->format('Y-m-d').'.pdf';
 
                 return '<button type="button" class="btn btn-sm btn-success view-pdf"'
-                    .' data-url="'.$url.'"'
-                    .' data-files="'.$row->src_name.'"'
+                    .' data-url="'.e($url).'"'
+                    .' data-files="'.e($row->src_name).'"'
                     .' data-wenk="Klik untuk menampilkan dokumen"'
                     .' data-wenk-color="green">'
                     .'<i class="fa-solid fa-eye"></i> Tampilkan</button>'
-                    .' <a href="'.$url.'" class="btn btn-sm btn-primary"'
+                    .' <a href="'.e($url).'" class="btn btn-sm btn-primary"'
                     .' download="'.e($downloadName).'"'
                     .' target="_blank"'
                     .' data-wenk="Download"'
@@ -126,14 +139,15 @@ class DetailTbp extends Controller
         return null;
     }
 
-    private function canAccessDocument(Document $document, $position): bool
+    private function canAccessDocument(Document $document, UserPosition $position): bool
     {
-        if (! $position || ! $position->jabatan) {
+        if (! $position->jabatan) {
             return false;
         }
 
         $jabatanId = (int) $position->jabatan->id;
-        if ($jabatanId === 1) {
+        $jabatanCode = (string) $position->jabatan->kode;
+        if ($jabatanCode === 'ADMIN_SUPER') {
             return true;
         }
 
@@ -143,7 +157,7 @@ class DetailTbp extends Controller
         }
 
         if ($document->payment_type === 'GU_UK') {
-            if ($jabatanId === 8 && $document->src_type === 'NPD') {
+            if ($jabatanCode === 'PPTK' && $document->src_type === 'NPD') {
                 return $this->positionIdentityResolver->contains(
                     $this->positionIdentityResolver->pptkActorPosition($position),
                     (int) $document->uploaded_by,
@@ -153,11 +167,7 @@ class DetailTbp extends Controller
             return (int) $document->id_unit_kerja === (int) $unitKerjaId;
         }
 
-        if ((int) $document->id_unit_kerja === (int) $unitKerjaId) {
-            return true;
-        }
-
-        if ((int) ($document->unitKerja?->skpd_id ?? 0) === (int) $unitKerjaId) {
+        if ($this->documentOrganizationScope->containsUnit($position, $document->id_unit_kerja)) {
             return true;
         }
 

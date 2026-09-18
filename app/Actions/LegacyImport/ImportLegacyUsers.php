@@ -2,8 +2,8 @@
 
 namespace App\Actions\LegacyImport;
 
-use App\Data\LegacyImport\LegacyUserAccount;
 use App\Data\LegacyImport\LegacyUserAccountAggregation;
+use App\Data\LegacyImport\LegacyUserAccountStatusResolution;
 use App\Data\LegacyImport\LegacyUserImportPasswordPolicy;
 use App\Data\LegacyImport\LegacyUserImportPlan;
 use App\Data\LegacyImport\LegacyUserImportResult;
@@ -11,20 +11,18 @@ use App\Data\LegacyImport\LegacyUserPositionClassification;
 use App\Data\LegacyImport\LegacyUserPositionProjection;
 use App\Exceptions\LegacyImport\LegacyUserImportBlockedException;
 use App\Models\User;
+use App\Services\LegacyImport\LegacyUserAccountStatusResolver;
 use App\Services\LegacyImport\LegacyUserImportPasswordPolicyResolver;
 use App\Services\LegacyImport\LegacyUserImportValidator;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Connection;
 use Illuminate\Database\DatabaseManager;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Throwable;
 
 final class ImportLegacyUsers
 {
-    private const array AccountStatusStrategies = [
-        'active_if_any_active_position_else_inactive',
-    ];
-
     private const array FileSkStrategies = [
         'defer',
     ];
@@ -36,7 +34,7 @@ final class ImportLegacyUsers
         private DatabaseManager $database,
     ) {}
 
-    public function handle(int $chunkSize): LegacyUserImportResult
+    public function handle(int $chunkSize, string $expectedSourceFingerprint): LegacyUserImportResult
     {
         $execution = $this->executionConfiguration();
         $connection = $this->database->connection();
@@ -49,6 +47,10 @@ final class ImportLegacyUsers
 
         try {
             $plan = $this->analyzer->plan($chunkSize, $execution['password_policy']);
+            $this->assertExpectedSourceFingerprint(
+                (string) $plan->analysis->source['used_columns_sha256'],
+                $expectedSourceFingerprint,
+            );
             $this->throwWhenBlocked('analysis', $plan->analysis->blockers);
 
             return $connection->transaction(
@@ -83,6 +85,7 @@ final class ImportLegacyUsers
         $preflight = $this->validator->validateBeforeImport(
             $plan->accountAggregation,
             $plan->positionClassification,
+            $plan->accountStatusResolution,
             $execution['password_policy'],
             $plan->validationInput(),
         );
@@ -92,7 +95,7 @@ final class ImportLegacyUsers
         $userRows = $this->userRows(
             $plan->accountAggregation,
             $execution['password_policy'],
-            $execution['account_status_strategy'],
+            $plan->accountStatusResolution,
             $importedAt,
         );
         [$canonicalPositionRows, $aliasPositionRows] = $this->positionRows(
@@ -107,6 +110,8 @@ final class ImportLegacyUsers
         $postImport = $this->validator->validateAfterImport(
             $plan->accountAggregation,
             $plan->positionClassification,
+            $plan->accountStatusResolution,
+            $execution['password_policy'],
         );
         $this->throwWhenBlocked('post_import', $postImport->blockers);
 
@@ -171,7 +176,7 @@ final class ImportLegacyUsers
             $blockers,
             'account_status_strategy',
             $accountStatusStrategy,
-            self::AccountStatusStrategies,
+            [LegacyUserAccountStatusResolver::Strategy],
         );
         $this->validateStrategy(
             $blockers,
@@ -235,7 +240,7 @@ final class ImportLegacyUsers
     private function userRows(
         LegacyUserAccountAggregation $aggregation,
         LegacyUserImportPasswordPolicy $passwordPolicy,
-        string $accountStatusStrategy,
+        LegacyUserAccountStatusResolution $accountStatusResolution,
         CarbonImmutable $importedAt,
     ): array {
         $rows = [];
@@ -248,6 +253,14 @@ final class ImportLegacyUsers
                 $invalidPasswordAccountIds[] = $account->id;
             }
 
+            $accountStatus = $accountStatusResolution->forUser($account->id);
+
+            if ($accountStatus === null) {
+                throw new LegacyUserImportBlockedException('account_status_projection', [
+                    "Proyeksi status tidak ditemukan untuk account ID {$account->id}.",
+                ]);
+            }
+
             $rows[] = [
                 'id' => $account->id,
                 'nik' => $account->nik,
@@ -255,7 +268,10 @@ final class ImportLegacyUsers
                 'nama' => $account->name,
                 'email' => $account->email,
                 'account_type' => User::ACCOUNT_TYPE_PERSONAL,
-                'status' => $this->accountStatus($account, $accountStatusStrategy),
+                'status' => $accountStatus->status,
+                'status_reason' => $accountStatus->reason,
+                'status_changed_at' => $importedAt->format('Y-m-d H:i:s'),
+                'status_changed_by_user_id' => null,
                 'password' => $passwordHash,
                 'must_change_password' => $passwordPolicy->mustChangePassword,
                 'source_system' => 'legacy',
@@ -275,19 +291,6 @@ final class ImportLegacyUsers
         }
 
         return $rows;
-    }
-
-    private function accountStatus(LegacyUserAccount $account, string $strategy): string
-    {
-        if ($strategy === 'active_if_any_active_position_else_inactive') {
-            return $account->hasActiveSourceRow
-                ? User::STATUS_ACTIVE
-                : User::STATUS_INACTIVE;
-        }
-
-        throw new LegacyUserImportBlockedException('account_status_projection', [
-            'Strategi status akun tidak didukung.',
-        ]);
     }
 
     private function isSupportedPasswordHash(string $passwordHash): bool
@@ -366,6 +369,32 @@ final class ImportLegacyUsers
         if ($connection->getDriverName() !== 'mysql') {
             throw new LegacyUserImportBlockedException('database_connection', [
                 'Import transaksional legacy hanya didukung pada koneksi target MySQL.',
+            ]);
+        }
+    }
+
+    private function assertExpectedSourceFingerprint(
+        string $actualFingerprint,
+        string $expectedFingerprint,
+    ): void {
+        $actualFingerprint = Str::lower(trim($actualFingerprint));
+        $expectedFingerprint = Str::lower(trim($expectedFingerprint));
+
+        if (preg_match('/\A[a-f0-9]{64}\z/', $expectedFingerprint) !== 1) {
+            throw new LegacyUserImportBlockedException('source_fingerprint', [
+                'Fingerprint persetujuan operator bukan SHA-256 penuh yang valid.',
+            ]);
+        }
+
+        if (preg_match('/\A[a-f0-9]{64}\z/', $actualFingerprint) !== 1) {
+            throw new LegacyUserImportBlockedException('source_fingerprint', [
+                'Plan import tidak menghasilkan fingerprint SHA-256 yang valid.',
+            ]);
+        }
+
+        if (! hash_equals($expectedFingerprint, $actualFingerprint)) {
+            throw new LegacyUserImportBlockedException('source_fingerprint', [
+                'Fingerprint source berubah setelah guard command disetujui.',
             ]);
         }
     }

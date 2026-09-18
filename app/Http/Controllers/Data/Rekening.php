@@ -1,18 +1,28 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Http\Controllers\Data;
 
 use App\Http\Controllers\Controller;
 use App\Models\AnggaranKegiatan;
 use App\Models\AnggaranKegiatanTemp;
 use App\Models\UnitKerja;
+use App\Services\Document\DocumentOrganizationScope;
 use App\Services\User\ActivePositionService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
 class Rekening extends Controller
 {
-    public function subKegiatan(Request $request, ActivePositionService $activePosition)
+    private const SETDA_SOURCE_UNIT_CODE = 'SKPD_SETDA';
+
+    private const SETDA_TARGET_UNIT_CODE = 'SETDA_BAG_UMUM';
+
+    public function __construct(private readonly DocumentOrganizationScope $documentOrganizationScope) {}
+
+    public function subKegiatan(Request $request, ActivePositionService $activePosition): JsonResponse
     {
         $unitKerjaId = $this->resolveActiveUnitId($activePosition);
         $categoryGu = $request->boolean('categoryGu', true);
@@ -35,10 +45,10 @@ class Rekening extends Controller
             ->join('unit_kerjas as uk', 'uk.id', '=', 'anggaran_kegiatan_temp.id_unit_kerja');
 
         if ($categoryGu) {
-            $query->where(function ($q) use ($unitKerjaId) {
-                $q->where('anggaran_kegiatan_temp.id_unit_kerja', $unitKerjaId)
-                    ->orWhere('uk.skpd_id', $unitKerjaId);
-            });
+            $query->whereIn(
+                'anggaran_kegiatan_temp.id_unit_kerja',
+                $this->documentOrganizationScope->accessibleUnitIdsForUnit($unitKerjaId),
+            );
         } else {
             $query->where('anggaran_kegiatan_temp.id_unit_kerja', $targetUnit);
         }
@@ -62,7 +72,7 @@ class Rekening extends Controller
         return response()->json($data);
     }
 
-    public function rekening(Request $request, ActivePositionService $activePosition)
+    public function rekening(Request $request, ActivePositionService $activePosition): JsonResponse
     {
         Log::channel('module_document_data')->info('Rekening list request', [
             'sub_kegiatan_id' => $request->input('id'),
@@ -142,7 +152,7 @@ class Rekening extends Controller
     public function rekeningDetail(
         Request $request,
         ActivePositionService $activePosition,
-    ) {
+    ): JsonResponse {
         Log::channel('module_document_data')->info('Rekening detail request', [
             'rekening_id' => $request->input('id'),
             'category_gu' => $request->boolean('categoryGu', false),
@@ -257,17 +267,25 @@ class Rekening extends Controller
 
     private function resolveTargetUnitId(int $unitKerjaId): int
     {
-        return $unitKerjaId === 16 ? 84 : $unitKerjaId;
+        $unitCode = UnitKerja::query()
+            ->whereKey($unitKerjaId)
+            ->value('kode');
+
+        if ($unitCode !== self::SETDA_SOURCE_UNIT_CODE) {
+            return $unitKerjaId;
+        }
+
+        return (int) (UnitKerja::query()
+            ->where('kode', self::SETDA_TARGET_UNIT_CODE)
+            ->value('id') ?? $unitKerjaId);
     }
 
     private function isAllowedGuUnit(int $requestedUnitId, int $userUnitId): bool
     {
-        return UnitKerja::query()
-            ->where('id', $requestedUnitId)
-            ->where(function ($q) use ($userUnitId) {
-                $q->where('id', $userUnitId)
-                    ->orWhere('skpd_id', $userUnitId);
-            })
-            ->exists();
+        return in_array(
+            $requestedUnitId,
+            $this->documentOrganizationScope->accessibleUnitIdsForUnit($userUnitId),
+            true,
+        );
     }
 }
