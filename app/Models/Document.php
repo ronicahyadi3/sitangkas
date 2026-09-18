@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Models\Esign\DocumentArtifact;
+use App\Models\Esign\DocumentSigningWorkflow;
+use App\Models\Esign\EsignAttempt;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -128,6 +131,21 @@ class Document extends Model
     public function afterSigns(): HasMany
     {
         return $this->hasMany(AfterSign::class, 'id_data');
+    }
+
+    public function artifacts(): HasMany
+    {
+        return $this->hasMany(DocumentArtifact::class, 'document_id');
+    }
+
+    public function signingWorkflows(): HasMany
+    {
+        return $this->hasMany(DocumentSigningWorkflow::class, 'document_id');
+    }
+
+    public function esignAttempts(): HasMany
+    {
+        return $this->hasMany(EsignAttempt::class, 'document_id');
     }
 
     public function spj(): HasOne
