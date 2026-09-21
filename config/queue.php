@@ -44,6 +44,15 @@ return [
             'after_commit' => false,
         ],
 
+        'signatures' => [
+            'driver' => 'database',
+            'connection' => env('DB_QUEUE_CONNECTION'),
+            'table' => env('DB_QUEUE_TABLE', 'jobs'),
+            'queue' => env('SIGNATURE_QUEUE', 'signatures'),
+            'retry_after' => (int) env('SIGNATURE_QUEUE_RETRY_AFTER_SECONDS', 960),
+            'after_commit' => true,
+        ],
+
         'beanstalkd' => [
             'driver' => 'beanstalkd',
             'host' => env('BEANSTALKD_QUEUE_HOST', 'localhost'),

@@ -68,6 +68,7 @@ final readonly class SigningSessionData
             'masked_nik' => $this->maskedNik,
             'placement_required' => $this->placementRequired,
             'artifact_version' => $this->sourceArtifactVersion,
+            'artifact_sha256' => $this->sourceArtifactSha256,
             'expires_at' => $this->expiresAt->toIso8601String(),
         ];
     }

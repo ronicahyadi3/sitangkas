@@ -15,6 +15,10 @@ use App\Http\Controllers\Data\DetailTbp as DocumentDetailTbpController;
 use App\Http\Controllers\Data\History as DocumentHistoryController;
 use App\Http\Controllers\Data\Rekening as DocumentRekeningController;
 use App\Http\Controllers\Data\Verify as DocumentVerifyController;
+use App\Http\Controllers\Esign\EsignAttemptController;
+use App\Http\Controllers\Esign\SigningSessionController;
+use App\Http\Controllers\Esign\SigningSessionPreviewController;
+use App\Http\Controllers\Esign\SigningSessionSignController;
 use App\Http\Controllers\Payment\LS\SP2D as LsSp2dController;
 use App\Http\Controllers\Payment\LS\SPM as LsSpmController;
 use App\Http\Controllers\Payment\LS\SPP as LsSppController;
@@ -126,6 +130,31 @@ Route::middleware(['auth', 'account.accessible', 'single.device.session'])->grou
         Route::get('/ajax/options/unit-kerja', [AjaxOptionsController::class, 'unitKerja'])
             ->middleware('throttle:auth-context-options')
             ->name('ajax.options.unitkerja');
+
+        Route::prefix('esign/internal')->name('esign.internal.')->group(function (): void {
+            Route::post('/signing-sessions', [SigningSessionController::class, 'store'])
+                ->middleware('throttle:esign-prepare')
+                ->name('signing-sessions.store');
+            Route::get('/signing-sessions/{signingSession}', [SigningSessionController::class, 'show'])
+                ->whereUuid('signingSession')
+                ->middleware('throttle:esign-status')
+                ->name('signing-sessions.show');
+            Route::get('/signing-sessions/{signingSession}/preview', SigningSessionPreviewController::class)
+                ->whereUuid('signingSession')
+                ->middleware('throttle:esign-preview')
+                ->name('signing-sessions.preview');
+            Route::post('/signing-sessions/{signingSession}/sign', SigningSessionSignController::class)
+                ->whereUuid('signingSession')
+                ->middleware('throttle:esign-sign')
+                ->name('signing-sessions.sign');
+            Route::delete('/signing-sessions/{signingSession}', [SigningSessionController::class, 'destroy'])
+                ->whereUuid('signingSession')
+                ->middleware('throttle:esign-prepare')
+                ->name('signing-sessions.destroy');
+            Route::get('/attempts/{esignAttempt}', EsignAttemptController::class)
+                ->middleware('throttle:esign-status')
+                ->name('attempts.show');
+        });
 
         Route::prefix('document')->name('document.')->group(function (): void {
             Route::get('/detail', [DocumentDetailController::class, 'detail'])->name('detail');

@@ -47,6 +47,11 @@ class DocumentSigningStep extends Model
         'rejected_at',
     ];
 
+    public function getRouteKeyName(): string
+    {
+        return 'public_id';
+    }
+
     public function workflow(): BelongsTo
     {
         return $this->belongsTo(DocumentSigningWorkflow::class, 'document_signing_workflow_id');

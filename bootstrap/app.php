@@ -36,7 +36,16 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
+        $exceptions->dontFlash([
+            'current_password',
+            'password',
+            'password_confirmation',
+            'passphrase',
+        ]);
+
         $exceptions->shouldRenderJsonWhen(
-            fn (Request $request) => $request->is('api/*'),
+            fn (Request $request): bool => $request->is('api/*')
+                || $request->is('esign/*')
+                || $request->expectsJson(),
         );
     })->create();

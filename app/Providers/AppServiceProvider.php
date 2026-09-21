@@ -61,6 +61,22 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('auth-mfa-setup', function (Request $request): Limit {
             return Limit::perMinute(10)->by($this->authenticatedThrottleKey($request, 'auth-mfa-setup'));
         });
+
+        RateLimiter::for('esign-prepare', function (Request $request): Limit {
+            return Limit::perMinute(30)->by($this->authenticatedThrottleKey($request, 'esign-prepare'));
+        });
+
+        RateLimiter::for('esign-preview', function (Request $request): Limit {
+            return Limit::perMinute(60)->by($this->authenticatedThrottleKey($request, 'esign-preview'));
+        });
+
+        RateLimiter::for('esign-sign', function (Request $request): Limit {
+            return Limit::perMinute(5)->by($this->authenticatedThrottleKey($request, 'esign-sign'));
+        });
+
+        RateLimiter::for('esign-status', function (Request $request): Limit {
+            return Limit::perMinute(120)->by($this->authenticatedThrottleKey($request, 'esign-status'));
+        });
     }
 
     private function loginThrottleKey(Request $request): string

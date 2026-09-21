@@ -9,10 +9,13 @@ use App\Models\Instansi;
 use App\Models\UnitKerja;
 use App\Models\User;
 use App\Models\UserPosition;
+use App\Policies\Esign\EsignAttemptPolicy;
+use Illuminate\Database\Eloquent\Attributes\UsePolicy;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
+#[UsePolicy(EsignAttemptPolicy::class)]
 class EsignAttempt extends Model
 {
     /** @var array<string, mixed> */
@@ -69,6 +72,11 @@ class EsignAttempt extends Model
                 throw new EsignInvariantViolationException('attempt_document_id_immutable');
             }
         });
+    }
+
+    public function getRouteKeyName(): string
+    {
+        return 'public_id';
     }
 
     public function document(): BelongsTo
