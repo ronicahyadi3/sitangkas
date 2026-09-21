@@ -8,10 +8,13 @@ use App\Models\Instansi;
 use App\Models\UnitKerja;
 use App\Models\User;
 use App\Models\UserPosition;
+use App\Policies\Esign\DocumentSigningWorkflowPolicy;
+use Illuminate\Database\Eloquent\Attributes\UsePolicy;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
+#[UsePolicy(DocumentSigningWorkflowPolicy::class)]
 class DocumentSigningWorkflow extends Model
 {
     /** @var array<string, mixed> */

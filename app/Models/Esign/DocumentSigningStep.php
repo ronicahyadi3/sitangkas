@@ -7,10 +7,13 @@ use App\Models\Instansi;
 use App\Models\UnitKerja;
 use App\Models\User;
 use App\Models\UserPosition;
+use App\Policies\Esign\DocumentSigningStepPolicy;
+use Illuminate\Database\Eloquent\Attributes\UsePolicy;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
+#[UsePolicy(DocumentSigningStepPolicy::class)]
 class DocumentSigningStep extends Model
 {
     /** @var array<string, mixed> */

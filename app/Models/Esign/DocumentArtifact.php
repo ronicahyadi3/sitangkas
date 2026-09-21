@@ -6,10 +6,13 @@ use App\Enums\Esign\DocumentArtifactType;
 use App\Exceptions\Esign\EsignInvariantViolationException;
 use App\Models\Document;
 use App\Models\User;
+use App\Policies\Esign\DocumentArtifactPolicy;
+use Illuminate\Database\Eloquent\Attributes\UsePolicy;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
+#[UsePolicy(DocumentArtifactPolicy::class)]
 class DocumentArtifact extends Model
 {
     /** @var array<string, mixed> */
