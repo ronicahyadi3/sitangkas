@@ -73,20 +73,30 @@ Untuk BSrE/eSign Client 2.2.0, TTE, validasi PDF, atau modal Svelte/Vite yang
 terintegrasi dengan Bootstrap/Argon, urutan baca wajib tambahan:
 
 1. `../08-esign/README.md`
-2. `../08-esign/ESIGN_V2_CONTRACT_AND_BACKEND.md`
-3. `../08-esign/ESIGN_AUTHORIZATION_AND_WORKFLOW_MATRIX.md` bila menyentuh
+2. `../08-esign/CURRENT_ESIGN_IMPLEMENTATION.md`
+3. `../08-esign/PDF_DELIVERY_WATERMARK_AND_VERIFICATION.md` bila menyentuh
+   `pdf_watermark_required`, preview/view/download PDF, Admin Super acting,
+   guest, watermark/COPY-ID, audit delivery, atau cache verifikasi BSrE
+4. `../08-esign/ESIGN_V2_CONTRACT_AND_BACKEND.md`
+5. `../08-esign/ESIGN_AUTHORIZATION_AND_WORKFLOW_MATRIX.md` bila menyentuh
    signer, Admin Super, QR/footer, workflow, pembatalan/retry, atau download
-4. `../08-esign/ESIGN_DOCUMENT_LIFECYCLE_AND_REPORTING_COMPATIBILITY.md` bila
+6. `../08-esign/ESIGN_DOCUMENT_LIFECYCLE_AND_REPORTING_COMPATIBILITY.md` bila
    menyentuh artifact, QR, storage, history attempt, tabel sign legacy, atau
    aplikasi laporan
-5. `../08-esign/ESIGN_RESUMABLE_MIGRATION_RUNBOOK.md` bila menyentuh mapping,
+7. `../08-esign/ESIGN_RESUMABLE_MIGRATION_RUNBOOK.md` bila menyentuh mapping,
    backfill, queue/lease, file migration, pause/resume, atau decommission
-6. `../08-esign/ESIGN_V2_FRONTEND_MODAL.md`
-7. `../08-esign/ESIGN_V2_IMPLEMENTATION_PLAN.md`
+8. `../08-esign/ESIGN_V2_FRONTEND_MODAL.md`
+9. `../08-esign/ESIGN_V2_IMPLEMENTATION_PLAN.md`
 
 Nama concrete client yang telah diputuskan adalah `BsreClient`. Jangan
 menghidupkan kembali nama `BsreV22Client`, credential legacy, atau request sign
 queued yang membawa passphrase.
+
+Kebijakan PDF memakai tepat satu flag posisi `pdf_watermark_required`: `true`
+selalu watermark untuk preview/view/download, `false` boleh original setelah
+authorization. Admin Super acting selalu efektif `false`; posisi bisnis nyata
+Admin Super mengikuti flag posisi tersebut; guest public selalu watermark.
+Flag ini bukan permission dan fitur masih berupa rancangan dokumentasi.
 
 UI eSign wajib mengikuti main CSS Bootstrap 5 dan custom Argon Dashboard Pro 2.
 Jangan menggunakan Tailwind sebagai basis komponen eSign meskipun dependency

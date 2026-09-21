@@ -1,16 +1,19 @@
 # eSign Client 2.2.0 / TTE
 
-Tanggal snapshot: **18 September 2026**.
+Tanggal snapshot: **21 September 2026**.
 
-Status: **Phase 0 dan kontrak minimum Phase 1 selesai; fondasi boundary Phase 2
-(`EsignGateway`, `BsreClient`, DTO, mapper, payload builder, dan error taxonomy)
-sudah diimplementasikan. Migration DDL canonical sudah dibuat dan telah
-dilengkapi `esign_attempts.document_id`, indeks laporan, serta checkpoint
-`esign_migration_items.current_stage`. Sebelas PHP backed enum domain baru sudah
-dibuat, melengkapi `EsignErrorCode` yang telah ada. Seluruh migration canonical
-masih `Pending`; model, enum cast,
-transition/persistence service, job signing asynchronous, compatibility writer,
-mapping runner, dan frontend belum dibuat**.
+Status: **backend in progress. Boundary provider Phase 2 selesai untuk scope
+NIK+passphrase/invisible/satu-file. Migration, model, enum cast,
+transition/persistence service, policy, signing session, artifact storage,
+encrypted TTL secret store, compatibility writer, endpoint internal, serta job
+signing asynchronous Phase 3-5 sudah berada di working tree. Sebanyak 13
+migration tabel canonical sudah diterapkan pada database lokal; dua migration
+index mapping legacy tetap `Pending` untuk wave terpisah. Controller payment
+belum memprovisikan artifact/workflow/step, worker server belum dibuktikan aktif, vertical slice
+canonical belum diuji end-to-end, reconciliation/visible placement/public
+verification/mapping runner/frontend belum dibuat. Baca
+`CURRENT_ESIGN_IMPLEMENTATION.md` untuk kondisi kode aktual dan batas
+operasionalnya**.
 
 Cluster ini adalah source of truth untuk perombakan proses Tanda Tangan
 Elektronik (TTE) SITANGKAS dari integrasi lama menuju eSign Client `2.2.0`
@@ -22,34 +25,38 @@ Agent yang menyentuh TTE, validasi PDF, modal eSign, file hasil sign, atau
 integrasi BSrE wajib membaca berurutan:
 
 1. dokumen ini;
-2. [kontrak dan arsitektur backend](ESIGN_V2_CONTRACT_AND_BACKEND.md);
-3. [matriks authorization dan workflow TTE](ESIGN_AUTHORIZATION_AND_WORKFLOW_MATRIX.md)
+2. [kondisi implementasi aktual](CURRENT_ESIGN_IMPLEMENTATION.md);
+3. [kebijakan delivery PDF, watermark, dan cache verifikasi](PDF_DELIVERY_WATERMARK_AND_VERIFICATION.md)
+   bila menyentuh `pdf_watermark_required`, preview/view/download PDF, guest,
+   Admin Super acting, COPY-ID, cache derivative, atau cache verifikasi BSrE;
+4. [kontrak dan arsitektur backend](ESIGN_V2_CONTRACT_AND_BACKEND.md);
+5. [matriks authorization dan workflow TTE](ESIGN_AUTHORIZATION_AND_WORKFLOW_MATRIX.md)
    bila menyentuh signer, Admin Super, posisi aktif, penempatan QR/footer,
    urutan TTE, pembatalan/retry, atau akses view/download;
-4. [kontrak enam tabel operasional legacy dan audit canonical](LEGACY_OPERATIONAL_TABLES_COMPATIBILITY.md)
+6. [kontrak enam tabel operasional legacy dan audit canonical](LEGACY_OPERATIONAL_TABLES_COMPATIBILITY.md)
    bila menyentuh `document`, `document_process`, `anggaran_kegiatan`,
    `anggaran_kegiatan_temp`, `before_signs`, `after_signs`, dual-write, atau
    compatibility ledger;
-5. [lifecycle dokumen, QR, storage, dan kompatibilitas laporan](ESIGN_DOCUMENT_LIFECYCLE_AND_REPORTING_COMPATIBILITY.md)
+7. [lifecycle dokumen, QR, storage, dan kompatibilitas laporan](ESIGN_DOCUMENT_LIFECYCLE_AND_REPORTING_COMPATIBILITY.md)
    bila menyentuh file sebelum/sesudah TTE, `document_artifacts`, attempt/event,
    URL verifikasi, `before_signs`/`after_signs`, backfill, atau aplikasi laporan;
-6. [runbook mapping resumable dan zero-downtime](ESIGN_RESUMABLE_MIGRATION_RUNBOOK.md)
+8. [runbook mapping resumable dan zero-downtime](ESIGN_RESUMABLE_MIGRATION_RUNBOOK.md)
    bila menyentuh backfill, file copy, queue mapping, checkpoint, lease,
    pause/resume, throttling, catch-up, recovery, atau decommission;
-7. [rancangan frontend modal](ESIGN_V2_FRONTEND_MODAL.md) bila menyentuh Blade,
+9. [rancangan frontend modal](ESIGN_V2_FRONTEND_MODAL.md) bila menyentuh Blade,
    Svelte, Vite, PDF viewer, koordinat, atau UX;
-8. [rencana implementasi](ESIGN_V2_IMPLEMENTATION_PLAN.md);
-9. [laporan Phase 0](PHASE_0_SECURITY_CONTAINMENT_REPORT.md) sebelum memakai
+10. [rencana implementasi](ESIGN_V2_IMPLEMENTATION_PLAN.md);
+11. [laporan Phase 0](PHASE_0_SECURITY_CONTAINMENT_REPORT.md) sebelum memakai
    credential atau memulai sandbox;
-10. [laporan Phase 1](PHASE_1_SANDBOX_CONTRACT_REPORT.md) sebelum mengunci
+12. [laporan Phase 1](PHASE_1_SANDBOX_CONTRACT_REPORT.md) sebelum mengunci
    response decoder, error mapping, koordinat, limit, atau multi-file;
-11. `../00-ai-agent/PROJECT_INVARIANTS.md`;
-12. `../01-authentication/AUTH_CONTEXT_DECISIONS.md` dan
+13. `../00-ai-agent/PROJECT_INVARIANTS.md`;
+14. `../01-authentication/AUTH_CONTEXT_DECISIONS.md` dan
    `../01-authentication/CURRENT_AUTH_CONTEXT_IMPLEMENTATION.md` bila menyentuh
    signer, posisi aktif, atau Admin Super acting context;
-13. `../06-migrations/FRESH_INSTALL_READINESS.md` sebelum membuat atau mengubah
+15. `../06-migrations/FRESH_INSTALL_READINESS.md` sebelum membuat atau mengubah
    migration;
-14. `../99-legacy/OLD_PROJECT_REFERENCE.md` hanya untuk memahami perilaku lama.
+16. `../99-legacy/OLD_PROJECT_REFERENCE.md` hanya untuk memahami perilaku lama.
 
 Jika TTE dipanggil dari payment LS, baca juga:
 
@@ -107,9 +114,11 @@ Jika TTE dipanggil dari payment LS, baca juga:
     artifact version. URL QR lama redirect `302` melalui exact legacy mapping,
     lalu dapat menjadi `301` setelah parity stabil. Halaman verify publik hanya
     menampilkan status, nomor dokumen bila ada, nama signer, dan tanggal
-    signature. PDF hanya dapat diunduh setelah login **dan** authorization
-    policy lulus. Halaman publik memakai Blade + Bootstrap/Argon; guest tidak
-    menerima download URL atau private path.
+    signature. Guest hanya boleh menerima PDF jika policy public-access untuk
+    dokumen tersebut lulus, dan byte PDF-nya selalu memakai public watermark;
+    guest tidak pernah menerima original atau private path. Dokumen yang tidak
+    publik tetap mengarahkan guest ke login. User login tetap wajib lulus policy
+    dokumen sebelum delivery mode ditentukan.
 18. Semua mapping database/file wajib resumable dan zero-downtime menggunakan
     persistent checkpoint, high-watermark, item state machine, lease, lock,
     idempotency, crash-safe `.part` copy, pause/resume, throttling, catch-up,
@@ -118,8 +127,9 @@ Jika TTE dipanggil dari payment LS, baca juga:
 19. Implementasi awal hanya mempunyai mode bisnis `SELF_SIGN`.
     `PREPARE_FOR_SIGNER` tidak diimplementasikan dan menjadi backlog opsional.
 20. Semua signer, termasuk Admin Super, menempatkan QR/footer sendiri, melihat
-    preview exact artifact, mengafirmasi dokumen, dan memasukkan passphrase
-    miliknya sendiri.
+    preview rendition sesuai kebijakan delivery PDF, mengafirmasi dokumen, dan
+    memasukkan passphrase miliknya sendiri. Backend selalu menandatangani exact
+    original canonical artifact, bukan derivative watermark.
 21. Modal sign tidak meminta NIK dari user biasa maupun Admin Super. Backend
     menyelesaikan NIK dari user terautentikasi; acting context tidak mengubah
     certificate owner.
@@ -170,10 +180,31 @@ Jika TTE dipanggil dari payment LS, baca juga:
 37. `esign_attempts.document_id` adalah signed `INT`, nullable hanya untuk
     histori legacy orphan, wajib untuk attempt baru, immutable setelah insert,
     dan memakai indeks `(document_id, created_at)` untuk laporan. Immutability
-    akan ditegakkan oleh persistence service yang belum dibuat.
+    sudah ditegakkan pada model serta persistence service; tabel canonical
+    sudah aktif tetapi belum dibuktikan melalui vertical slice runtime.
 38. `esign_migration_items.current_stage` menjadi persistent checkpoint dengan
     urutan `discovered -> metadata_mapped -> file_copied -> checksum_verified ->
     canonical_activated -> completed`. Runner/resume belum dibuat.
+39. Delivery PDF authenticated memakai satu flag target
+    `user_positions.pdf_watermark_required`, bukan flag terpisah untuk view dan
+    download. `true` berarti seluruh preview/view/download PDF wajib derivative
+    watermark server-side tanpa original bypass; `false` berarti exact original
+    canonical boleh dikirim setelah authorization dokumen lulus. Flag tidak
+    memberi hak akses dan tidak menggantikan Policy.
+40. Nilai aman untuk posisi baru adalah `pdf_watermark_required=true`. Backfill
+    posisi existing harus eksplisit dan teraudit; jangan mengandalkan default
+    migration untuk menetapkan kebijakan bisnis seluruh row lama.
+41. Admin Super yang benar-benar berada pada mode **acting like** selalu
+    diperlakukan sebagai `pdf_watermark_required=false`, sehingga menerima exact
+    original setelah authorization lulus. Jika Admin Super memilih posisi bisnis
+    nyata yang assigned kepadanya, gunakan nilai flag posisi nyata tersebut.
+42. Guest/no-login tidak mempunyai posisi: jika dokumen memang public-access,
+    seluruh preview/view/download selalu memakai public watermark. Jika policy
+    publik tidak lulus, PDF tidak boleh diberikan.
+43. Detail format watermark, COPY-ID, audit delivery append-only, cache derivative
+    12 jam, verifikasi BSrE asynchronous, cleanup, dan acceptance criteria berada
+    di `PDF_DELIVERY_WATERMARK_AND_VERIFICATION.md`. Fitur ini masih rancangan dan
+    belum boleh dianggap telah diimplementasikan.
 
 ## Batas keputusan
 
@@ -287,28 +318,51 @@ publik, atau kontrak request lama dari file-file tersebut.
 - [x] Fondasi backend eSign v2 diimplementasikan.
 - [ ] Test suite Pest untuk kontrak client dibuat dan dijalankan setelah izin
       eksplisit pengguna.
-- [ ] Schema/state attempt, authorization, signing session, storage staging,
-      dan action orkestrasi dokumen diimplementasikan.
-- [ ] `document_artifacts`, `esign_attempt_events`, legacy link/compatibility
-      writer, route `/verify/{public_id}`, dan resolver URL QR lama
+- [x] Model/cast/relasi canonical, state transition workflow/step/attempt,
+      row locking, fingerprint, dan immutability `esign_attempts.document_id`
+      diimplementasikan pada source; schema tabel canonical sudah diterapkan.
+- [x] Policy/authorization SELF_SIGN, signer resolver, encrypted ephemeral
+      signing session, context conflict check, dan private preview
       diimplementasikan.
-- [ ] Migration-control schema, resumable runner, queue, command, dashboard,
-      reconciliation, serta decommission tooling diimplementasikan.
+- [x] Artifact staging/finalization/version chain, safe provider response,
+      signature/certificate read model persistence, dan compatibility writer
+      runtime diimplementasikan.
+- [x] Endpoint internal prepare/show/preview/sign/close/status, encrypted TTL
+      secret store, dedicated `PerformEsignAttempt`, `202 Accepted`, polling,
+      uniqueness, overlap lock, dan `tries=1` diimplementasikan.
+- [ ] Controller payment memprovisikan source artifact, workflow, dan signer
+      step canonical untuk dokumen runtime baru.
+- [ ] Queue worker `signatures` diaktifkan pada server dan vertical slice
+      canonical diuji end-to-end.
+- [ ] Route delivery PDF terotorisasi, guest public-watermarked delivery,
+      enforcement `pdf_watermark_required`, audit access, cache derivative,
+      route `/verify/{public_id}`, dan resolver URL QR lama diimplementasikan.
+- [ ] Migration-control transition service, resumable runner, queue, command,
+      dashboard, reconciliation, serta decommission tooling diimplementasikan.
 - [ ] Frontend modal Svelte diimplementasikan.
-- [x] Migration schema canonical dan indeks mapping legacy dibuat, lolos lint,
-      Pint, serta simulasi SQL `--pretend`; migration belum diterapkan.
+- [x] Tiga belas migration tabel canonical dibuat, lolos lint/Pint/dry-run,
+      dan diterapkan pada database lokal dalam batch 9-21.
+- [ ] Dua migration indeks mapping legacy diterapkan melalui deployment wave
+      terpisah setelah capacity/metadata-lock review.
 - [x] `esign_attempts.document_id` nullable untuk legacy orphan dan indeks
       `(document_id, created_at)` ditambahkan; kewajiban/immutability attempt
-      baru masih menunggu persistence service.
+      baru sudah ditegakkan model/persistence service dan menunggu pembuktian
+      vertical slice runtime.
 - [x] Checkpoint `esign_migration_items.current_stage` dan indeks
       `(esign_migration_run_id, status, current_stage, id)` ditambahkan.
 - [x] Sebelas backed enum domain baru untuk workflow, step, attempt, artifact,
       provider, event, serta migration status/stage dibuat di `app/Enums/Esign`,
       melengkapi `EsignErrorCode` yang sudah ada.
 - [x] Arsitektur TTE asynchronous, secret TTL terenkripsi, `202 Accepted`,
-      polling/realtime status, dan larangan blind retry sudah dikunci.
-- [ ] Model, state transition service, compatibility writer, dan reconciliation
-      runner dibuat.
-- [ ] Enum cast, relasi model, immutable guard `esign_attempts.document_id`,
-      encrypted ephemeral secret store, dan dedicated signing job dibuat.
+      polling status, dan larangan blind retry sudah dikunci serta
+      diimplementasikan pada endpoint/job internal. Realtime status belum
+      diimplementasikan dan tidak menjadi syarat polling awal.
+- [x] Model, enum cast, relasi, state transition service, compatibility writer,
+      immutable guard, encrypted ephemeral secret store, dan dedicated signing
+      job dibuat.
+- [ ] Reconciliation runner untuk attempt `unknown`, stuck recovery, staging
+      cleanup, health/metric/alert, dan parity report dibuat.
+- [ ] Visible QR/footer placement, coordinate validation, dan payload visible
+      diimplementasikan; sign saat ini fail-closed untuk
+      `placement_required=true`.
 - [ ] Uji penerapan BSrE dan cutover production selesai.

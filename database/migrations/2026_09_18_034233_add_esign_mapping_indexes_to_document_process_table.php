@@ -15,17 +15,23 @@ return new class extends Migration
             return;
         }
 
-        Schema::table('document_process', function (Blueprint $table) {
-            $table->index(
-                ['id_dokumen', 'action', 'created_at', 'id'],
-                'ix_document_process_document_action_time'
-            );
+        if (! Schema::hasIndex('document_process', 'ix_document_process_document_action_time')) {
+            Schema::table('document_process', function (Blueprint $table) {
+                $table->index(
+                    ['id_dokumen', 'action', 'created_at', 'id'],
+                    'ix_document_process_document_action_time'
+                );
+            });
+        }
 
-            $table->index(
-                ['action', 'created_at', 'id'],
-                'ix_document_process_action_time'
-            );
-        });
+        if (! Schema::hasIndex('document_process', 'ix_document_process_action_time')) {
+            Schema::table('document_process', function (Blueprint $table) {
+                $table->index(
+                    ['action', 'created_at', 'id'],
+                    'ix_document_process_action_time'
+                );
+            });
+        }
     }
 
     /**
@@ -37,9 +43,16 @@ return new class extends Migration
             return;
         }
 
-        Schema::table('document_process', function (Blueprint $table) {
-            $table->dropIndex('ix_document_process_document_action_time');
-            $table->dropIndex('ix_document_process_action_time');
-        });
+        if (Schema::hasIndex('document_process', 'ix_document_process_document_action_time')) {
+            Schema::table('document_process', function (Blueprint $table) {
+                $table->dropIndex('ix_document_process_document_action_time');
+            });
+        }
+
+        if (Schema::hasIndex('document_process', 'ix_document_process_action_time')) {
+            Schema::table('document_process', function (Blueprint $table) {
+                $table->dropIndex('ix_document_process_action_time');
+            });
+        }
     }
 };

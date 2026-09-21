@@ -8,8 +8,9 @@ tidak boleh diperbaiki atau dihapus otomatis**.
 
 Dokumen ini adalah source of truth untuk kebijakan signer, Admin Super,
 penempatan QR/footer, urutan TTE, prasyarat sign, pembatalan/retry, serta akses
-view/download. Baca bersama `README.md`, `ESIGN_V2_CONTRACT_AND_BACKEND.md`, dan
-`ESIGN_V2_IMPLEMENTATION_PLAN.md`.
+view/download. Kebijakan byte PDF original versus watermark berada di
+`PDF_DELIVERY_WATERMARK_AND_VERIFICATION.md`. Baca bersama `README.md`,
+`ESIGN_V2_CONTRACT_AND_BACKEND.md`, dan `ESIGN_V2_IMPLEMENTATION_PLAN.md`.
 
 ## 1. Keputusan yang sudah dikunci
 
@@ -63,7 +64,7 @@ User login
   -> membuka dokumen yang dapat diakses
   -> backend membuktikan user adalah signer langkah aktif
   -> signer menempatkan QR/footer miliknya
-  -> backend membuat preview dari exact artifact
+  -> backend membuat preview rendition sesuai kebijakan delivery PDF
   -> signer memeriksa dan mengafirmasi preview
   -> signer memasukkan passphrase miliknya
   -> backend memvalidasi ulang authorization, workflow, dan artifact hash
@@ -427,13 +428,32 @@ Aturan organisasi target:
   unit turunannya;
 - unit anak tidak boleh melihat paket milik unit saudara;
 - Admin Super mengikuti scope posisi nyata atau acting position yang sedang
-  aktif, kecuali capability administratif global yang didefinisikan eksplisit.
+   aktif, kecuali capability administratif global yang didefinisikan eksplisit.
 
 Istilah "instansi yang sama" harus diselesaikan menjadi scope ID canonical,
-bukan perbandingan nama. View dan download adalah capability berbeda; login
-saja tidak cukup. File selalu di-stream dari private storage melalui controller
-dan download diaudit. Auditor tetap read-only; hak download auditor harus
-ditentukan eksplisit sebelum diaktifkan.
+bukan perbandingan nama. Capability view dan download dapat tetap berbeda pada
+Policy, tetapi **mode byte PDF tidak boleh dibedakan per aksi**. Setelah
+authorization aksi lulus, satu resolver menentukan delivery mode:
+
+- posisi nyata aktif dengan `pdf_watermark_required=true`: semua
+  preview/view/download memakai derivative watermark server-side dan tidak ada
+  original bypass;
+- posisi nyata aktif dengan `pdf_watermark_required=false`: exact current
+  canonical artifact boleh dikirim;
+- Admin Super saat **acting like**: selalu diperlakukan sebagai
+  `pdf_watermark_required=false`; scope posisi efektif tetap berlaku;
+- Admin Super pada posisi bisnis nyata miliknya: mengikuti nilai flag posisi
+  nyata tersebut;
+- guest: hanya jika public-access policy dokumen lulus dan selalu public
+  watermark; dokumen nonpublik tetap meminta login;
+- authenticated user tanpa posisi valid: fail-closed.
+
+Flag watermark tidak memberikan akses, tidak mengubah signer/certificate owner,
+dan tidak menggantikan Policy. File selalu di-stream dari private storage
+melalui controller dan setiap delivery diaudit. Auditor tetap read-only; hak
+download auditor harus ditentukan eksplisit sebelum diaktifkan. Backend TTE dan
+verifikasi BSrE selalu memakai exact original canonical artifact, tidak pernah
+watermark derivative.
 
 ## 13. State UI dan attempt
 
@@ -535,7 +555,8 @@ dikunci. Pekerjaan berikutnya:
 1. bentuk definition data `document_signing_workflows` dan step versi 1 dari
    matriks dokumen ini;
 2. definisikan exact rejector dan dependency per family dari controller payment;
-3. putuskan hak download Auditor secara eksplisit;
+3. putuskan capability download Auditor secara eksplisit; bila diizinkan,
+   delivery mode tetap mengikuti satu flag watermark di atas;
 4. definisikan resolver assignment BUD/Kuasa BUD dan variant BP/BPP;
 5. segmentasikan histori ke cycle agar retry/revisi tidak dianggap signer baru;
 6. implementasikan Policy/capability dan compatibility projection CSV;
@@ -558,3 +579,10 @@ dikunci. Pekerjaan berikutnya:
 - Jangan menghapus artifact/history ketika reject, cancel, atau retry.
 - Jangan auto-retry attempt sign `unknown`.
 - Jangan membuka download dengan direct public path.
+- Jangan membuat `pdf_view_watermark_required` dan
+  `pdf_download_watermark_required`; hanya gunakan
+  `user_positions.pdf_watermark_required` untuk semua bentuk delivery PDF.
+- Jangan memakai flag watermark sebagai authorization dan jangan memberi
+  original kepada guest atau posisi berflag `true` melalui endpoint alternatif.
+- Jangan menerapkan flag posisi acting kepada Admin Super; keputusan bisnis
+  final menetapkan mode acting sebagai `pdf_watermark_required=false`.

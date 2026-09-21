@@ -236,6 +236,21 @@ Form posisi sudah mendukung:
 - metadata dokumen SK;
 - upload file SK.
 
+Target berikutnya yang sudah diputuskan tetapi **belum diimplementasikan**:
+
+- satu checkbox/field `pdf_watermark_required`, default aman `true`, pada create
+  dan edit posisi;
+- hanya aktor yang lolos authorization pengelolaan posisi yang boleh mengubahnya;
+- audit harus menyimpan before/after, aktor, target posisi, alasan, dan waktu;
+- help text harus menjelaskan bahwa flag berlaku bagi seluruh preview/view/
+  download tetapi tidak memberikan hak akses dokumen;
+- jangan menyediakan flag view/download terpisah;
+- Admin Super saat acting like efektif `false` melalui resolver runtime, bukan
+  karena UI mengubah row posisi real.
+
+Kontrak lengkap berada di
+`../08-esign/PDF_DELIVERY_WATERMARK_AND_VERIFICATION.md`.
+
 Metadata dokumen SK yang sudah tersedia:
 
 - `document_type`;
@@ -460,6 +475,11 @@ Skenario prioritas:
 - deactivation wajib alasan;
 - grant izin historis wajib metadata dasar;
 - revoke izin historis membuat akses tulis tidak berlaku.
+- create posisi baru default `pdf_watermark_required=true`;
+- update flag yang diizinkan mencatat audit before/after dan reason;
+- aktor tanpa scope ditolak mengubah flag;
+- perubahan flag tidak mengubah Policy akses dokumen;
+- mode Admin Super acting tetap efektif `false` tanpa memutasi row real.
 
 ### 3. Review Upload SK
 

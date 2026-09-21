@@ -1,9 +1,12 @@
 # Kontrak eSign Client 2.2.0 dan Arsitektur Backend
 
-Tanggal snapshot: **18 September 2026**.
+Tanggal snapshot kontrak: **18 September 2026**. Kondisi implementasi terakhir:
+**21 September 2026**.
 
 Dokumen ini menetapkan boundary, kontrak internal, keamanan, state, dan pola
-integrasi backend. Baca `README.md` pada folder ini lebih dahulu.
+integrasi backend. Baca `README.md`, `CURRENT_ESIGN_IMPLEMENTATION.md`, dan
+`PDF_DELIVERY_WATERMARK_AND_VERIFICATION.md` pada folder ini lebih dahulu untuk
+membedakan target kontrak dari kondisi source dan deployment aktual.
 
 ## 1. Ringkasan perubahan dari integrasi lama
 
@@ -418,9 +421,10 @@ diubah kembali menjadi `prepared`/`signing`.
 `attempt_succeeded`, `attempt_failed`, `outcome_unknown`, dan
 `reconciliation_resolved`.
 
-Enum baru belum dihubungkan ke Eloquent cast karena model canonical belum
-dibuat. Migration tetap memakai literal string agar menjadi snapshot schema
-yang mandiri.
+Enum sudah dihubungkan ke Eloquent cast pada model canonical. Migration tetap
+memakai literal string agar menjadi snapshot schema mandiri. Tiga belas tabel
+canonical sudah aktif pada database lokal, tetapi cast/relasi/state service
+belum dibuktikan melalui vertical slice runtime.
 
 ## 9. Alur sign yang wajib
 
@@ -568,12 +572,25 @@ tangan terbaru.
   high-watermark, lease, idempotency, crash-safe copy, pause/resume, catch-up,
   dan decommission terpisah adalah requirement, bukan optimasi opsional.
 - Original, staging, dan signed artifact berada di private storage.
-- Browser mengakses preview/download melalui endpoint terotorisasi atau temporary
-  signed URL.
+- Browser mengakses preview/view/download hanya melalui endpoint delivery
+  terotorisasi. Temporary signed URL tidak boleh membypass resolver delivery
+  atau membocorkan original kepada posisi yang wajib watermark.
+- Satu flag `user_positions.pdf_watermark_required` berlaku bagi semua bentuk
+  delivery authenticated: `true` selalu derivative watermark server-side;
+  `false` boleh exact original setelah document policy lulus. Flag bukan
+  authorization. Admin Super acting selalu efektif `false`; Admin Super pada
+  posisi bisnis nyata mengikuti flag posisi nyata.
+- Guest hanya dapat menerima PDF jika public-access policy exact artifact lulus,
+  dan hasilnya selalu public-watermarked. Guest tidak pernah menerima original
+  atau private path.
+- Backend sign dan verifikasi BSrE selalu memakai original canonical artifact;
+  derivative watermark bukan artifact version dan tidak boleh menjadi source
+  sign/verify.
 - QR canonical memakai `/verify/{public_id}` untuk exact immutable artifact.
   Halaman verify bersifat publik tetapi hanya menampilkan status, nomor bila
-  ada, nama signer, dan tanggal signature; PDF download tetap memakai `auth`
-  dan document policy.
+  ada, nama signer, dan tanggal signature. PDF publik bersifat opt-in melalui
+  public-access policy dan selalu public-watermarked; delivery authenticated
+  tetap mengikuti policy dokumen dan resolver flag posisi.
 - `document_artifact_signatures` menyimpan read model hasil verifikasi per
   artifact agar public QR scan tidak memanggil BSrE setiap request.
 - Legacy tipe+UUID di-resolve melalui mapping dan redirect `302`; `301` hanya
@@ -600,6 +617,13 @@ Audit minimal menyimpan:
 - vendor safe code, HTTP status, dan latency;
 - started/completed timestamps;
 - hasil persistence dan verify.
+
+Audit delivery PDF append-only juga menyimpan artifact/version/hash, aksi,
+delivery mode (`original|watermarked|public_watermarked`), COPY-ID bila ada,
+real/effective context termasuk acting, hasil authorization, request/correlation
+ID, waktu, dan metadata jaringan yang telah dibatasi kebijakan. Jangan memakai
+COPY-ID sebagai authorization token atau menampilkan raw internal ID pada
+watermark.
 
 Jangan simpan passphrase, Basic Auth, PDF/image base64, full request, session ID
 mentah, atau exception yang mengandung payload.
@@ -629,8 +653,8 @@ dijadwalkan agar tidak mengganggu production.
 
 ## 16. Tabel attempt baru
 
-Migration `esign_attempts` sudah dibuat tetapi masih `Pending`. Kolom penting
-yang sudah ada meliputi:
+Migration `esign_attempts` sudah diterapkan pada database lokal. Kolom penting
+yang tersedia meliputi:
 
 - UUID/correlation ID;
 - `document_id` signed `INT` nullable, step ID, dan source/result artifact ID;
@@ -661,8 +685,9 @@ Untuk attempt runtime baru, `document_id` wajib berasal dari workflow dan tidak
 boleh berasal dari request frontend. Nullable hanya mempertahankan hasil mapping
 legacy orphan. Setelah insert nilainya immutable dan persistence service wajib
 memastikan `attempt.document_id == workflow.document_id ==
-source/result_artifact.document_id` untuk data runtime. Model/service tersebut
-belum dibuat pada snapshot ini.
+source/result_artifact.document_id` untuk data runtime. Model, immutable guard,
+dan persistence service tersebut sudah dibuat pada source; migration dan
+runtime database canonical belum diaktifkan/dibuktikan.
 
 Keputusan lanjutan: gunakan `document_artifacts` untuk file/version chain,
 `esign_attempts` untuk summary satu percobaan, dan `esign_attempt_events` untuk
@@ -692,6 +717,12 @@ dikunci pada `LEGACY_OPERATIONAL_TABLES_COMPATIBILITY.md`.
   boleh membawa passphrase.
 - Gunakan `tries=1` untuk job sign dan `BSRE_ESIGN_RETRY_TIMES=0`; verify,
   notifikasi, dan cleanup yang tidak membawa passphrase boleh retry terkendali.
+- Verifikasi viewer harus memakai cache status per immutable original artifact
+  dan job asynchronous unique/locked. Hasil sandbox sekitar 40-43 detik untuk
+  PDF 3,99 MiB dengan 8 signature tidak boleh menahan delivery/view response.
+- Cache derivative watermark menggunakan identity artifact + principal/context +
+  policy/template version, fixed TTL 12 jam, lock, file sementara, dan atomic
+  publish. Kegagalan render/cache harus fail-closed tanpa fallback original.
 - Jika `VerifySignedDocument` memakai database queue, `retry_after` harus lebih
   besar daripada timeout job.
 
@@ -731,3 +762,7 @@ Sebelum integrasi baru dipakai:
 - Jangan memakai `_location` dari client.
 - Jangan menyalin response array positional dan exact-string error dari legacy.
 - Jangan mengaktifkan multi-file/seal/OTP sebelum contract terkait dibuktikan.
+- Jangan membuat flag watermark terpisah untuk view dan download.
+- Jangan memakai `pdf_watermark_required` sebagai izin akses, memproses
+  derivative watermark sebagai input sign/verify, atau menyediakan endpoint
+  original alternatif bagi guest/posisi yang wajib watermark.

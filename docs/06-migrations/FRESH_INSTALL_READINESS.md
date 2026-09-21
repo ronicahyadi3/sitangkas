@@ -47,6 +47,10 @@ Urutan konseptual yang aman:
 12. `user_management_audit_events`
 13. index pendukung Management Users:
     `2026_08_18_044639_add_management_user_filter_indexes.php`
+14. migration additive kebijakan PDF pada `user_positions` dan tabel
+    watermark/access/verification canonical sesuai
+    `../08-esign/PDF_DELIVERY_WATERMARK_AND_VERIFICATION.md` setelah migration
+    tersebut benar-benar dibuat; pada snapshot dokumentasi ini belum ada.
 
 Catatan Management Users:
 
@@ -54,6 +58,11 @@ Catatan Management Users:
   audit administrasi user/posisi/security.
 - `2026_08_18_044639_add_management_user_filter_indexes.php` menambah index
   filter pada `users` dan `user_positions` untuk endpoint Yajra DataTables.
+- Jangan mengedit migration awal `create_user_positions_table` untuk menambahkan
+  `pdf_watermark_required` pada database yang mungkin telah berjalan. Buat
+  migration additive `BOOLEAN NOT NULL DEFAULT TRUE`, lalu lakukan backfill
+  posisi existing secara eksplisit dan teraudit. Pengecualian Admin Super acting
+  adalah resolver runtime (`false`), bukan row acting baru atau mutasi flag real.
 
 ## Keputusan yang harus dibuat sebelum migrate
 

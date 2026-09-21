@@ -167,9 +167,16 @@ Ini ringkasan aturan yang tidak boleh dilanggar lintas domain.
 
 ## BSrE, TTE, dan validasi dokumen
 
-- Sumber keputusan integrasi berada di `../08-esign/README.md` dan tiga dokumen
+- Sumber keputusan integrasi berada di `../08-esign/README.md` dan dokumen
   detail yang dirujuknya. Collection Postman 2.2.0-beta dan project lama hanya
   merupakan bukti referensi, bukan spesifikasi produksi yang lengkap.
+- Kondisi source/deployment terakhir wajib dibaca dari
+  `../08-esign/CURRENT_ESIGN_IMPLEMENTATION.md`. Pada snapshot 21 September
+  2026, fondasi source Phase 3-5 dan 13 tabel canonical sudah tersedia pada
+  database lokal. Dua migration index mapping legacy masih `Pending`;
+  provisioning controller payment dan worker runtime belum dibuktikan,
+  visible/public verification/reconciliation/frontend belum ada.
+  Jangan menyamakan keberadaan class/route dengan fitur production-ready.
 - Integrasi baru menargetkan eSign Client 2.2.0/API v2. Concrete service client
   wajib bernama `BsreClient`, bukan `BsreV22Client`.
 - Vertical slice pertama hanya mengimplementasikan signing NIK + passphrase.
@@ -221,6 +228,42 @@ Ini ringkasan aturan yang tidak boleh dilanggar lintas domain.
 - File sumber, signed PDF, dan bukti verifikasi disimpan pada storage private.
   Integritas file baru memakai SHA-256, staging sebelum final, versioning, dan
   download melalui authorization; jangan memakai public path mentah.
+- Kebijakan delivery PDF canonical berada di
+  `../08-esign/PDF_DELIVERY_WATERMARK_AND_VERIFICATION.md`. Authorization akses
+  dokumen harus lulus lebih dahulu; flag watermark hanya menentukan byte yang
+  dikirim dan tidak pernah memberi capability view/download.
+- Kebijakan tersebut berlaku application-wide untuk setiap PDF user-facing:
+  artifact TTE, payment/lampiran, dokumen SK, laporan/export, preview, route
+  legacy, Base64/Blob, temporary URL, dan thumbnail/page-image berisi dokumen.
+  Internal server-to-server sign/verify memakai original dan tidak boleh menjadi
+  endpoint browser.
+- Hanya ada satu flag target pada posisi:
+  `user_positions.pdf_watermark_required` dengan default aman `true`. Jangan
+  memecahnya menjadi flag view dan download karena byte yang dapat dilihat juga
+  dapat disimpan. Backfill posisi existing wajib diputuskan eksplisit dan
+  teraudit, bukan tersirat dari default migration.
+- Untuk authenticated user dengan posisi nyata aktif dan flag `true`, setiap
+  preview/view/download PDF wajib berupa derivative watermark server-side;
+  tidak ada endpoint, range request, temporary URL, atau fallback yang boleh
+  membocorkan original. Dengan flag `false`, exact current canonical artifact
+  boleh dikirim setelah authorization lulus dan delivery tetap diaudit.
+- Admin Super dalam mode **acting like** selalu diperlakukan sebagai
+  `pdf_watermark_required=false`. Admin Super yang memilih posisi bisnis nyata
+  miliknya mengikuti nilai flag pada posisi nyata itu. Pengecualian delivery
+  acting tidak mengubah scope, capability, signer identity, atau aturan TTE.
+- Guest/no-login hanya dapat menerima PDF setelah public-access policy dokumen
+  lulus, dan hasilnya selalu public-watermarked. Guest tidak pernah menerima
+  original. Tanpa posisi aktif yang valid, authenticated delivery harus
+  fail-closed kecuali rule sistem yang dinyatakan eksplisit.
+- Original berarti exact current canonical `document_artifacts` byte yang
+  integrity-check-nya lulus; jangan mengambil `src_name`, public legacy path,
+  atau file terbaru berdasarkan tebakan. Watermark adalah derivative disposable,
+  bukan artifact version dan tidak pernah menjadi input TTE/verifikasi BSrE.
+- COPY-ID watermark adalah identifier audit acak, bukan user/document ID mentah
+  dan bukan authorization token. Audit view/download/original/watermarked wajib
+  append-only. Cache derivative harus user/context/artifact/policy aware, memakai
+  lock + atomic publish, TTL tetap 12 jam, serta fail-closed tanpa fallback ke
+  original.
 - Keputusan lifecycle detail berada di
   `../08-esign/ESIGN_DOCUMENT_LIFECYCLE_AND_REPORTING_COMPATIBILITY.md`.
   `document_artifacts` mengatalogkan byte/version chain, `esign_attempts`
@@ -262,13 +305,19 @@ Ini ringkasan aturan yang tidak boleh dilanggar lintas domain.
   ada, nama signer dari verified PDF/certificate, dan tanggal signature dalam
   `Asia/Jakarta`. Jangan tampilkan NIK, nominal, path, response vendor, actor
   internal, raw certificate, atau hash internal.
-- PDF tidak boleh diunduh publik. Guest hanya melihat login action; route
-  download membutuhkan `auth` dan policy dokumen, dirender server-side,
-  di-stream dari private storage, dan diaudit. Login saja tidak memberi akses
-  lintas unit/role/tahun.
+- PDF publik hanya boleh tersedia bagi guest jika public-access policy exact
+  artifact lulus, dan selalu berupa public-watermarked derivative. Untuk
+  dokumen nonpublik guest hanya melihat login action. Semua route delivery
+  dirender server-side, tidak membocorkan private path, dan diaudit; login saja
+  tidak memberi akses lintas unit/role/tahun.
 - `document_artifact_signatures` adalah read model signature per exact artifact
   agar halaman QR tidak memanggil BSrE setiap request. Halaman public verify
   memakai Blade + Bootstrap/Argon; Svelte tetap untuk modal internal.
+- Verifikasi BSrE selalu dijalankan terhadap original canonical artifact, bukan
+  watermark derivative. Karena pembuktian sandbox pada PDF 3,99 MiB/8 signature
+  memerlukan sekitar 40-43 detik, viewer tidak boleh memblokir request delivery;
+  gunakan status cache terpisah dan job asynchronous/unique dengan lock. Status
+  stale/error tidak boleh diubah menjadi klaim `valid` atau membuka original.
 - Satu logical storage root diperbolehkan, tetapi jangan membuat satu flat
   directory. File baru dipartisi berdasarkan role (`source`, `signed`,
   `failed-output`) dan tanggal/prefix; tipe dokumen menjadi metadata database.

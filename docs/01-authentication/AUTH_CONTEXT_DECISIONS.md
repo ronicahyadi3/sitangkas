@@ -104,6 +104,16 @@ Konsekuensi:
   mengotori data posisi permanen;
 - service context harus mampu membedakan real position dan acting context.
 
+Khusus delivery PDF, keputusan pengguna final menetapkan Admin Super dalam
+acting context selalu efektif `pdf_watermark_required=false`. Ini hanya memilih
+rendition original setelah document Policy lulus; bukan bypass scope, bukan hak
+akses global, dan tidak mengubah certificate owner. Jika Admin Super memilih
+posisi bisnis nyata miliknya, gunakan nilai flag pada row posisi nyata. Modul
+tidak boleh mengambil keputusan ini dengan membaca `session('acting_*')`
+langsung; resolver delivery harus memakai `CurrentUserContext`. Kontrak lengkap
+berada di `../08-esign/PDF_DELIVERY_WATERMARK_AND_VERIFICATION.md` dan masih
+berstatus belum diimplementasikan.
+
 ## Decision 2 - `/positions` hanya untuk memilih posisi nyata
 
 Keputusan:

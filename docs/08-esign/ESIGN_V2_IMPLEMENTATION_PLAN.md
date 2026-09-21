@@ -1,13 +1,17 @@
 # Rencana Implementasi eSign Client 2.2.0
 
-Tanggal snapshot: **18 September 2026**.
+Tanggal snapshot: **21 September 2026**.
 
-Status: **rencana kerja dan tracker; hanya bagian yang secara eksplisit diberi
-status selesai/progress yang merupakan kondisi implementasi saat ini**.
+Status: **rencana kerja dan tracker. Kondisi source code aktual berada pada
+`CURRENT_ESIGN_IMPLEMENTATION.md`: Phase 2 selesai untuk scope awal, fondasi
+source Phase 3-5 sudah tersedia dan 13 tabel canonical sudah diterapkan pada
+database lokal. Dua migration index legacy masih `Pending`; provisioning
+payment/worker/vertical slice runtime belum selesai, dan Phase 6-12 belum
+diimplementasikan**.
 
 Dokumen ini mengarahkan agent pada urutan kerja, dependency, acceptance, dan
-blocker. Baca `README.md`, backend contract, dan frontend modal design lebih
-dahulu.
+blocker. Baca `README.md`, `PDF_DELIVERY_WATERMARK_AND_VERIFICATION.md`, backend
+contract, dan frontend modal design lebih dahulu.
 
 ## 1. Prinsip eksekusi
 
@@ -35,7 +39,7 @@ dahulu.
 | 3 | Persistence/state | Migration, model, lock | Attempt, state machine, fingerprint, storage reference | Duplicate dan state `unknown` terkontrol |
 | 4 | Authorization/session | Policy dan source of truth | Signing session terotorisasi dan preview private | Browser tidak menentukan signer/path/state |
 | 5 | Backend invisible flow | API sign end-to-end | Prepare, sign, verify, finalize tanpa UI baru | Invisible sign lengkap lewat API internal |
-| 6 | Backend visible/verify | Placement dan validasi | Kontrak placement, verify, artifact version | Semua kemampuan UI memiliki API stabil |
+| 6 | Backend visible/verify/delivery | Placement, validasi, dan PDF rendition | Kontrak placement, verify, artifact version, watermark/cache/audit | Semua kemampuan UI memiliki API stabil |
 | 7 | Backend Ready Gate | Hardening dan operasional | Backend aman, observable, terdokumentasi | Gate backend dinyatakan lulus |
 | 8 | Frontend foundation | Svelte/Vite island | Root, API client, Bootstrap/Argon modal shell | UI dapat memakai API tanpa mengetahui vendor |
 | 9 | Signing modal | Flow invisible | Modal prepare/confirm/sign/result | State sukses/gagal/unknown benar |
@@ -46,6 +50,30 @@ dahulu.
 Urutan ini bersifat dependency, bukan sekadar nomor pekerjaan. Pekerjaan UI
 boleh didesain, tetapi implementasi frontend tidak dimulai sebelum response
 schema, application error code, route, authorization, dan state backend stabil.
+
+### Checkpoint aktual 21 September 2026
+
+- **Sudah dibuat di source:** schema migration, enum, model/cast/relasi,
+  workflow/step/attempt transition service, artifact persistence, provider
+  response/signature persistence, authorization/policy, signer resolver,
+  ephemeral signing session, private preview, encrypted TTL secret store,
+  compatibility writer, endpoint internal, polling, dan dedicated
+  `PerformEsignAttempt` job.
+- **Schema aktif:** 13 migration tabel canonical sudah diterapkan pada database
+  lokal dalam batch 9-21. Dua migration index mapping legacy tetap `Pending`
+  untuk wave deployment terpisah.
+- **Belum diaktifkan/dibuktikan:** controller payment belum membuat artifact/
+  workflow/step; dedicated worker server belum dibuktikan berjalan; pipeline
+  canonical belum diuji end-to-end.
+- **Sengaja fail-closed:** step `placement_required=true` belum dapat sign dan
+  menghasilkan `esign.visible_placement_not_ready` sampai backend visible
+  placement selesai.
+- **Belum dibuat:** reconciliation `unknown`, stuck recovery, scheduled cleanup,
+  health/metric/alert, migration/management `pdf_watermark_required`, PDF
+  watermark/cache/audit, public verify/delivery, legacy QR resolver, mapping
+  runner, frontend Svelte, pilot, dan rollout.
+- **Larangan tetap:** jangan mulai frontend sebelum Backend Ready Gate dan
+  jangan menjalankan migration/test/live sign tanpa otorisasi yang sesuai.
 
 ## 2. Phase 0 - security containment
 
@@ -161,14 +189,16 @@ Catatan implementasi:
 
 ## 5. Phase 3 - schema dan state
 
-Progress 18 September 2026: migration DDL canonical, migration-control, dan
-indeks mapping legacy sudah dibuat serta lolos lint, Pint, dan simulasi SQL
-`--pretend`, tetapi belum diterapkan ke database. DDL sudah mencakup
-`esign_attempts.document_id`, indeks `(document_id, created_at)`, dan checkpoint
-`esign_migration_items.current_stage`. Sebelas PHP enum domain baru sudah
-dibuat, melengkapi `EsignErrorCode` yang telah ada. Model/cast, state
-transition/persistence service, compatibility writer,
-asynchronous signing job/secret store, dan mapping runner belum dibuat.
+Progress 21 September 2026: 13 migration tabel canonical dan migration-control
+sudah diterapkan pada database lokal. Dua migration indeks mapping legacy
+sudah dibuat tetapi tetap `Pending` untuk deployment wave terpisah. DDL
+mencakup `esign_attempts.document_id`, indeks `(document_id, created_at)`, dan
+checkpoint `esign_migration_items.current_stage`. PHP enum, model/cast/relasi,
+immutable guard, workflow/step/attempt transition service, artifact/provider
+response/signature persistence, encrypted secret/session store, compatibility
+writer, dan asynchronous signing job sudah dibuat. Mapping runner,
+reconciliation, provisioning workflow dari payment, parity report, dan
+operational deployment belum dibuat/selesai.
 
 Setelah membaca migration readiness dan schema detail:
 
@@ -212,6 +242,13 @@ pada `LEGACY_OPERATIONAL_TABLES_COMPATIBILITY.md` dan keputusan pengguna baru.
 
 ## 6. Phase 4 - authorization dan signing session
 
+Status source 21 September 2026: **sebagian besar sudah dibuat, belum lulus
+runtime acceptance**. `EsignAuthorizationService`, policy workflow/step/
+artifact/attempt, `SignerIdentityResolver`, `CreateSigningSession`,
+`ResolveSigningSession`, encrypted ephemeral session store, conflict check, dan
+private preview tersedia. Blocker utamanya adalah belum ada provisioning
+workflow/step/artifact dari controller payment dan runtime acceptance.
+
 Baca `ESIGN_AUTHORIZATION_AND_WORKFLOW_MATRIX.md` sebelum mengimplementasikan
 phase ini. Scope hanya `SELF_SIGN`; jangan membuat `PREPARE_FOR_SIGNER`.
 
@@ -242,6 +279,12 @@ Acceptance:
 
 ## 7. Phase 5 - backend invisible signing flow
 
+Status source 21 September 2026: **kode vertical slice tersedia, belum lulus
+end-to-end acceptance**. Route aktual memakai prefix `/esign/internal`, secret
+store terenkripsi ber-TTL dan job `PerformEsignAttempt` sudah dibuat. Schema
+canonical sudah aktif, tetapi worker server belum diaktifkan/dibuktikan dan
+belum ada data workflow runtime dari controller payment.
+
 Tujuan phase ini adalah menyelesaikan vertical slice backend tanpa modal baru.
 Implementasikan route/controller/Form Request tipis di atas Action dan service
 yang sudah dibuat.
@@ -250,11 +293,12 @@ Kontrak endpoint internal konseptual:
 
 | Method | Endpoint | Tanggung jawab |
 |---|---|---|
-| `POST` | `/esign/signing-sessions` | Authorize dokumen dan membuat session `prepared` |
-| `GET` | `/esign/signing-sessions/{uuid}` | Membaca capability/state/session aman |
-| `GET` | `/esign/signing-sessions/{uuid}/preview` | Stream artifact private terotorisasi |
-| `POST` | `/esign/signing-sessions/{uuid}/sign` | Validasi final, buat attempt/secret TTL, enqueue sign, kembalikan `202` |
-| `GET` | `/esign/attempts/{uuid}` | Membaca hasil/status tanpa raw response vendor |
+| `POST` | `/esign/internal/signing-sessions` | Authorize step dan membuat ephemeral session |
+| `GET` | `/esign/internal/signing-sessions/{uuid}` | Membaca capability/state/session aman |
+| `GET` | `/esign/internal/signing-sessions/{uuid}/preview` | Stream artifact private terotorisasi |
+| `POST` | `/esign/internal/signing-sessions/{uuid}/sign` | Validasi final, buat attempt/secret TTL, enqueue sign, kembalikan `202` |
+| `DELETE` | `/esign/internal/signing-sessions/{uuid}` | Menutup preparation tanpa audit/history |
+| `GET` | `/esign/internal/attempts/{uuid}` | Membaca hasil/status tanpa raw response vendor |
 
 Nama route final mengikuti convention project. Semua endpoint write memakai
 CSRF, authorization, rate limiter yang sesuai, dan JSON response bernama.
@@ -318,13 +362,39 @@ Implementasikan seluruh capability yang diperlukan UI sebelum UI dibuat:
 - endpoint verify berdasarkan document/artifact ID, bukan upload ulang dari
   browser;
 - typed `VerificationResultData` untuk valid/invalid/no-signature/error;
-- cache verify hanya berdasarkan immutable artifact version atau SHA-256;
-- route public `/verify/{public_id}` menampilkan exact artifact dengan status,
+- cache verify hanya berdasarkan immutable original artifact version/SHA-256;
+- job verifikasi unique/locked dan asynchronous; bukti sandbox 3,99 MiB dengan
+  8 signature memerlukan sekitar 40-43 detik sehingga request view/delivery
+  tidak boleh menunggu BSrE;
+- migration additive `user_positions.pdf_watermark_required BOOLEAN NOT NULL
+  DEFAULT TRUE`, explicit audited backfill posisi existing, management UI/API
+  terotorisasi, serta audit perubahan before/after;
+- satu delivery policy untuk preview/view/download: posisi nyata `true` selalu
+  watermark, posisi nyata `false` boleh original, Admin Super acting selalu
+  efektif `false`, Admin Super pada posisi nyata mengikuti flag posisi itu, dan
+  guest selalu public-watermarked setelah public-access policy lulus;
+- inventaris application-wide seluruh PDF user-facing: artifact TTE,
+  payment/lampiran, SK posisi, laporan/export, preview, Base64/Blob, thumbnail,
+  temporary URL, serta static/legacy path; PDF non-artifact harus memakai
+  `PdfDeliverySource` adapter dan policy/resolver yang sama;
+- renderer watermark server-side yang mempertahankan vector/text/signature dan
+  menangani MediaBox/CropBox/Rotate/UserUnit/mixed-size pages;
+- watermark authenticated berisi label SITANGKAS, random COPY-ID, nama, jabatan,
+  dan unit kerja; jangan tampilkan NIK/NIP/email/IP/session/raw database ID;
+- cache derivative private fixed 12 jam dengan key artifact/principal/context/
+  policy/template, atomic lock, temp file + atomic publish, cleanup command dan
+  scheduler; setiap kegagalan fail-closed tanpa original fallback;
+- `document_watermark_copies`, `document_access_events`, dan
+  `document_artifact_verifications` atau schema ekuivalen yang memenuhi kontrak
+  canonical untuk COPY-ID, audit append-only, dan cache status verify;
+- route public `/verify/{public_id}` menampilkan metadata exact artifact dengan status,
   nomor dokumen bila ada, nama signer, dan tanggal signature;
 - `document_artifact_signatures` menjadi read model hasil verifikasi agar QR
   scan tidak memanggil BSrE setiap request;
-- route `/verify/{public_id}/download` memakai `auth`, policy dokumen, private
-  stream, dan audit; guest hanya menerima intended-login action;
+- route delivery memakai policy dokumen terlebih dahulu lalu resolver rendition
+  tunggal. Guest hanya memperoleh public-watermarked PDF jika public-access
+  policy mengizinkan; selain itu menerima intended-login. Authenticated delivery
+  mengikuti flag/acting rule dan seluruh hasil diaudit;
 - legacy route tipe+UUID melakukan exact mapping dan redirect `302`; gunakan
   `301` hanya setelah parity mapping lulus;
 - halaman public verify server-rendered memakai Blade + Bootstrap/Argon, bukan
@@ -344,8 +414,16 @@ Acceptance matrix backend:
 - artifact berubah setelah session dibuat menghasilkan conflict;
 - verify tidak mengharuskan browser mengirim file PDF;
 - response verification sudah disanitasi dan stabil untuk frontend;
-- guest tidak memperoleh download URL/path, authenticated unauthorized tetap
-  ditolak, dan authorized download tercatat;
+- guest tidak pernah memperoleh original/private path, authenticated unauthorized
+  tetap ditolak, seluruh authorized delivery tercatat, dan no-watermark original
+  hanya diberikan kepada context yang efektif `false`;
+- view dan download untuk context yang sama menghasilkan keputusan rendition
+  yang sama; tidak ada split flag atau endpoint bypass;
+- marked/original/public watermark diuji untuk inline, attachment, range request,
+  cache hit/miss/concurrency, cleanup, position switch, revoked position, serta
+  kegagalan renderer/storage/cache;
+- tidak ada bypass pada SK posisi, laporan/export, payment attachment, Blob/
+  Base64, thumbnail/page image, temporary URL, atau static legacy PDF;
 - setiap QR versi lama/baru resolve exact artifact, bukan latest artifact.
 
 ## 9. Phase 7 - Backend Ready Gate
@@ -369,6 +447,8 @@ Frontend baru boleh dimulai setelah semua gate berikut terpenuhi:
   private terenkripsi ber-TTL adalah satu-satunya persistence sementara;
 - atomic lock/fingerprint dan state `unknown` bekerja;
 - file private, versioning, SHA-256, staging, verify, dan finalization bekerja;
+- resolver delivery tunggal, acting override `false`, guest public watermark,
+  cache/audit/cleanup, dan larangan original bypass dibuktikan fail-closed;
 - credential lama sudah dirotasi dan secret production tidak berada di source.
 
 ### Performance dan operations gate
@@ -426,7 +506,8 @@ yang sudah stabil:
 
 1. event open membawa encrypted document reference saja;
 2. modal memanggil prepare session;
-3. preview private dan metadata aman ditampilkan;
+3. preview terotorisasi sesuai rendition hasil resolver backend dan metadata aman
+   ditampilkan; backend sign tetap memakai original canonical;
 4. tahap konfirmasi meminta reason dan passphrase;
 5. passphrase dikirim satu kali ke endpoint sign; respons `202` membawa attempt
    UUID dan frontend langsung membersihkan passphrase;
@@ -465,6 +546,8 @@ Acceptance:
 - render signer, waktu, reason, certificate, dan status sebagai escaped text;
 - cache berdasarkan artifact version/hash;
 - revoke object URL dan terminate worker saat close.
+- jangan memberi toggle watermark/original; bersihkan blob/object URL ketika
+  modal tutup, user berganti posisi/context, artifact berubah, atau unmount.
 
 Acceptance:
 
@@ -544,6 +627,11 @@ Jangan menganggap pilot LS membuktikan authorization dan workflow payment lain.
 - timeout menjadi unknown;
 - duplicate request ditolak;
 - verify dan private preview/download;
+- matrix delivery posisi flag true/false, Admin Super acting, Admin Super posisi
+  nyata, guest public/nonpublic, serta authenticated tanpa posisi;
+- COPY-ID/audit append-only, cache derivative 12 jam, lock/concurrency, cleanup,
+  dan fail-closed tanpa original fallback;
+- cache/job verifikasi asynchronous selalu membaca original canonical artifact;
 - audit/history/compatibility writes;
 - `Http::preventStrayRequests()` memastikan test tidak menyentuh vendor.
 
@@ -585,6 +673,9 @@ Integrasi tidak boleh disebut selesai sebelum:
   berjalan setelah koneksi user terputus, dan tidak melakukan blind retry;
 - state unknown dan duplicate protection bekerja;
 - private artifact versioning dan verify bekerja;
+- satu flag `pdf_watermark_required` menegakkan rendition yang sama untuk
+  preview/view/download; acting Admin Super efektif `false`, guest public selalu
+  watermark, dan seluruh delivery teraudit tanpa direct public/original bypass;
 - modal sign dan validasi Svelte menggantikan UX lama;
 - visible coordinates lulus matrix;
 - legacy caller sudah dimigrasi atau dinyatakan jelas belum;
@@ -599,8 +690,10 @@ Integrasi tidak boleh disebut selesai sebelum:
 2. Bagaimana pairing dan partial success multi-file?
 3. Apa limit file/request dan rate limit vendor?
 4. Apa coordinate origin/unit pada seluruh rotation/page size?
-5. Apa matrix final creator, signer sequential, verifier, rejector, dan scope
-   download untuk setiap `payment_type + src_type + workflow_variant`?
+5. Apa matrix final creator, signer sequential, verifier, rejector, dan
+   capability akses untuk setiap `payment_type + src_type + workflow_variant`?
+   Mode byte sesudah akses bukan blocker lagi: wajib mengikuti satu flag
+   `pdf_watermark_required` dan aturan acting/guest yang sudah dikunci.
 6. Apakah visible image berasal dari specimen user, QR, atau template resmi?
 7. Berapa retention attempt, staging, sanitized vendor metadata, dan encrypted
    secret TTL final setelah observasi beban produksi?

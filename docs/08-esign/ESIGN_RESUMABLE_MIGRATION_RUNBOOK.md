@@ -4,14 +4,16 @@ Tanggal keputusan: **18 September 2026**.
 
 Status: **keputusan arsitektur dan runbook implementasi; migration DDL schema
 kontrol, checkpoint `current_stage`, indeks claim/resume, serta enum status/stage
-sudah dibuat tetapi belum diterapkan. Runner, transition service, queue,
+sudah dibuat dan tabel kontrol canonical sudah diterapkan pada database lokal.
+Dua migration index mapping legacy masih `Pending`. Runner, transition service, queue,
 command, dashboard, dan proses mapping belum diimplementasikan**.
 
 Dokumen ini menjadi sumber keputusan untuk seluruh mapping database legacy,
 rekonstruksi version chain, migrasi file PDF, pengisian signature read model,
 consumer cutover, lifecycle tabel kompatibilitas, serta decommission folder
 lama. Agent wajib membaca
-`README.md`, `ESIGN_V2_CONTRACT_AND_BACKEND.md`, dan
+`README.md`, `PDF_DELIVERY_WATERMARK_AND_VERIFICATION.md`,
+`ESIGN_V2_CONTRACT_AND_BACKEND.md`, dan
 `ESIGN_DOCUMENT_LIFECYCLE_AND_REPORTING_COMPATIBILITY.md` lebih dahulu.
 
 ## 1. Keputusan yang dikunci
@@ -521,7 +523,10 @@ Data baca:
 - jangan menyajikan artifact `file_copied` tetapi belum
   `checksum_verified/canonical_activated`;
 - exact QR version tidak boleh berubah karena mapping;
-- download tetap auth + policy dan private stream.
+- delivery tetap melalui public/auth policy, private stream, dan resolver
+  `pdf_watermark_required`/acting/guest pada
+  `PDF_DELIVERY_WATERMARK_AND_VERIFICATION.md`; mapping tidak boleh membuka
+  direct original bypass.
 
 Failure satu item tidak boleh menutup akses dokumen lain atau menghentikan
 proses TTE aktif.

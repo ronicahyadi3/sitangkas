@@ -1,12 +1,14 @@
 # Kontrak Tabel Operasional Legacy dan Audit Canonical
 
-Tanggal keputusan: **18 September 2026**.
+Tanggal keputusan: **18 September 2026**. Kondisi implementasi diperbarui
+**21 September 2026**.
 
-Status: **keputusan arsitektur yang dikunci pengguna; migration canonical sudah
-dibuat, dilengkapi direct document index/checkpoint, dan lolos simulasi SQL,
-tetapi belum diterapkan ke database. PHP enum domain sudah dibuat; model/cast,
-writer, transition service, reconciliation runner, dan cutover belum
-diimplementasikan**.
+Status: **keputusan arsitektur yang dikunci pengguna; 13 migration tabel
+canonical sudah diterapkan pada database lokal setelah lolos simulasi SQL.
+Dua migration index mapping legacy tetap `Pending`. PHP enum, model/cast/relasi, transition
+service, artifact persistence, dan compatibility writer runtime sudah dibuat
+pada source. Reconciliation runner, provisioning controller payment, parity
+report, mapping runner, dan cutover belum diimplementasikan**.
 
 Dokumen ini adalah sumber keputusan utama untuk enam tabel operasional berikut:
 
@@ -22,7 +24,8 @@ document_process
 Agent yang mengubah controller payment/data, model dokumen/anggaran, proses TTE,
 laporan, migration, atau compatibility writer wajib membaca dokumen ini bersama
 `ESIGN_DOCUMENT_LIFECYCLE_AND_REPORTING_COMPATIBILITY.md` dan
-`ESIGN_AUTHORIZATION_AND_WORKFLOW_MATRIX.md`.
+`ESIGN_AUTHORIZATION_AND_WORKFLOW_MATRIX.md`. Jika menyentuh akses byte PDF,
+wajib juga membaca `PDF_DELIVERY_WATERMARK_AND_VERIFICATION.md`.
 
 ## 1. Keputusan final yang berlaku
 
@@ -174,7 +177,12 @@ Aturan:
 - relasi model ke artifact/workflow boleh ditambahkan tanpa mengubah kontrak
   fisik tabel;
 - `public_id` verifikasi berada pada artifact canonical; tidak perlu memaksa
-  penambahan public ID ke `document` hanya untuk QR.
+  penambahan public ID ke `document` hanya untuk QR;
+- `src_name`, `src_type`, dan path `File_{TYPE}` tidak menentukan apakah user
+  memperoleh original atau watermark. Keputusan delivery selalu berasal dari
+  Policy canonical + resolver `pdf_watermark_required`/acting/guest;
+- direct legacy URL harus ditutup atau diarahkan melalui exact artifact resolver.
+  Ia tidak boleh menjadi original bypass untuk posisi berflag `true` atau guest.
 
 ## 7. Kontrak `document_process`
 
@@ -286,6 +294,9 @@ vendor sign otomatis.
   replica, export, atau API. Pemindahan file tidak boleh memutusnya diam-diam.
 - Target jangka panjang akses file consumer adalah API/reporting contract yang
   terautentikasi, bukan public path langsung.
+- Watermark derivative dan COPY-ID tidak ditulis ke `document`, `before_signs`,
+  atau `after_signs`; gunakan tabel cache/audit canonical terpisah. Artifact
+  original canonical tetap sumber TTE dan verifikasi BSrE.
 
 ## 12. Gate sebelum perubahan lifecycle tabel legacy
 
@@ -311,10 +322,12 @@ archive, truncate, atau drop tabel.
 
 - migration canonical dan indeks mapping legacy telah dibuat;
 - PHP lint, Pint, dan `php artisan migrate --pretend` lulus;
-- migration belum dijalankan ke database;
+- 13 migration tabel canonical sudah diterapkan dalam batch 9-21;
+- dua migration index mapping legacy belum dijalankan;
 - tidak ada row legacy yang diubah/dihapus;
-- model canonical, compatibility writer, reconciliation service, dan mapping
-  runner belum dibuat;
+- model canonical dan compatibility writer runtime sudah dibuat pada source,
+  tetapi belum dibuktikan melalui vertical slice runtime;
+- reconciliation service, parity report, dan mapping runner belum dibuat;
 - kandidat indeks anggaran belum dibuat karena harus melalui query/lock review;
 - audit event anggaran belum dibuat dan menjadi pekerjaan lanjutan terpisah.
 

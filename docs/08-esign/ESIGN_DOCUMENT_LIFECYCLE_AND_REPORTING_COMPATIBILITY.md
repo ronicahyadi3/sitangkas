@@ -1,18 +1,23 @@
 # Lifecycle Dokumen TTE, QR, Storage, dan Kompatibilitas Laporan
 
 Tanggal keputusan awal: **17 September 2026**. Pembaruan terakhir:
-**18 September 2026**.
+**21 September 2026**.
 
-Status: **keputusan arsitektur dan hasil analisis; migration schema canonical
-sudah dibuat, dilengkapi direct document lookup/checkpoint, tetapi belum
-diterapkan. PHP enum domain sudah dibuat. Compatibility writer, model/cast,
-transition/persistence service, job asynchronous, route verifikasi baru, serta
-reorganisasi storage belum diimplementasikan**.
+Status: **keputusan arsitektur dan hasil analisis; 13 migration tabel canonical
+sudah diterapkan pada database lokal dan dilengkapi direct document lookup/
+checkpoint. Dua migration index mapping legacy tetap `Pending`. PHP enum,
+model/cast/relasi, transition/persistence service,
+artifact storage runtime, compatibility writer, encrypted secret store,
+endpoint internal, dan asynchronous signing job sudah dibuat pada source.
+Workflow provisioning dari payment, public verification route, historical
+mapping/reorganisasi storage, reconciliation, serta runtime deployment belum
+selesai**.
 
 Dokumen ini adalah sumber keputusan untuk lifecycle file sebelum/sesudah TTE,
 version chain PDF, QR verifikasi, histori attempt, dan kompatibilitas
 `before_signs`/`after_signs` dengan aplikasi lain. Agent yang menyentuh salah
 satu area tersebut wajib membaca dokumen ini setelah `README.md` dan
+`PDF_DELIVERY_WATERMARK_AND_VERIFICATION.md`, lalu
 `ESIGN_V2_CONTRACT_AND_BACKEND.md`.
 
 ## 1. Tujuan dan batas
@@ -78,9 +83,11 @@ aplikasi lain.
 17. Halaman verify publik hanya menampilkan status validasi minimum, nomor
     dokumen bila ada, nama signer, dan tanggal signature. NIK, path, nominal,
     response vendor, serta metadata internal tidak ditampilkan.
-18. PDF tidak dapat diunduh publik. Guest melihat ajakan login; tombol download
-    hanya dirender server-side setelah user login dan lolos authorization
-    policy dokumen.
+18. Guest hanya dapat menerima PDF jika public-access policy exact artifact
+    mengizinkan, dan byte yang dikirim selalu memakai public watermark. Guest
+    tidak pernah menerima original/private path; dokumen nonpublik tetap
+    menampilkan ajakan login. User login wajib lolos policy dokumen lalu delivery
+    mode ditentukan oleh satu flag `user_positions.pdf_watermark_required`.
 19. Halaman verify publik memakai Blade + Bootstrap 5/custom Argon Dashboard
     Pro 2. Svelte tetap untuk modal TTE/validasi interaktif, bukan halaman
     publik sederhana ini.
@@ -90,6 +97,14 @@ aplikasi lain.
 21. Passphrase hanya boleh dipersist sementara pada secret store/cache private
     terenkripsi ber-TTL; tidak boleh masuk row attempt/event, compatibility
     table, log, session, `failed_jobs`, atau serialized job payload.
+22. Flag posisi `pdf_watermark_required` berlaku seragam untuk
+    preview/view/download. `true` selalu watermark; `false` boleh exact original
+    canonical setelah authorization. Admin Super acting selalu efektif `false`,
+    sedangkan posisi bisnis nyata miliknya mengikuti flag posisi tersebut.
+23. Watermark derivative tidak menjadi artifact version, tidak masuk version
+    chain, dan tidak pernah menjadi source TTE atau verifikasi BSrE. Detail
+    COPY-ID, audit, cache 12 jam, dan cleanup berada di
+    `PDF_DELIVERY_WATERMARK_AND_VERIFICATION.md`.
 
 ## 3. Status pekerjaan terkait
 
@@ -100,13 +115,15 @@ aplikasi lain.
   NIK+passphrase satu PDF pada endpoint yang diotorisasi pemilik.
 - Fondasi Phase 2 sudah memiliki `EsignGateway`, `BsreClient`, DTO, payload
   builder, response mapper, error taxonomy, timeout, dan safe telemetry.
-- DDL attempt/artifact/workflow/event/migration-control sudah dibuat dan masih
-  `Pending`; `esign_attempts.document_id`, indeks laporan, serta
-  `esign_migration_items.current_stage` sudah tersedia di migration.
-- Sebelas PHP enum domain baru sudah dibuat dan melengkapi `EsignErrorCode` yang
-  telah ada. Model/cast, transition service,
-  compatibility writer, asynchronous signing job/secret store, public
-  verification route, dan frontend belum selesai.
+- DDL attempt/artifact/workflow/event/migration-control sudah diterapkan;
+  `esign_attempts.document_id`, indeks laporan, serta
+  `esign_migration_items.current_stage` sudah tersedia pada schema aktif.
+- PHP enum domain, model/cast/relasi, transition service, artifact persistence,
+  compatibility writer, encrypted signing session/secret store, internal
+  endpoint, dan asynchronous signing job sudah dibuat pada source.
+- Dua migration index mapping legacy masih `Pending`; provisioning artifact/
+  workflow/step dari controller payment, queue worker deployment, public verification route,
+  reconciliation, mapping runner, dan frontend belum selesai.
 - Credential, NIK lengkap, passphrase, Basic Auth, dan response mentah tidak
   boleh ditulis ke dokumentasi ini atau dokumentasi lanjutan.
 
@@ -134,7 +151,8 @@ Semantik legacy yang harus dipertahankan untuk consumer:
 - aplikasi eksternal memakai kedua tabel untuk laporan proses dan file;
 - penambahan schema baru tidak boleh diam-diam mengubah arti kolom/status lama.
 
-Sebelum compatibility writer dibuat, inventarisasi query nyata semua consumer:
+Compatibility writer runtime sudah dibuat, tetapi sebelum diaktifkan pada
+produksi tetap inventarisasi dan validasi query nyata semua consumer:
 kolom yang dipilih, join, filter status, interpretasi sukses/gagal, rentang
 waktu, pengurutan, dan kebutuhan path file. Asumsi tanpa inspeksi consumer
 tidak cukup untuk menyatakan backward compatible.
@@ -300,7 +318,7 @@ Kontrak konseptual:
 
 ```text
 GET /verify/{public_id}          halaman verifikasi exact artifact (public)
-GET /verify/{public_id}/download download PDF (auth + policy)
+GET /verify/{public_id}/download delivery PDF (public/auth policy + rendition resolver)
 ```
 
 Aturan:
@@ -312,14 +330,17 @@ Aturan:
   menghasilkan QR;
 - JavaScript tidak boleh menentukan UUID/path canonical;
 - QR permanen tidak memakai temporary signed URL yang kedaluwarsa;
-- halaman verifikasi tidak mengekspos URL/path file kepada guest;
+- halaman verifikasi tidak mengekspos private URL/path file kepada guest;
 - exact artifact ditampilkan lebih dahulu; halaman boleh memberi tautan bahwa
   versi lebih baru tersedia;
 - token UUID adalah bearer locator, bukan authorization;
-- guest hanya melihat action login dan setelah login kembali ke intended verify
-  URL;
-- user authenticated baru melihat tombol download bila policy dokumen lulus;
-- download di-stream dari private storage dan dicatat dalam audit.
+- guest melihat action PDF hanya jika public-access policy lulus; action itu
+  menghasilkan public-watermarked derivative. Jika tidak, guest melihat login
+  action dan setelah login kembali ke intended verify URL;
+- user authenticated baru melihat action download bila policy dokumen lulus;
+  rendition kemudian ditentukan dari flag posisi/acting context;
+- delivery di-stream dari private storage, tidak membocorkan path, dan dicatat
+  dalam audit append-only.
 
 ### Isi halaman verify publik
 
@@ -332,7 +353,8 @@ Konten yang diizinkan:
 - daftar nama signer yang berasal dari certificate/verified PDF signature;
 - tanggal signature yang berasal dari PDF/provider dan dinormalisasi ke
   `Asia/Jakarta`;
-- action login bagi guest atau download bagi authenticated authorized user.
+- action public-watermarked PDF bagi guest yang diizinkan, action login untuk
+  dokumen nonpublik, atau download bagi authenticated authorized user.
 
 Jangan tampilkan NIK, email, private path, filename internal, nominal, unit
 kerja, actor internal, passphrase, raw certificate, raw provider response,
@@ -821,17 +843,20 @@ terkontrol per explicit path, bukan recursive glob luas.
   atau exception.
 - UUID yang sulit ditebak mengurangi enumeration tetapi tidak menggantikan
   authorization.
-- PDF tidak boleh diunduh publik. Download membutuhkan `auth` dan policy
-  dokumen; status login saja tidak memberi akses lintas unit/role/tahun.
-- Guest tidak menerima private path atau download URL dalam HTML. Tombol
-  download dirender server-side hanya setelah authorization lulus.
+- PDF guest hanya boleh tersedia setelah public-access policy lulus dan selalu
+  public-watermarked. Guest tidak pernah menerima original/private path; status
+  login saja juga tidak memberi akses lintas unit/role/tahun.
+- Link/action delivery dirender server-side setelah authorization. Posisi nyata
+  `true` selalu watermark, posisi nyata `false` boleh original, Admin Super
+  acting efektif `false`, dan semua delivery tercatat.
 - Gunakan read-only DB account/scoped API credential untuk aplikasi laporan.
 - Jangan menyimpan passphrase pada attempt/event/legacy table.
 - Generate QR dan public URL di backend; jangan menerima URL/path dari browser.
 - Legacy URL resolver harus menolak traversal dan hanya memakai lookup metadata.
 - Terapkan rate limiter, generic not-found response, output escaping, serta
   `noindex, nofollow` pada halaman publik.
-- Catat download terotorisasi dalam audit tanpa memasukkan isi PDF atau secret.
+- Catat setiap preview/view/download terotorisasi dalam audit append-only tanpa
+  memasukkan isi PDF atau secret; simpan delivery mode dan COPY-ID bila ada.
 
 ## 16. Performa dan operasional
 
@@ -839,6 +864,10 @@ terkontrol per explicit path, bukan recursive glob luas.
 - Gunakan exact indexed lookup `public_id`, bukan scan filesystem.
 - Stream file dari storage; jangan memuat PDF besar penuh ke memory untuk
   download.
+- Watermark dibuat server-side sebagai derivative vector-preserving dan disimpan
+  di cache private fixed 12 jam menggunakan lock, temp file, serta atomic
+  publish. Cache key wajib mengikat artifact/hash, principal/context, policy,
+  dan template; error harus fail-closed tanpa fallback original.
 - Select kolom laporan yang dibutuhkan; hindari mengambil metadata JSON besar
   untuk listing.
 - Gunakan eager loading/batched queries untuk daftar attempt dan artifact.
@@ -849,6 +878,10 @@ terkontrol per explicit path, bukan recursive glob luas.
 - Job sign memakai satu attempt pengiriman (`tries=1`) dan provider sign tidak
   auto-retry. Verify/notifikasi yang read-only dapat diproses terpisah dan retry
   terkendali tanpa membawa passphrase.
+- Verifikasi viewer berjalan asynchronous/unique terhadap original immutable
+  artifact dan memakai cache status terpisah. Jangan menjalankan BSrE pada setiap
+  page load; pembuktian sandbox 3,99 MiB/8 signature memerlukan sekitar 40-43
+  detik.
 - Simpan summary pada `esign_attempts`; gunakan events hanya saat drill-down
   agar laporan harian tidak melakukan aggregate event mahal.
 - Sediakan reconciliation dan alert untuk `unknown`, missing output, invalid
@@ -857,31 +890,42 @@ terkontrol per explicit path, bukan recursive glob luas.
 ## 17. Urutan implementasi yang direkomendasikan
 
 1. Inventaris consumer `before_signs`/`after_signs` dan kunci contract report.
-2. Terapkan policy yang sudah dikunci: verify metadata publik minimal, download
-   hanya `auth` + document policy.
-3. Finalkan state machine serta schema `document_artifacts`, `esign_attempts`,
-   `esign_attempt_events`, dan `esign_attempt_legacy_links`.
-4. Buat migration/indeks dengan deployment plan untuk tabel besar.
-5. Implementasikan repository/action artifact serta storage path strategy.
-6. Implementasikan attempt transition service, lock, fingerprint, dan event
-   writer.
-7. Implementasikan compatibility writer legacy dan parity report.
-8. Implementasikan legacy URL resolver, route public `/verify/{public_id}` dan
-   route `/verify/{public_id}/download` dengan `auth` + policy.
-9. Implementasikan `document_artifact_signatures`, verifikasi/caching signer,
-   halaman Blade Bootstrap/Argon, intended-login flow, dan audit download.
-10. Implementasikan backend QR generation/reservation.
-11. Implementasikan invisible signing orchestration end-to-end.
-12. Registrasikan/backfill legacy secara bertahap di lokasi existing.
-13. Inventaris dan tarik arsip fisik 2024-2025 yang belum ada pada subset 90
+2. Terapkan policy yang sudah dikunci: verify metadata publik minimal, satu
+   resolver delivery setelah authorization, guest public watermark, serta flag
+   posisi tunggal dengan Admin Super acting efektif `false`.
+3. State machine serta schema `document_artifacts`, `esign_attempts`,
+   `esign_attempt_events`, dan `esign_attempt_legacy_links` sudah dibuat;
+   terapkan migration setelah deployment review.
+4. Migration/indeks sudah dibuat; deployment plan, backup, dan lock assessment
+   tabel besar masih wajib diselesaikan.
+5. Repository/service artifact serta runtime storage path strategy sudah
+   dibuat; source provisioning dan historical mapper belum dibuat.
+6. Attempt transition service, lock, fingerprint, dan event writer sudah
+   dibuat pada source dan menunggu runtime proof.
+7. Compatibility writer legacy sudah dibuat; inventaris consumer dan parity
+   report belum selesai.
+8. Implementasikan migration/backfill/management `pdf_watermark_required`,
+   renderer/COPY-ID, audit akses append-only, cache derivative 12 jam, cleanup,
+   dan delivery policy fail-closed.
+9. Implementasikan legacy URL resolver, route public `/verify/{public_id}` dan
+   route delivery `/verify/{public_id}/download` dengan public/auth policy serta
+   rendition resolver yang sama.
+10. Implementasikan `document_artifact_signatures`, cache/job verifikasi
+    asynchronous, halaman Blade Bootstrap/Argon, intended-login flow, dan audit
+    seluruh delivery.
+11. Implementasikan backend QR generation/reservation.
+12. Invisible signing orchestration sudah dibuat pada source; aktifkan schema,
+    provisioning, dan worker lalu buktikan end-to-end.
+13. Registrasikan/backfill legacy secara bertahap di lokasi existing.
+14. Inventaris dan tarik arsip fisik 2024-2025 yang belum ada pada subset 90
     hari di project baru.
-14. Copy-verify-activate seluruh artifact ke layout canonical per tahun/bulan.
-15. Lewati Backend Ready Gate, kemudian implementasikan modal Svelte/Vite.
-16. Migrasikan consumer laporan hanya setelah parity tervalidasi, tetapi tetap
+15. Copy-verify-activate seluruh artifact ke layout canonical per tahun/bulan.
+16. Lewati Backend Ready Gate, kemudian implementasikan modal Svelte/Vite.
+17. Migrasikan consumer laporan hanya setelah parity tervalidasi, tetapi tetap
     pertahankan compatibility ledger append-only.
-17. Evaluasi freeze/read-only hanya melalui keputusan baru; tidak ada drop tabel
+18. Evaluasi freeze/read-only hanya melalui keputusan baru; tidak ada drop tabel
     dalam scope implementasi aktif.
-18. Hapus folder `File_{TYPE}` setelah migration manifest, backup, restore,
+19. Hapus folder `File_{TYPE}` setelah migration manifest, backup, restore,
     compatibility route, dan rollback gate file lulus.
 
 ## 18. Acceptance gate
@@ -897,8 +941,14 @@ Rancangan ini belum dianggap selesai sampai:
   exact mapping parity lulus;
 - halaman public verify hanya menampilkan status, nomor bila ada, nama signer,
   dan tanggal signature dari exact artifact;
-- guest tidak menerima tombol/URL download; authenticated user tetap harus
-  lolos policy dan download tercatat dalam audit;
+- guest tidak pernah menerima original/private path; public PDF hanya diberikan
+  setelah public-access policy lulus dan selalu watermarked. Authenticated user
+  tetap harus lolos policy, rendition mengikuti flag/acting rule, dan seluruh
+  delivery tercatat;
+- view/download memakai satu keputusan rendition; tidak ada split flag, direct
+  public path, temporary URL bypass, atau fallback original;
+- derivative watermark bukan artifact canonical/source TTE/verify; cache 12 jam,
+  COPY-ID, concurrency lock, cleanup, dan failure mode telah diuji;
 - QR scan tidak memanggil BSrE setiap request karena signature read model/cache
   terikat immutable artifact/SHA-256;
 - file invalid/zero-byte tetap tersedia dan tidak current;

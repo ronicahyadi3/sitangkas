@@ -43,14 +43,18 @@ penandatanganan, Svelte, Vite, Bootstrap/Argon, main CSS, atau PDF viewer TTE,
 wajib baca:
 
 1. `08-esign/README.md`
-2. `08-esign/ESIGN_V2_CONTRACT_AND_BACKEND.md`
-3. `08-esign/ESIGN_DOCUMENT_LIFECYCLE_AND_REPORTING_COMPATIBILITY.md` bila
+2. `08-esign/CURRENT_ESIGN_IMPLEMENTATION.md`
+3. `08-esign/PDF_DELIVERY_WATERMARK_AND_VERIFICATION.md` bila menyentuh
+   `pdf_watermark_required`, preview/view/download, guest, COPY-ID, watermark,
+   audit delivery, atau cache verifikasi BSrE
+4. `08-esign/ESIGN_V2_CONTRACT_AND_BACKEND.md`
+5. `08-esign/ESIGN_DOCUMENT_LIFECYCLE_AND_REPORTING_COMPATIBILITY.md` bila
    menyentuh lifecycle file, QR, storage, attempt/event, atau kompatibilitas
    `before_signs`/`after_signs`
-4. `08-esign/ESIGN_RESUMABLE_MIGRATION_RUNBOOK.md` bila menyentuh mapping
+6. `08-esign/ESIGN_RESUMABLE_MIGRATION_RUNBOOK.md` bila menyentuh mapping
    resumable, zero-downtime, queue/lease, pause/resume, recovery, atau cleanup
-5. `08-esign/ESIGN_V2_FRONTEND_MODAL.md`
-6. `08-esign/ESIGN_V2_IMPLEMENTATION_PLAN.md`
+7. `08-esign/ESIGN_V2_FRONTEND_MODAL.md`
+8. `08-esign/ESIGN_V2_IMPLEMENTATION_PLAN.md`
 
 Dokumen cluster tersebut adalah sumber keputusan integrasi baru. Kode project
 lama dan collection Postman hanya menjadi bukti referensi; jangan menyalin
@@ -93,12 +97,12 @@ memanggil action.
 | `00-ai-agent` | Router, aturan baca, dan ringkasan invariant lintas domain | Selalu dibaca pertama oleh AI agent |
 | `01-authentication` | `users`, `login_events`, login/logout, lock, session audit, Management Users | Saat mengubah autentikasi, akun, security state, Management Users, atau audit login |
 | `02-master-data` | `instansis`, `jabatans`, `unit_kerjas`, seeder master, validasi master | Saat mengubah master organisasi, seeders, atau pilihan unit/jabatan |
-| `03-user-positions` | `user_positions`, dokumen SK, active position session | Saat mengubah posisi pengguna, switching posisi, SK, dokumen posisi |
+| `03-user-positions` | `user_positions`, dokumen SK, active position session, dan flag kebijakan watermark PDF | Saat mengubah posisi pengguna, switching posisi, SK, dokumen posisi, atau `pdf_watermark_required` |
 | `04-year-permissions` | Izin modifikasi data tahun historis dan event auditnya | Saat mengubah akses tahun lama atau audit penggunaan permission |
 | `05-relationships` | Relasi lintas tabel, integrity rules, rollback dependency | Saat mengecek foreign key, dependency, audit lintas domain |
 | `06-migrations` | Readiness fresh install dan catatan masalah migration | Saat review migration, install baru, rollback, atau deployment database |
 | `07-realtime` | Reverb, presence channel, online monitoring, realtime notification, message helper | Saat mengubah WebSocket, broadcasting, Echo, online status, atau notifikasi realtime |
-| `08-esign` | Arsitektur BSrE/eSign Client 2.2.0, kontrak backend, modal Svelte/Vite dengan Bootstrap/Argon, keamanan, performa, dan rollout | Saat mengubah TTE, validasi PDF, sertifikat signer, UI modal, atau koneksi eSign |
+| `08-esign` | Arsitektur BSrE/eSign Client 2.2.0, delivery PDF/watermark, kontrak backend, modal Svelte/Vite dengan Bootstrap/Argon, keamanan, performa, dan rollout | Saat mengubah TTE, preview/view/download PDF, watermark, validasi PDF, sertifikat signer, UI modal, atau koneksi eSign |
 | `99-legacy` | Referensi project lama, pemetaan data legacy, aturan import, analisis dan rencana payment LS | Saat migrasi/import data lama, mencontoh fitur lama, atau melanjutkan implementasi LS |
 
 ## Prinsip umum

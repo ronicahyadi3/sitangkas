@@ -579,6 +579,20 @@ Untuk Admin Super setelah memilih acting context di `login.post`:
 - `activePosition()->is_acting_context` bernilai `true`;
 - `activePosition()->acting_context` berisi snapshot session acting.
 
+Kontrak target delivery PDF yang belum diimplementasikan:
+
+- jika `is_acting_context=true`, resolver wajib menghasilkan effective
+  `pdf_watermark_required=false` tanpa memutasi row real Admin Super;
+- jika Admin Super sedang memakai posisi bisnis nyata miliknya, resolver membaca
+  flag dari row posisi nyata tersebut;
+- pengecualian acting hanya menentukan original versus watermark setelah
+  authorization dokumen lulus dan tidak memberi capability baru;
+- audit delivery menyimpan real actor/position sekaligus effective acting
+  context.
+
+Baca `../08-esign/PDF_DELIVERY_WATERMARK_AND_VERIFICATION.md` sebelum mengubah
+`CurrentUserContext`, Policy PDF, atau route delivery.
+
 Konsekuensi:
 
 - jangan memakai `activePosition()->id` sebagai id posisi acting Admin Super;

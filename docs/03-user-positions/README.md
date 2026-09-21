@@ -11,6 +11,7 @@ Cluster ini menjelaskan posisi pengguna, dokumen SK, dan aturan pemilihan posisi
 | Candidate key `(unit_kerjas.id, unit_kerjas.instansi_id)` | `2026_07_28_140000_CANDIDATE_KEY.md` |
 | Detail migration `user_positions` | `2026_07_28_140100_USER_POSITIONS.md` |
 | Detail migration `user_position_documents` | `2026_07_28_140200_USER_POSITION_DOCUMENTS.md` |
+| Kebijakan `pdf_watermark_required`, Admin Super acting, guest, dan delivery PDF | `../08-esign/PDF_DELIVERY_WATERMARK_AND_VERIFICATION.md` |
 | Snapshot integrasi Management Users dengan posisi, SK, dan security modal | `../01-authentication/MANAGEMENT_USERS_CURRENT_STATE.md` |
 | Keputusan import users legacy dan preservasi `user_positions.id` | `../99-legacy/LEGACY_USERS_IMPORT_DECISIONS.md` |
 
@@ -26,6 +27,18 @@ Cluster ini menjelaskan posisi pengguna, dokumen SK, dan aturan pemilihan posisi
 - Untuk Admin Super, acting context bukan row `user_positions`; lihat
   `../01-authentication/CURRENT_AUTH_CONTEXT_IMPLEMENTATION.md` sebelum memakai
   `CurrentUserContext::activePosition()->id`.
+- Target schema menambahkan satu boolean `pdf_watermark_required` pada
+  `user_positions`, default aman `true`. Kolom ini belum terdapat pada migration
+  awal dan harus dibuat melalui migration additive baru saat implementasi.
+- Flag tersebut berlaku sama untuk seluruh preview/view/download PDF setelah
+  authorization lulus: `true` selalu watermark server-side, `false` boleh exact
+  original canonical. Jangan membuat flag view dan download terpisah.
+- Admin Super saat **acting like** tidak memakai nilai flag row real-nya dan
+  selalu diperlakukan sebagai `pdf_watermark_required=false`. Saat memilih
+  posisi bisnis nyata miliknya, gunakan flag posisi nyata. Guest bukan posisi
+  dan selalu menerima public watermark bila dokumennya memang public-access.
+- Perubahan flag melalui Management Users harus diotorisasi dan diaudit dengan
+  before/after, aktor, alasan, serta waktu. Flag tidak memberikan hak akses PDF.
 - Dokumen SK berada di `user_position_documents`.
 - Perubahan dokumen utama harus dikelola dalam transaksi.
 - Route binding Management Users untuk `UserPosition` memakai encrypted route

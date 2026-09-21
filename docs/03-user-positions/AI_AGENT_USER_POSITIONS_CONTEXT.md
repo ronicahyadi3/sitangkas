@@ -115,6 +115,33 @@ AI agent harus membedakan kebutuhan berikut:
   `realActivePosition()`, bukan `activePosition()`;
 - jangan membuat row `user_positions` baru untuk acting context Admin Super.
 
+### Critical rule: PDF watermark policy
+
+Target schema mempunyai tepat satu boolean pada posisi:
+
+```text
+user_positions.pdf_watermark_required BOOLEAN NOT NULL DEFAULT TRUE
+```
+
+Kolom ini menentukan rendition PDF **setelah** Policy dokumen mengizinkan aksi;
+kolom ini bukan permission. Berlaku untuk seluruh preview, view, dan download:
+
+- posisi nyata aktif dengan nilai `true`: hanya derivative watermark server-side;
+- posisi nyata aktif dengan nilai `false`: exact original canonical boleh dikirim;
+- Admin Super dalam mode **acting like**: selalu efektif `false`, terlepas dari
+  nilai row posisi real Admin Super;
+- Admin Super pada posisi bisnis nyata miliknya: mengikuti nilai row posisi itu;
+- guest tidak memiliki posisi dan, jika public-access policy lulus, selalu
+  menerima public-watermarked derivative;
+- authenticated user tanpa posisi aktif valid: delivery fail-closed.
+
+Jangan membuat `pdf_view_watermark_required` atau
+`pdf_download_watermark_required`. Byte PDF yang tampil di viewer dapat disimpan,
+sehingga kedua jalur wajib memakai resolver yang sama. Nilai default `true`
+berlaku untuk posisi baru; posisi existing harus dibackfill berdasarkan keputusan
+bisnis eksplisit dan hasilnya diaudit. Detail delivery, COPY-ID, cache, dan audit
+berada di `../08-esign/PDF_DELIVERY_WATERMARK_AND_VERIFICATION.md`.
+
 ---
 
 ## Position selection flow
@@ -207,6 +234,11 @@ user_id
 user_position_id
 ```
 
+Perubahan `pdf_watermark_required` juga wajib mempunyai audit before/after,
+aktor, alasan, dan timestamp. Event akses PDF sendiri disimpan append-only pada
+audit delivery yang dirancang di cluster eSign, bukan dengan mengubah
+`last_used_at` atau master posisi.
+
 Penyimpanan hanya `user_id` tidak cukup karena satu pengguna dapat bertindak dengan jabatan dan unit kerja berbeda.
 
 Untuk audit jangka panjang, pertimbangkan snapshot konteks pada tabel transaksi atau audit log:
@@ -298,7 +330,10 @@ File wajib disimpan pada storage privat. Database hanya menyimpan path dan metad
 
 Jangan menyimpan URL publik permanen pada `file_path`.
 
-Untuk akses pengguna, buat temporary signed URL atau streaming melalui controller yang memiliki authorization check.
+Untuk akses pengguna, utamakan streaming melalui controller yang memiliki
+authorization check dan resolver delivery PDF. Temporary signed URL hanya boleh
+dipakai jika tetap melewati keputusan `pdf_watermark_required`; URL tersebut
+tidak boleh membuka original langsung bagi posisi berflag `true` atau guest.
 
 State Management Users saat ini hanya upload file SK dan metadata
 `document_type`, `document_number`, `document_date`, serta `issued_by`. Workflow

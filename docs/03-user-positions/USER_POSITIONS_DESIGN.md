@@ -113,6 +113,36 @@ posisi melalui modal posisi. Posisi pertama user baru harus lewat
 menempelkan posisi awal hanya pada scope yang mereka kelola. Audit create posisi
 menyimpan metadata `is_initial_position`.
 
+### Kebijakan watermark PDF per posisi
+
+Target schema menambahkan tepat satu kolom:
+
+```text
+pdf_watermark_required BOOLEAN NOT NULL DEFAULT TRUE
+```
+
+Keputusan bisnisnya:
+
+- `true`: setiap PDF yang boleh diakses posisi tersebut—preview, view, maupun
+  download—harus diberikan sebagai derivative watermark server-side;
+- `false`: exact current canonical artifact boleh diberikan setelah Policy
+  dokumen lulus;
+- flag hanya memilih rendition dan tidak memberi capability akses;
+- tidak ada flag view/download terpisah dan tidak ada endpoint original bypass
+  untuk posisi berflag `true`;
+- posisi baru default `true`, sedangkan backfill seluruh posisi lama harus
+  eksplisit, reviewable, dan teraudit;
+- perubahan flag wajib melalui flow management terotorisasi dengan reason dan
+  audit before/after.
+
+Admin Super saat memakai posisi bisnis nyata miliknya mengikuti flag posisi
+nyata. Admin Super saat **acting like** adalah pengecualian final: delivery mode
+selalu diperlakukan sebagai `pdf_watermark_required=false`, tetapi scope posisi
+efektif dan Policy dokumen tetap harus lulus. Guest bukan row `user_positions`;
+guest hanya dapat menerima dokumen public-access dan selalu memakai public
+watermark. Detail canonical berada di
+`../08-esign/PDF_DELIVERY_WATERMARK_AND_VERIFICATION.md`.
+
 ### Masa berlaku
 
 Posisi dianggap dapat dipakai jika seluruh kondisi terpenuhi:

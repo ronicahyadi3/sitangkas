@@ -17,8 +17,8 @@ return new class extends Migration
             $table->unsignedSmallInteger('chain_index');
             $table->string('provider_certificate_id', 255)->nullable();
             $table->string('signature_algorithm', 100)->nullable();
-            $table->timestamp('not_before_at')->nullable();
-            $table->timestamp('not_after_at')->nullable();
+            $table->dateTime('not_before_at')->nullable();
+            $table->dateTime('not_after_at')->nullable();
             $table->json('key_usages')->nullable();
             $table->string('issuer_name', 500)->nullable();
             $table->string('serial_number', 255)->nullable();

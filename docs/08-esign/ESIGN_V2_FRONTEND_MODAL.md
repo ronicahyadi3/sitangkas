@@ -7,8 +7,11 @@ UI, keamanan passphrase, PDF viewer, dan integrasi dengan halaman Blade/payment.
 
 Halaman publik `/verify/{public_id}` berada di luar Svelte island dokumen ini.
 Halaman tersebut server-rendered dengan Blade + Bootstrap 5/custom Argon,
-menampilkan metadata minimum, dan hanya merender download setelah `auth` serta
-policy dokumen lulus. Svelte tetap digunakan untuk modal TTE/validasi internal.
+menampilkan metadata minimum. Guest hanya dapat menerima PDF bila public-access
+policy lulus dan selalu dalam bentuk public-watermarked; authenticated delivery
+tetap membutuhkan policy dokumen. Svelte tetap digunakan untuk modal
+TTE/validasi internal. Kontrak rendition lengkap berada di
+`PDF_DELIVERY_WATERMARK_AND_VERIFICATION.md`.
 
 ## 1. Keputusan frontend
 
@@ -30,6 +33,9 @@ policy dokumen lulus. Svelte tetap digunakan untuk modal TTE/validasi internal.
     target signer, atau handoff Admin Super.
 11. Signer yang login menempatkan QR/footer untuk step miliknya sendiri. Modal
     tidak menampilkan input NIK, termasuk untuk Admin Super.
+12. Frontend tidak memilih original/watermark dan tidak mengirim nilai
+    `pdf_watermark_required`. Semua URL preview/view/download diperoleh dari
+    backend setelah authorization serta context resolution.
 
 Snapshot `package.json` saat rancangan:
 
@@ -356,6 +362,8 @@ tombol sign bila Admin Super bukan signer sah pada step aktif.
 ### Tahap hasil
 
 Sukses menampilkan ringkasan signer, waktu, dan link unduh/preview terotorisasi.
+Link tersebut wajib melalui resolver delivery yang sama; UI tidak boleh
+menyediakan tombol original khusus atau menebak mode dari jabatan.
 Failure menampilkan safe application message. Passphrase salah dapat dicoba
 ulang setelah input dibersihkan; timeout/unknown tidak boleh menawarkan retry
 otomatis.
@@ -393,6 +401,12 @@ document ID/artifact reference, bukan blob yang baru saja diunduh browser.
 Cache validasi menggunakan immutable artifact version/SHA-256, bukan hanya URL.
 Invalidate cache ketika versi artifact berubah. Revoke object URL dan release
 PDF worker/document saat modal ditutup.
+
+PDF viewer menampilkan rendition yang diputuskan server. Untuk posisi nyata
+berflag `true` rendition selalu watermarked; flag `false` boleh original; Admin
+Super acting efektif `false`; guest public selalu public-watermarked. Status
+verifikasi berasal dari original artifact melalui cache/job asynchronous dan
+tidak boleh disimpulkan dari watermark derivative yang diterima browser.
 
 ## 10. PDF coordinate model
 
@@ -468,6 +482,7 @@ Baseline route di dalam middleware `web`/session auth, bukan public vendor API:
 | `POST` | `/esign/signing-sessions/{uuid}/sign` | validasi final, buat attempt, simpan secret terenkripsi ber-TTL, enqueue sign, respons `202` |
 | `GET` | `/esign/attempts/{uuid}` | status/reconciliation polling |
 | `POST` | `/esign/documents/{document}/verify` | validasi artifact server-side |
+| `GET` | route delivery artifact canonical | stream inline/attachment sesuai Policy dan resolver watermark yang sama |
 
 Nama final mengikuti convention route project, tetapi responsibility tidak
 boleh digabung menjadi satu endpoint lama `/esign/sign` berbasis FormData.
@@ -526,6 +541,11 @@ wajib mengembalikan attempt yang sama, bukan membuat vendor call kedua.
 - jangan download-upload kembali file untuk verify;
 - render halaman PDF secara virtual/lazy bila dokumen panjang;
 - batasi cache berdasarkan artifact version dan release resource ketika tutup;
+- response PDF harus `no-store` pada browser/proxy; cache 12 jam adalah cache
+  private server-side. Revoke setiap object URL saat modal tutup, context/posisi
+  berganti, artifact berubah, atau komponen di-unmount;
+- frontend tidak boleh fallback ke URL legacy/public/original ketika render
+  watermark gagal;
 - jangan memasukkan seluruh editor ke bundle utama aplikasi;
 - jangan membundel ulang Bootstrap, Popper, Argon, Open Sans, atau icon font
   yang telah disediakan layout;
