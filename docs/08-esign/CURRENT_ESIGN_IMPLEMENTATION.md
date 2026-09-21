@@ -7,8 +7,9 @@ authorization, signing session, private artifact persistence, secret store,
 endpoint internal, dan asynchronous signing job sudah berada di working tree.
 Sebanyak 13 migration tabel canonical sudah diterapkan pada database lokal;
 dua migration index mapping legacy tetap `Pending` untuk deployment wave
-terpisah. Workflow/artifact belum diprovisikan dari controller payment, worker
-server belum diaktifkan/dibuktikan, visible
+terpisah. Boundary upload controller payment kini mengantrekan provisioning
+source artifact/workflow/step setelah commit, tetapi worker server dan satu
+provisioning runtime terkontrol belum diaktifkan/dibuktikan. Visible
 QR/footer dan public verification belum dibuat, serta vertical slice baru belum
 dijalankan end-to-end melalui pipeline canonical.
 
@@ -35,11 +36,11 @@ hanya karena class-nya tersedia di repository.
 | 0 | Sebagian selesai | Containment lokal selesai; rotasi/revoke credential eksternal tetap tanggung jawab pemilik/deployment. |
 | 1 | Minimum selesai | Invisible NIK+passphrase satu PDF dan verify minimum pernah dibuktikan; visible coordinate, limit, timeout matrix, encrypted PDF, dan multi-file belum final. |
 | 2 | Kode selesai untuk scope awal | `EsignGateway`, `BsreClient`, DTO, mapper, payload invisible satu file, error taxonomy, dan config tersedia. |
-| 3 | Schema aktif, runtime belum diprovisikan | Sebanyak 13 tabel canonical, model, enum cast, transition/persistence, artifact storage, provider response, event, dan compatibility writer tersedia. Dua migration index mapping legacy masih `Pending`; mapping runner dan reconciliation belum ada. |
-| 4 | Sebagian besar kode selesai | Policy, authorization service, signer resolver, encrypted ephemeral session, context revalidation, dan private preview tersedia. Belum terhubung ke workflow nyata dari controller payment. |
+| 3 | Schema aktif, provisioning source tersedia | Sebanyak 13 tabel canonical, model, enum cast, transition/persistence, artifact storage, provider response, event, compatibility writer, dan job provisioning idempotent tersedia. Dua migration index mapping legacy masih `Pending`; runtime worker, mapping runner, dan reconciliation belum dibuktikan. |
+| 4 | Sebagian besar kode selesai | Policy, authorization service, signer resolver, encrypted ephemeral session, context revalidation, private preview, serta definition registry workflow payment tersedia. Assignment yang belum pasti sengaja tetap unresolved dan workflow tetap draft. |
 | 5 | Kode vertical slice tersedia, belum lulus acceptance | Endpoint internal, encrypted secret TTL, `202 Accepted`, queue job, sign-verify-finalize, polling, dan legacy projection tersedia. Belum diuji end-to-end karena schema/data/worker belum aktif. |
 | 6 | Belum | Visible placement QR/footer, coordinate transform, policy delivery PDF berbasis `pdf_watermark_required`, watermark/COPY-ID/cache/audit, verify endpoint publik, guest/authenticated delivery, dan legacy QR resolver belum dibuat. |
-| 7 | Belum lulus | Backend Ready Gate masih terhalang deployment index legacy, worker, provisioning, reconciliation, observability, performance proof, credential rotation, dan test yang diizinkan. |
+| 7 | Belum lulus | Backend Ready Gate masih terhalang deployment index legacy, pembuktian worker/provisioning runtime, binding assignment saat submit, reconciliation, observability, performance proof, credential rotation, dan test yang diizinkan. |
 | 8-10 | Belum | Dependency dan komponen Svelte/Vite eSign belum dipasang. |
 | 11 | Belum | Pilot payment belum dipilih/diaktifkan. |
 | 12 | Belum | Rollout, mapping legacy resumable, reporting cutover, dan decommission belum berjalan. |
@@ -221,9 +222,29 @@ menegakkan `pdf_watermark_required`; sebelum rollout ia harus dipindahkan ke
 delivery policy canonical. Backend sign tetap membaca exact original secara
 internal meskipun preview user berupa derivative watermark.
 
-Yang belum tersedia:
+Yang sudah tersedia untuk upload baru:
 
-- source artifact provisioning dari upload/controller payment;
+- seluruh 52 pemanggilan upload controller payment melewati
+  `DocumentHistoryService::upload()` dan mengantrekan
+  `ProvisionCanonicalDocument` setelah transaksi commit;
+- source PDF disalin dengan stream ke layout canonical, divalidasi header PDF,
+  ukuran, dan SHA-256, tanpa menghapus/memindah sumber legacy;
+- definition registry versi 1 membentuk urutan signer untuk UP, GU_SKPD,
+  GU_UK, LS, LS_GAJI, TU, dan KKPD;
+- workflow dibuat `draft`, step dibuat sequential `pending`, assignment exact
+  dari uploader/`users_to` dipakai bila role cocok, dan sisanya disimpan
+  `unresolved`/`partial` tanpa tebakan;
+- `BMD` dan `SPJ` mendapat artifact canonical tanpa workflow TTE;
+- job memakai queue `signatures`, unique per document, row locking, retry
+  terbatas, dan dapat diulang secara idempotent.
+
+Yang belum tersedia/dibuktikan:
+
+- binding ulang assignment canonical ketika submit/handoff legacy memilih
+  signer berikutnya;
+- aktivasi workflow dan step pertama setelah seluruh prasyarat submit/verify
+  terpenuhi;
+- controlled runtime proof job provisioning terhadap satu upload baru;
 - historical file mapper/copy runner;
 - scheduled cleanup staging;
 - orphan/stuck artifact reconciliation;
@@ -261,9 +282,9 @@ Prasyarat SELF_SIGN yang ditegakkan:
 digit, dan hanya mengekspos bentuk masked ke session/client. Full NIK tidak
 diterima dari request final sign.
 
-Authorization matrix per seluruh kombinasi payment/src type masih harus
-dibuktikan saat provisioning dan rollout. Policy yang ada belum berarti semua
-controller payment telah terintegrasi.
+Definition matrix payment/src type sudah dikodekan pada registry, tetapi parity
+authorization dan assignment setiap cabang tetap harus dibuktikan saat submit,
+pilot, dan rollout. Hook upload tidak berarti workflow sudah boleh diaktifkan.
 
 ## 8. Signing session ephemeral
 
@@ -582,17 +603,18 @@ Yang **tidak** dilakukan pada implementasi terbaru:
 
 ### Prioritas langsung
 
-1. buat source artifact dan workflow provisioning dari controller payment;
-2. aktifkan dedicated queue worker dan shared cache yang sesuai deployment;
-3. jalankan controlled invisible vertical slice;
-4. implementasikan reconciliation dan stuck recovery;
-5. jadwalkan dua migration index mapping legacy sebagai deployment wave
+1. aktifkan dedicated queue worker dan shared cache yang sesuai deployment;
+2. jalankan controlled provisioning satu upload dan audit artifact/workflow/step;
+3. integrasikan assignment sync + activation pada submit/handoff payment;
+4. jalankan controlled invisible vertical slice;
+5. implementasikan reconciliation dan stuck recovery;
+6. jadwalkan dua migration index mapping legacy sebagai deployment wave
    terpisah setelah capacity/lock review.
 
 ### Backend lanjutan
 
-- workflow definition nyata untuk setiap payment/src type;
-- integration adapter pada controller payment;
+- parity proof definition workflow untuk seluruh cabang payment;
+- assignment sync/activation adapter pada submit/verify controller payment;
 - visible placement DTO/validation/coordinate transform;
 - QR dan footer server-side;
 - persistence `esign_attempt_signature_properties` dari placement nyata;
@@ -639,21 +661,22 @@ dependency mendapat otorisasi.
 ## 18. Urutan implementasi berikutnya
 
 ```text
-1. Canonical source artifact/workflow/step provisioning
-2. Queue worker + shared cache + operational preflight
-3. Controlled invisible signing vertical slice
-4. Reconciliation/stuck/cleanup/observability
-5. Legacy mapping index deployment wave
-6. Visible QR/footer placement backend
-7. Policy delivery PDF + watermark/cache/audit + verify/public route + legacy resolver
-8. Backend Ready Gate
-9. Svelte/Vite foundation
-10. Signing modal
-11. Visible editor + validation modal
-12. Pilot payment
-13. Rollout per payment
-14. Resumable legacy mapping + reporting cutover
-15. Folder decommission setelah seluruh gate
+1. Queue worker + shared cache + operational preflight
+2. Controlled provisioning proof satu upload baru
+3. Assignment sync + workflow activation pada submit/handoff
+4. Controlled invisible signing vertical slice
+5. Reconciliation/stuck/cleanup/observability
+6. Legacy mapping index deployment wave
+7. Visible QR/footer placement backend
+8. Policy delivery PDF + watermark/cache/audit + verify/public route + legacy resolver
+9. Backend Ready Gate
+10. Svelte/Vite foundation
+11. Signing modal
+12. Visible editor + validation modal
+13. Pilot payment
+14. Rollout per payment
+15. Resumable legacy mapping + reporting cutover
+16. Folder decommission setelah seluruh gate
 ```
 
 ## 19. Larangan untuk agent berikutnya
@@ -668,8 +691,8 @@ dependency mendapat otorisasi.
 - Jangan melewati `esign.visible_placement_not_ready` dengan koordinat tebakan.
 - Jangan menerima NIK, file path, workflow state, atau destination path dari
   frontend.
-- Jangan menganggap controller payment sudah terintegrasi hanya karena endpoint
-  internal tersedia.
+- Jangan menganggap hook upload berarti submit/handoff telah mengikat seluruh
+  signer atau workflow sudah boleh diaktifkan.
 - Jangan memasang dependency frontend sebelum Backend Ready Gate.
 - Jangan menghapus, truncate, rename, freeze, atau drop tabel compatibility.
 - Jangan menghapus/memindah source legacy dari mapping command.

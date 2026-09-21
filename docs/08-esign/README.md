@@ -9,7 +9,9 @@ encrypted TTL secret store, compatibility writer, endpoint internal, serta job
 signing asynchronous Phase 3-5 sudah berada di working tree. Sebanyak 13
 migration tabel canonical sudah diterapkan pada database lokal; dua migration
 index mapping legacy tetap `Pending` untuk wave terpisah. Controller payment
-belum memprovisikan artifact/workflow/step, worker server belum dibuktikan aktif, vertical slice
+telah mempunyai hook upload after-commit untuk mengantrekan provisioning
+artifact/workflow/step, tetapi worker server dan satu provisioning runtime
+terkontrol belum dibuktikan aktif. Assignment sync/activation saat submit/handoff dan vertical slice
 canonical belum diuji end-to-end, reconciliation/visible placement/public
 verification/mapping runner/frontend belum dibuat. Baca
 `CURRENT_ESIGN_IMPLEMENTATION.md` untuk kondisi kode aktual dan batas

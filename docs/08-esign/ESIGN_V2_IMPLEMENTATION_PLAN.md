@@ -5,8 +5,9 @@ Tanggal snapshot: **21 September 2026**.
 Status: **rencana kerja dan tracker. Kondisi source code aktual berada pada
 `CURRENT_ESIGN_IMPLEMENTATION.md`: Phase 2 selesai untuk scope awal, fondasi
 source Phase 3-5 sudah tersedia dan 13 tabel canonical sudah diterapkan pada
-database lokal. Dua migration index legacy masih `Pending`; provisioning
-payment/worker/vertical slice runtime belum selesai, dan Phase 6-12 belum
+database lokal. Dua migration index legacy masih `Pending`; source
+artifact/workflow/step provisioning dari upload payment sudah dibuat tetapi
+belum dibuktikan oleh worker runtime, dan Phase 6-12 belum
 diimplementasikan**.
 
 Dokumen ini mengarahkan agent pada urutan kerja, dependency, acceptance, dan
@@ -58,13 +59,14 @@ schema, application error code, route, authorization, dan state backend stabil.
   response/signature persistence, authorization/policy, signer resolver,
   ephemeral signing session, private preview, encrypted TTL secret store,
   compatibility writer, endpoint internal, polling, dan dedicated
-  `PerformEsignAttempt` job.
+  `PerformEsignAttempt` job, definition registry payment, serta job provisioning
+  source artifact/workflow/step setelah upload commit.
 - **Schema aktif:** 13 migration tabel canonical sudah diterapkan pada database
   lokal dalam batch 9-21. Dua migration index mapping legacy tetap `Pending`
   untuk wave deployment terpisah.
-- **Belum diaktifkan/dibuktikan:** controller payment belum membuat artifact/
-  workflow/step; dedicated worker server belum dibuktikan berjalan; pipeline
-  canonical belum diuji end-to-end.
+- **Belum diaktifkan/dibuktikan:** job provisioning belum dijalankan melalui
+  dedicated worker terhadap satu upload baru; assignment sync/activation saat
+  submit/handoff belum dibuat; pipeline canonical belum diuji end-to-end.
 - **Sengaja fail-closed:** step `placement_required=true` belum dapat sign dan
   menghasilkan `esign.visible_placement_not_ready` sampai backend visible
   placement selesai.

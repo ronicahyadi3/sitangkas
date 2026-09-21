@@ -4,12 +4,16 @@ declare(strict_types=1);
 
 namespace App\Services\Document;
 
+use App\Jobs\Esign\ProvisionCanonicalDocument;
 use App\Models\Document;
 use App\Models\DocumentHistory;
 use App\Models\UserPosition;
 use App\Services\User\ActivePositionService;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use RuntimeException;
+use Throwable;
 
 final class DocumentHistoryService
 {
@@ -17,7 +21,35 @@ final class DocumentHistoryService
 
     public function upload(int $documentId, ?string $sourceName, ?int $unitKerjaId = null): DocumentHistory
     {
-        return $this->record(DocumentHistory::ACTION_UPLOAD, $documentId, $sourceName, $unitKerjaId);
+        $history = $this->record(DocumentHistory::ACTION_UPLOAD, $documentId, $sourceName, $unitKerjaId);
+        $realPosition = $this->activePosition->real();
+        $effectivePosition = $this->activePosition->get();
+        $actorUserId = $realPosition?->user_id ?? $effectivePosition?->user_id;
+        $actorUserPositionId = $realPosition?->getKey();
+        $actorIsActing = $effectivePosition?->getAttribute('is_acting_context') === true;
+
+        DB::afterCommit(static function () use (
+            $documentId,
+            $actorUserId,
+            $actorUserPositionId,
+            $actorIsActing,
+        ): void {
+            try {
+                ProvisionCanonicalDocument::dispatch(
+                    documentId: $documentId,
+                    actorUserId: $actorUserId === null ? null : (int) $actorUserId,
+                    actorUserPositionId: $actorUserPositionId === null ? null : (int) $actorUserPositionId,
+                    actorIsActing: $actorIsActing,
+                );
+            } catch (Throwable $exception) {
+                Log::channel('module_esign')->critical('Gagal mengantrekan provisioning canonical dokumen.', [
+                    'document_id' => $documentId,
+                    'exception_class' => $exception::class,
+                ]);
+            }
+        });
+
+        return $history;
     }
 
     public function edited(int $documentId, ?string $sourceName, ?int $unitKerjaId = null): DocumentHistory
