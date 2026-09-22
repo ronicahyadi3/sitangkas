@@ -1,11 +1,37 @@
 # Rencana Implementasi Payment LS
 
-Tanggal snapshot: **8 September 2026**.
+Tanggal rencana awal: **8 September 2026**. Status diperbarui **22 September
+2026**.
 
-Status: **rekomendasi tindak lanjut; belum diimplementasikan**.
+Status: **sedang diimplementasikan; Tahap 1 sebagian besar tersedia dan vertical
+slice create/upload SPP sedang berjalan**.
 
 Dokumen pendamping: [analisis dan bukti kode](PAYMENT_LS_ANALYSIS.md).
 Dokumen ini tidak menetapkan schema atau aturan bisnis baru secara final.
+
+Kondisi kode dan blocker terbaru wajib dibaca pada
+[PAYMENT_LS_CURRENT_IMPLEMENTATION.md](PAYMENT_LS_CURRENT_IMPLEMENTATION.md).
+
+## 0. Kemajuan aktual 22 September 2026
+
+- [x] Model bersama `Document`, `DocumentHistory`, anggaran, `BeforeSign`, dan
+  `AfterSign` tersedia.
+- [x] Route LS SPP/SPM/SP2D dan menu sidebar tersedia.
+- [x] Controller Data shared telah diadaptasi ke encrypted ID, posisi aktif,
+  scope organisasi, scope tahun, dan transaksi/histori.
+- [x] `StoreSppRequest` tersedia dengan authorization, validasi PDF, rekening,
+  total nominal, serta sisa pagu.
+- [x] Create/upload file utama SPP menghasilkan canonical `before_sign` artifact
+  pada private storage tanpa membuat file baru di `public/File_SPP`.
+- [x] Resolver current artifact dan route content/download khusus LS SPP tersedia
+  pada source code.
+- [x] Formula `storage_path_sha256` disatukan melalui helper shared; 4/4 artifact
+  lokal cocok dengan formula `storage_disk:file_path`.
+- [ ] Buat `UpdateSppRequest` yang saat ini masih missing dependency.
+- [ ] Migrasikan replacement SPP pada `update()` ke artifact version canonical.
+- [ ] Migrasikan SPJ, Billing, dan BMD create/update dari public storage.
+- [ ] Validasi runtime upload, rollback, delivery, provisioning, dan TTE LS.
+- [ ] Review dan selesaikan SPM, SP2D, bank, serta penyelesaian LS.
 
 ## 1. Arah pekerjaan yang diminta pengguna
 
@@ -21,7 +47,8 @@ diaktifkan atau direfaktor.
 ## 2. Titik mulai untuk agent berikutnya
 
 1. Baca `AGENTS.md`, [invariant project](../00-ai-agent/PROJECT_INVARIANTS.md),
-   lalu [hasil analisis](PAYMENT_LS_ANALYSIS.md).
+   [kondisi implementasi aktual](PAYMENT_LS_CURRENT_IMPLEMENTATION.md), lalu
+   [hasil analisis awal](PAYMENT_LS_ANALYSIS.md).
 2. Periksa `git status` dan perubahan terkini tanpa me-reset pekerjaan pengguna.
 3. Cocokkan kembali dependensi, route, schema database aktif, dan layanan konteks
    dengan snapshot; jangan mengulang audit seluruh payment bila tidak berubah.
@@ -33,22 +60,24 @@ diaktifkan atau direfaktor.
    melalui `search-docs`. Sebelum model/migration, inspeksi schema dan baca
    [readiness migration](../06-migrations/FRESH_INSTALL_READINESS.md).
 
-Hasil konkret pertama yang disarankan: rancangan keluarga dokumen LS, pemetaan
-role/scope, identitas pembuat-penerima-penanda tangan, serta kontrak tahun/anggaran.
-Setelah itu bangun fondasi dan alur SPP sebagai pekerjaan pertama.
+Fondasi awal, create/upload SPP, dan kontrak `storage_path_sha256` sudah
+dikerjakan. Hasil konkret berikutnya yang disarankan adalah melengkapi
+`UpdateSppRequest`, lalu membuat replacement SPP sebagai version canonical baru
+di private storage. Setelah vertical slice SPP lulus runtime, lanjutkan
+attachment SPP, SPM, dan SP2D secara bertahap.
 
 ## 3. Keputusan yang belum ditetapkan
 
 | Topik | Yang sudah diketahui | Yang perlu dipastikan sebelum pekerjaan terkait |
 |---|---|---|
-| Data awal | Database aktif belum mempunyai tabel payment | Mulai transaksi baru saja atau juga import histori LS; periode dan sumber import bila dibutuhkan |
-| Struktur dokumen | Legacy menggunakan `document` dan keluarga beranchor SPP | Nama/schema final, relasi keluarga, lampiran, versi, audit, serta constraint kardinalitas |
+| Data awal | Tabel operasional `document`, `document_process`, anggaran, `before_signs`, dan `after_signs` sudah disediakan; model bersama tersedia | Apakah histori LS juga diimpor; periode, sumber, dan high-watermark bila dibutuhkan |
+| Struktur dokumen | `document` tetap projection bersama dan `document_artifacts` menyimpan version chain; keluarga LS tetap beranchor SPP | Constraint kardinalitas keluarga, mapping Billing, dan aturan replacement/revisi artifact |
 | Sumber anggaran | SPP wajib mempunyai rekening/pagu dan rincian penggunaan | Sumber resmi, tahun/unit, cara pemuatan, serta aturan perubahan pagu |
 | Scope organisasi | `skpd_id` telah dihapus; master memakai instansi/parent/jenis/kode | Pemetaan kewenangan PA/KPA/PPK terhadap sekolah, kesehatan, Setda, kecamatan, dan unit terkait |
 | Tahap/revisi | Legacy memakai CSV dan BP/BPP mengajukan lebih dari sekali | Matriks action-stage, kapan revisi/tolak/hapus boleh, serta dampak terhadap persetujuan dan dokumen turunan |
 | Identitas posisi | Lookup dan `users_to` lama mengacu posisi; acting overlay mempertahankan ID posisi Admin Super | Kontrak identitas setiap kolom dan perlakuan pergantian pejabat/posisi |
 | Tahun historis | Permission melekat pada posisi dan tidak memperluas role | Penegakan pada LS, audit used/denied, tahun mendatang, dan penerapan pengecualian Admin Super |
-| TTE | Aset UI ada; backend belum dibawa | Provider/kontrak/config yang dipakai, lingkungan integrasi, identitas penanda tangan, hasil/callback/retry yang berlaku |
+| TTE | Backend canonical, queue, artifact, attempt, verify, dan compatibility writer tersedia; formula integrity hash sudah konsisten; LS belum lulus end-to-end | Aktivasi workflow/step LS, assignment signer, environment, dan acceptance runtime |
 | Acting dan tanda tangan | Effective context dapat berbeda dari aktor nyata | Jangan menganggap acting otomatis mengizinkan tanda tangan atas identitas orang lain; cocokkan kebijakan dan identitas provider |
 | Bank dan billing | Legacy menandai selesai dan memperbarui keluarga LS | Peran bank, arti selesai, aturan penolakan/revisi billing, dan batas integrasi eksternal yang diperlukan |
 
@@ -193,14 +222,20 @@ berlaku; jangan meminta ulang bila izin tersebut sudah diberikan.
 - Dokumentasi membedakan hasil implementasi aktual dari rekomendasi yang belum
   dikerjakan. Payment lain tetap menjadi pekerjaan setelah LS selesai.
 
-## 8. Status pekerjaan pada snapshot awal
+## 8. Status pekerjaan terhadap rencana
 
 - [x] Analisis controller/model/view LS dan dependensi shared.
 - [x] Perbandingan dengan payment lain dan project referensi lama.
 - [x] Pemeriksaan route dan schema aktif secara read-only.
 - [x] Dokumentasi temuan, rekomendasi, dan keputusan terbuka.
 - [ ] Keputusan schema dan matriks bisnis LS final.
-- [ ] Fondasi dokumen/anggaran/otorisasi LS.
+- [x] Fondasi model dokumen/anggaran bersama tersedia; review konkurensi dan
+  workflow masih terbuka.
+- [x] Route, menu, dan request create SPP tersedia.
+- [x] Upload utama SPP memakai private canonical artifact.
+- [x] Perbaikan blocker delivery hash.
+- [ ] Validasi runtime delivery.
+- [ ] Update SPP canonical dan private attachment SPP.
 - [ ] Implementasi SPP lengkap.
 - [ ] Implementasi SPM lengkap.
 - [ ] Implementasi SP2D, TTE, billing, dan penyelesaian bank khusus LS.

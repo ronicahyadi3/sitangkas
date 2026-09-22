@@ -406,7 +406,15 @@ class Detail extends Controller
         $assignedTo = $this->csvToArray($data->assigned_to);
         $submit = $this->csvToArray($data->submit);
         $statusList = $this->csvToArray($data->status);
-        $fileUrl = $this->generateUrl($data->src_type, $data->src_name, $status);
+        $isLsSpp = $data->payment_type === 'LS' && $data->src_type === Document::TYPE_SPP;
+        $encryptedDocumentId = $isLsSpp ? EncryptedId::encode($data->id) : null;
+        $contentUrl = $encryptedDocumentId === null
+            ? null
+            : route('document.ls.spp.content', ['document' => $encryptedDocumentId]);
+        $downloadUrl = $encryptedDocumentId === null
+            ? null
+            : route('document.ls.spp.download', ['document' => $encryptedDocumentId]);
+        $fileUrl = $downloadUrl ?? $this->generateUrl($data->src_type, $data->src_name, $status);
         $documentDate = optional($data->created_at)->format('Y-m-d') ?? 'tanggal-tidak-tersedia';
         $downloadName = $data->unit_kerja.' - '.str_replace('/', '|', (string) $data->nomor).' - '.$documentDate.'.pdf';
         $hasAuthority = in_array((int) $id, $authority['id_jabatan'], true);
@@ -420,15 +428,15 @@ class Detail extends Controller
 
         if ($data->payment_type === 'TU' && $data->src_type === 'PENGAJUAN' && (int) $id === 4) {
             if ($data->verify && (($submitCount['4'] ?? 0) === 1) && in_array('2', $statusList, true)) {
-                $result .= $this->generateButton('success', 'Sudah TTE', 'green', $authority['path'], $data->src_name, $status, true);
+                $result .= $this->generateButton('success', 'Sudah TTE', 'green', $authority['path'], $data->src_name, $status, true, $contentUrl);
             } elseif ($data->verify && (($submitCount['4'] ?? 0) === 1)) {
-                $result .= $this->generateButton('secondary', 'Menunggu TTE BUD', 'blue', $authority['path'], $data->src_name, $status, true);
+                $result .= $this->generateButton('secondary', 'Menunggu TTE BUD', 'blue', $authority['path'], $data->src_name, $status, true, $contentUrl);
             } elseif ($data->verify) {
-                $result .= $this->generateButton('success', 'Terverifikasi', 'green', $authority['path'], $data->src_name, $status, true);
+                $result .= $this->generateButton('success', 'Terverifikasi', 'green', $authority['path'], $data->src_name, $status, true, $contentUrl);
             } elseif (in_array('5', $submit, true) || in_array('6', $submit, true)) {
-                $result .= $this->generateButton('warning', 'Belum Verifikasi', 'orange', $authority['path'], $data->src_name, $status, true);
+                $result .= $this->generateButton('warning', 'Belum Verifikasi', 'orange', $authority['path'], $data->src_name, $status, true, $contentUrl);
             } else {
-                $result .= $this->generateButton('success', 'Tampilkan', 'green', $authority['path'], $data->src_name, $status, true);
+                $result .= $this->generateButton('success', 'Tampilkan', 'green', $authority['path'], $data->src_name, $status, true, $contentUrl);
             }
 
             $result .= '<a href="'.e($fileUrl).'" type="button" class="btn btn-sm btn-primary" download="'.e($downloadName).'" target="_blank" data-wenk-pos="top" data-wenk="Download" data-wenk-color="green"><i class="fas fa-file-download"></i> Download</a>';
@@ -444,16 +452,16 @@ class Detail extends Controller
                 $isStatusChecked &&
                 $isForwardedToBp
             ) {
-                $result .= $this->generateButton('success', 'Tampilkan', 'green', $authority['path'], $data->src_name, $status, true);
+                $result .= $this->generateButton('success', 'Tampilkan', 'green', $authority['path'], $data->src_name, $status, true, $contentUrl);
             } elseif ($shouldShowBelumTte) {
-                $result .= $this->generateButton('warning', 'Belum TTE', 'orange', $authority['path'], $data->src_name, $status);
+                $result .= $this->generateButton('warning', 'Belum TTE', 'orange', $authority['path'], $data->src_name, $status, false, $contentUrl);
             } elseif ($shouldShowSudahTte) {
-                $result .= $this->generateButton('success', 'Sudah TTE', 'green', $authority['path'], $data->src_name, $status);
+                $result .= $this->generateButton('success', 'Sudah TTE', 'green', $authority['path'], $data->src_name, $status, false, $contentUrl);
             } elseif ($isSubmitted) {
-                $result .= $this->generateButton('success', 'Tampilkan', 'green', $authority['path'], $data->src_name, $status, true);
+                $result .= $this->generateButton('success', 'Tampilkan', 'green', $authority['path'], $data->src_name, $status, true, $contentUrl);
             } else {
                 if ($userData->jabatan->id == 1) {
-                    $result .= $this->generateButton('success', 'Tampilkan', 'green', $authority['path'], $data->src_name, $status, true);
+                    $result .= $this->generateButton('success', 'Tampilkan', 'green', $authority['path'], $data->src_name, $status, true, $contentUrl);
                 } else {
                     $result .= $this->generateButton('danger', 'Error Data', 'red', '', '', $status);
                 }
@@ -464,9 +472,9 @@ class Detail extends Controller
         } else {
             if ($data->billing) {
                 $result .= $this->generateButton('success', 'Billing', 'green', '/File_Billing/', $data->billing, false, true);
-                $result .= $this->generateButton('success', 'Tampilkan', 'green', $authority['path'], $data->src_name, $status, true, true);
+                $result .= $this->generateButton('success', 'Tampilkan', 'green', $authority['path'], $data->src_name, $status, true, $contentUrl);
             } else {
-                $result .= $this->generateButton('success', 'Tampilkan', 'green', $authority['path'], $data->src_name, $status, true, true);
+                $result .= $this->generateButton('success', 'Tampilkan', 'green', $authority['path'], $data->src_name, $status, true, $contentUrl);
             }
             if ($data->spj_fungsional) {
                 $result .= $this->generateButton('success', 'Tampilkan', 'green', '/File_spj_fungsional/', $data->spj_fungsional, false, true);
@@ -477,9 +485,10 @@ class Detail extends Controller
         return $result;
     }
 
-    private function generateButton($btnClass, $text, $color, $path, $fileName, $status, $isPdf = false)
+    private function generateButton($btnClass, $text, $color, $path, $fileName, $status, $isPdf = false, ?string $deliveryUrl = null)
     {
-        $filePath = (! $status) ? $path.$fileName : $path.'signs/'.$fileName;
+        $legacyFilePath = (! $status) ? $path.$fileName : $path.'signs/'.$fileName;
+        $filePath = $deliveryUrl ?? $legacyFilePath;
         $tooltip = $isPdf ? 'Tampilkan' : $text;
         $errorIcon = $color == 'red' ? '<i class="fas fa-exclamation-triangle"></i> ' : '<i class="fas fa-file-signature"></i>';
 

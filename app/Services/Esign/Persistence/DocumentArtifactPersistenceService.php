@@ -12,6 +12,7 @@ use App\Models\Document;
 use App\Models\Esign\DocumentArtifact;
 use App\Models\Esign\DocumentSigningWorkflow;
 use App\Models\Esign\EsignAttempt;
+use App\Support\Esign\DocumentArtifactStoragePath;
 use Carbon\CarbonImmutable;
 use DateTimeInterface;
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
@@ -89,6 +90,47 @@ final class DocumentArtifactPersistenceService
                 'staging_delete_failed',
                 $stagedArtifact->publicId,
             );
+        }
+    }
+
+    public function discardUnpersistedSourceArtifact(StagedDocumentArtifact $stagedArtifact): void
+    {
+        $this->assertStagedArtifact($stagedArtifact);
+
+        if (DocumentArtifact::query()
+            ->where('public_id', $stagedArtifact->publicId)
+            ->exists()) {
+            return;
+        }
+
+        $disk = $this->disk();
+        $paths = [
+            $stagedArtifact->stagingPath,
+            $this->finalPath($stagedArtifact, DocumentArtifactType::BeforeSign),
+        ];
+        $existingPaths = [];
+
+        foreach ($paths as $path) {
+            if (! $disk->exists($path)) {
+                continue;
+            }
+
+            $this->assertInspectionMatches(
+                $stagedArtifact,
+                $this->inspectStoredFile($disk, $path, $stagedArtifact->publicId),
+                'unpersisted_source_file_changed',
+            );
+
+            $existingPaths[] = $path;
+        }
+
+        foreach ($existingPaths as $path) {
+            if (! $disk->delete($path)) {
+                throw new EsignArtifactStorageException(
+                    'unpersisted_source_delete_failed',
+                    $stagedArtifact->publicId,
+                );
+            }
         }
     }
 
@@ -431,9 +473,9 @@ final class DocumentArtifactPersistenceService
                 'is_current' => $makeCurrent,
                 'storage_disk' => $stagedArtifact->storageDisk,
                 'file_path' => $finalPath,
-                'storage_path_sha256' => hash(
-                    'sha256',
-                    $stagedArtifact->storageDisk.':'.$finalPath,
+                'storage_path_sha256' => DocumentArtifactStoragePath::checksum(
+                    $stagedArtifact->storageDisk,
+                    $finalPath,
                 ),
                 'original_name' => $this->normalizeOriginalName($originalName),
                 'stored_name' => basename($finalPath),

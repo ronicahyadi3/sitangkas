@@ -1,8 +1,16 @@
 # Analisis Migrasi Payment LS
 
-Tanggal snapshot: **8 September 2026**.
+Tanggal snapshot awal: **8 September 2026**.
 
-Status: **analisis selesai; implementasi LS belum dilakukan**.
+Status: **baseline analisis historis; implementasi telah dimulai setelah
+snapshot ini**.
+
+Kondisi kode terbaru, private artifact SPP, delivery route, TTE compatibility,
+blocker, dan handoff lanjutan berada di
+[PAYMENT_LS_CURRENT_IMPLEMENTATION.md](PAYMENT_LS_CURRENT_IMPLEMENTATION.md).
+Jika ada perbedaan status, gunakan dokumen kondisi aktual dan verifikasi working
+tree. Temuan LS-01 sampai LS-08 di file ini tetap menjadi daftar risiko sampai
+masing-masing dinyatakan selesai dengan bukti.
 
 Dokumen ini menyimpan temuan pemeriksaan source code, route, dan struktur
 database agar AI agent berikutnya dapat melanjutkan pekerjaan tanpa mengulang
@@ -364,4 +372,6 @@ Referensi resmi yang diperiksa saat analisis:
 - [Laravel 13 query locking dan transaksi](https://laravel.com/framework/docs/13.x/queries#pessimistic-locking)
 - [Laravel 13 file storage](https://laravel.com/framework/docs/filesystem)
 
-Langkah berikutnya: baca [rencana implementasi dan keputusan terbuka](PAYMENT_LS_IMPLEMENTATION_PLAN.md).
+Langkah berikutnya: baca
+[kondisi implementasi aktual](PAYMENT_LS_CURRENT_IMPLEMENTATION.md), kemudian
+[rencana implementasi dan keputusan terbuka](PAYMENT_LS_IMPLEMENTATION_PLAN.md).

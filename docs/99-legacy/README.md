@@ -9,6 +9,7 @@ Cluster ini menjelaskan pemetaan data lama ke struktur SITANGKAS baru.
 | Lokasi project lama yang harus dicontoh | `OLD_PROJECT_REFERENCE.md` |
 | Mapping dump lama ke master baru | `LEGACY_MAPPING.md` |
 | Import `users.sql` menjadi akun distinct NIK dan posisi dengan ID legacy | [LEGACY_USERS_IMPORT_DECISIONS.md](LEGACY_USERS_IMPORT_DECISIONS.md) |
+| Kondisi kode, private artifact, delivery, TTE, blocker, dan handoff Payment LS terbaru | [PAYMENT_LS_CURRENT_IMPLEMENTATION.md](PAYMENT_LS_CURRENT_IMPLEMENTATION.md) |
 | Analisis migrasi payment LS, dependensi, alur, dan temuan kode | [PAYMENT_LS_ANALYSIS.md](PAYMENT_LS_ANALYSIS.md) |
 | Melanjutkan implementasi LS, keputusan terbuka, dan kriteria selesai | [PAYMENT_LS_IMPLEMENTATION_PLAN.md](PAYMENT_LS_IMPLEMENTATION_PLAN.md) |
 | Seeder master data hasil mapping | `../02-master-data/AI_AGENT_MASTER_DATA_SEEDERS.md` |
@@ -81,7 +82,13 @@ pengguna.
 ## Payment LS
 
 Pengguna memprioritaskan implementasi LS sebelum payment lain. Snapshot analisis
-8 September 2026 menyatakan controller/view payment masih salinan legacy dan LS
-belum terintegrasi. Mulai dari [hasil analisis](PAYMENT_LS_ANALYSIS.md), lalu
-[rencana implementasi](PAYMENT_LS_IMPLEMENTATION_PLAN.md). Bedakan temuan snapshot,
-rekomendasi, dan keputusan bisnis yang masih terbuka sebelum melanjutkan kode.
+8 September 2026 tetap menjadi baseline historis. Kondisi 22 September 2026
+sudah bergerak ke implementasi SPP: route/menu/model/request store/controller
+shared tersedia, upload SPP utama sudah menjadi canonical private artifact, dan
+delivery route khusus LS SPP sudah dibuat. Mulai dari
+[kondisi implementasi aktual](PAYMENT_LS_CURRENT_IMPLEMENTATION.md), lalu baca
+[hasil analisis awal](PAYMENT_LS_ANALYSIS.md) dan
+[rencana implementasi](PAYMENT_LS_IMPLEMENTATION_PLAN.md). Jangan menganggap
+SPP/LS siap produksi; dokumen aktual mencatat missing `UpdateSppRequest`,
+storage public yang tersisa, dan validasi runtime yang belum dilakukan. Blocker
+formula integrity hash sudah diperbaiki melalui helper shared.

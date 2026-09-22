@@ -5,6 +5,7 @@ namespace App\Services\Esign;
 use App\Data\Esign\DocumentArtifactIntegrityData;
 use App\Exceptions\Esign\EsignArtifactStorageException;
 use App\Models\Esign\DocumentArtifact;
+use App\Support\Esign\DocumentArtifactStoragePath;
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Filesystem\FilesystemManager;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -28,6 +29,16 @@ final class DocumentArtifactIntegrityService
 
     public function inlineResponse(DocumentArtifact $artifact): StreamedResponse
     {
+        return $this->response($artifact, 'inline');
+    }
+
+    public function downloadResponse(DocumentArtifact $artifact): StreamedResponse
+    {
+        return $this->response($artifact, 'attachment');
+    }
+
+    private function response(DocumentArtifact $artifact, string $disposition): StreamedResponse
+    {
         $this->assertReadablePdf($artifact);
         $filename = $artifact->original_name ?: $artifact->stored_name ?: "{$artifact->public_id}.pdf";
 
@@ -37,12 +48,12 @@ final class DocumentArtifactIntegrityService
                 (string) $artifact->file_path,
                 basename((string) $filename),
                 [
-                    'Cache-Control' => 'private, no-store, max-age=0',
+                    'Cache-Control' => 'private, no-store, max-age=0, must-revalidate',
                     'Content-Type' => 'application/pdf',
                     'Pragma' => 'no-cache',
                     'X-Content-Type-Options' => 'nosniff',
                 ],
-                'inline',
+                $disposition,
             );
     }
 
@@ -58,7 +69,10 @@ final class DocumentArtifactIntegrityService
             || preg_match('/\A[a-f0-9]{64}\z/i', (string) $artifact->file_sha256) !== 1
             || ! hash_equals(
                 (string) $artifact->storage_path_sha256,
-                hash('sha256', (string) $artifact->file_path),
+                DocumentArtifactStoragePath::checksum(
+                    (string) $artifact->storage_disk,
+                    (string) $artifact->file_path,
+                ),
             )) {
             throw new EsignArtifactStorageException('artifact_metadata_invalid', $publicId);
         }

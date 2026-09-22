@@ -63,12 +63,16 @@ credential, hardcoded signer, atau pola keamanan legacy.
 Untuk pekerjaan migrasi payment LS, SPP/SPM/SP2D LS, dokumen pendukung,
 anggaran LS, TTE/billing/bank yang diperlukan LS, baca:
 
-1. [Hasil analisis payment LS](99-legacy/PAYMENT_LS_ANALYSIS.md)
-2. [Rencana implementasi dan keputusan terbuka](99-legacy/PAYMENT_LS_IMPLEMENTATION_PLAN.md)
-3. `99-legacy/OLD_PROJECT_REFERENCE.md`
+1. [Kondisi implementasi Payment LS saat ini](99-legacy/PAYMENT_LS_CURRENT_IMPLEMENTATION.md)
+2. [Hasil analisis awal payment LS](99-legacy/PAYMENT_LS_ANALYSIS.md)
+3. [Rencana implementasi dan keputusan terbuka](99-legacy/PAYMENT_LS_IMPLEMENTATION_PLAN.md)
+4. `99-legacy/OLD_PROJECT_REFERENCE.md`
 
-Snapshot ini masih berupa analisis, bukan implementasi yang selesai. Prioritas
-pengguna adalah LS dahulu, lalu payment lain setelah LS terimplementasi.
+SPP LS sedang diintegrasikan. Create/upload SPP utama sudah menulis source
+artifact canonical ke private storage dan delivery route khusus LS SPP sudah
+tersedia di source code. Update SPP, dokumen pendamping, runtime delivery, SPM,
+SP2D, serta alur TTE LS end-to-end masih mempunyai blocker yang dicatat pada
+dokumen kondisi aktual. Prioritas pengguna tetap LS dahulu, lalu payment lain.
 
 Untuk import `dump-keuangan-202609090855.sql` menjadi akun dan posisi, wajib
 baca `99-legacy/LEGACY_USERS_IMPORT_DECISIONS.md`. Dokumen tersebut menetapkan

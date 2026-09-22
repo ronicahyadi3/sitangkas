@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Payment\LS;
 
+use App\Data\Esign\StagedDocumentArtifact;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\LS\StoreSppRequest;
 use App\Http\Requests\LS\UpdateSppRequest;
@@ -14,6 +15,7 @@ use App\Models\Jabatan;
 use App\Models\Payment\LS;
 use App\Services\Document\DocumentHistoryService;
 use App\Services\Document\DocumentOrganizationScope;
+use App\Services\Esign\Persistence\DocumentArtifactPersistenceService;
 use App\Services\User\ActivePositionService;
 use App\Services\User\PositionIdentityResolver;
 use App\Support\EncryptedId;
@@ -21,6 +23,8 @@ use DB;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use RuntimeException;
+use Throwable;
 use Yajra\DataTables\Facades\DataTables;
 
 class SPP extends Controller
@@ -56,6 +60,25 @@ class SPP extends Controller
         }
     }
 
+    protected function cleanupUnpersistedSppArtifact(
+        ?StagedDocumentArtifact $stagedArtifact,
+        DocumentArtifactPersistenceService $artifactPersistence,
+    ): void {
+        if (! $stagedArtifact instanceof StagedDocumentArtifact) {
+            return;
+        }
+
+        try {
+            $artifactPersistence->discardUnpersistedSourceArtifact($stagedArtifact);
+        } catch (Throwable $cleanupException) {
+            Log::channel('payment_ls')->critical('SPP LS private artifact cleanup failed', [
+                'artifact_public_id' => $stagedArtifact->publicId,
+                'exception' => class_basename($cleanupException),
+            ]);
+            report($cleanupException);
+        }
+    }
+
     protected function saveDocumentData(array $data)
     {
         $document = new Document($data);
@@ -86,6 +109,7 @@ class SPP extends Controller
 
         $status = in_array($id, $statusArr);
         $encript = EncryptedId::encode($data->id);
+        $contentUrl = route('document.ls.spp.content', ['document' => $encript]);
 
         $verify = ! is_null($data->verify_spp);
 
@@ -110,7 +134,7 @@ class SPP extends Controller
 
             if (! is_null($data->finished_at)) {
                 return '<span type="button" class="btn btn-sm btn-success show-document"
-                         data-url="/File_SPP/signs/'.$data->src_name_spp.'"
+                         data-url="'.e($contentUrl).'"
                          data-files="'.$data->src_name_spp.'"
                          data-wenk-pos="top"
                          data-id="'.$encript.'"
@@ -124,7 +148,7 @@ class SPP extends Controller
 
             if (in_array($id, [1, 2, 3, 4])) {
                 return '<span type="button" class="btn btn-sm btn-info show-document"
-                         data-url="/File_SPP/signs/'.$data->src_name_spp.'"
+                         data-url="'.e($contentUrl).'"
                          data-files="'.$data->src_name_spp.'"
                          data-wenk-pos="top"
                          data-id="'.$encript.'"
@@ -192,7 +216,7 @@ class SPP extends Controller
             if ($inSubmit) {
                 if ($verify) {
                     return '<span type="button" class="btn btn-sm btn-success show-document"
-                         data-url="/File_SPP/signs/'.$data->src_name_spp.'"
+                         data-url="'.e($contentUrl).'"
                          data-files="'.$data->src_name_spp.'"
                          data-wenk-pos="top"
                          data-id="'.$encript.'"
@@ -205,7 +229,7 @@ class SPP extends Controller
                 }
 
                 return '<span type="button" class="btn btn-sm btn-primary show-document"
-                         data-url="/File_SPP/signs/'.$data->src_name_spp.'"
+                         data-url="'.e($contentUrl).'"
                          data-files="'.$data->src_name_spp.'"
                          data-wenk-pos="top"
                          data-id="'.$encript.'"
@@ -624,7 +648,8 @@ class SPP extends Controller
     public function store(
         StoreSppRequest $request,
         ActivePositionService $activePosition,
-        DocumentHistoryService $documentHistoryService
+        DocumentHistoryService $documentHistoryService,
+        DocumentArtifactPersistenceService $artifactPersistence,
     ) {
         $start = microtime(true);
         $sppId = null;
@@ -643,12 +668,28 @@ class SPP extends Controller
 
         $user = $activePosition->get();
         $userId = $user->id;
+        $artifactCreatorUserId = $activePosition->real()?->user_id
+            ?? $request->user()?->getKey();
         $unitKerja = $user?->unitKerja?->id;
         $rekeningMap = [];
         $storedFiles = [];
+        $stagedSppArtifact = null;
 
         try {
-            $filename_spp = $this->storeFile($request->file('file_spp'), '/File_SPP', $storedFiles);
+            $uploadedSpp = $request->file('file_spp');
+            $sppStream = fopen($uploadedSpp->getPathname(), 'rb');
+
+            if (! is_resource($sppStream)) {
+                throw new RuntimeException('spp_upload_stream_unreadable');
+            }
+
+            try {
+                $stagedSppArtifact = $artifactPersistence->stagePdfStream($sppStream);
+            } finally {
+                fclose($sppStream);
+            }
+
+            $filename_spp = $stagedSppArtifact->publicId.'.pdf';
             $filename_spj = $this->storeFile($request->file('file_spj'), '/File_SPJ', $storedFiles);
             $filename_billing = $request->hasFile('file_billing')
                 ? $this->storeFile($request->file('file_billing'), '/File_Billing', $storedFiles)
@@ -656,8 +697,9 @@ class SPP extends Controller
             $filename_bmd = $request->hasFile('file_bmd')
                 ? $this->storeFile($request->file('file_bmd'), '/File_BMD', $storedFiles)
                 : null;
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             $this->cleanupStoredFiles($storedFiles);
+            $this->cleanupUnpersistedSppArtifact($stagedSppArtifact, $artifactPersistence);
             Log::channel('payment_ls')->warning('SPP LS Store file upload failed', [
                 'error' => $e->getMessage(),
                 'duration_ms' => round((microtime(true) - $start) * 1000, 2),
@@ -691,6 +733,10 @@ class SPP extends Controller
                 $rekeningMap,
                 $tempData,
                 $documentHistoryService,
+                $artifactPersistence,
+                $stagedSppArtifact,
+                $uploadedSpp,
+                $artifactCreatorUserId,
                 $start,
                 &$sppId
             ) {
@@ -711,6 +757,24 @@ class SPP extends Controller
                     'expenditure_type' => $request->belanja,
                 ]);
                 $sppId = $spp->id;
+
+                $artifactPersistence->finalizeSourceArtifact(
+                    stagedArtifact: $stagedSppArtifact,
+                    document: $spp,
+                    originalName: $uploadedSpp->getClientOriginalName(),
+                    createdByUserId: $artifactCreatorUserId === null
+                        ? null
+                        : (int) $artifactCreatorUserId,
+                    sourceSystem: 'application',
+                    sourceReferenceType: 'document',
+                    sourceReferenceId: (string) $spp->id,
+                    metadata: [
+                        'document_type' => Document::TYPE_SPP,
+                        'payment_type' => 'LS',
+                        'storage_strategy' => 'canonical_private_upload',
+                    ],
+                );
+
                 $documentHistoryService->upload($spp->id, $filename_spp, $unitKerja);
                 $spj = $this->saveDocumentData([
                     'reference_id' => $spp->id,
@@ -782,8 +846,9 @@ class SPP extends Controller
                 'status' => 200,
                 'message' => 'Data Tersimpan...',
             ]);
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             $this->cleanupStoredFiles($storedFiles);
+            $this->cleanupUnpersistedSppArtifact($stagedSppArtifact, $artifactPersistence);
             Log::channel('payment_ls')->error('SPP LS Store failed', [
                 'id_spp' => $sppId,
                 'error' => $e->getMessage(),
@@ -814,7 +879,7 @@ class SPP extends Controller
             $position = $activePosition->get();
 
             if (! $position || ! $position->unitKerja) {
-                throw new \RuntimeException('Active position not resolved');
+                throw new RuntimeException('Active position not resolved');
             }
 
             try {
@@ -936,7 +1001,7 @@ class SPP extends Controller
 
         try {
             $decryptedId = EncryptedId::decode($id);
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             Log::channel('payment_ls')->warning('SPP LS Update invalid ID', [
                 'hash' => $id,
                 'duration_ms' => round((microtime(true) - $start) * 1000, 2),
@@ -1131,7 +1196,7 @@ class SPP extends Controller
                 'status' => 200,
                 'message' => 'Update SPP Berhasil',
             ]);
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             $this->cleanupStoredFiles($storedFiles ?? []);
 
             Log::channel('payment_ls')->error('SPP LS Update failed', [
@@ -1170,7 +1235,7 @@ class SPP extends Controller
 
         try {
             $docId = EncryptedId::decode($request->id);
-        } catch (\Throwable) {
+        } catch (Throwable) {
             Log::channel('payment_ls')->warning('SPP LS Submit Invalid ID', [
                 'hash' => $request->id,
                 'duration_ms' => round((microtime(true) - $start) * 1000, 2),
@@ -1198,7 +1263,7 @@ class SPP extends Controller
                         'doc_id' => $docId,
                         'duration_ms' => round((microtime(true) - $start) * 1000, 2),
                     ]);
-                    throw new \RuntimeException('Dokumen tidak ditemukan');
+                    throw new RuntimeException('Dokumen tidak ditemukan');
                 }
 
                 $mainDoc = $docs->firstWhere('id', $docId) ?? $docs->first();
@@ -1210,7 +1275,7 @@ class SPP extends Controller
                         'assigned_to' => $mainDoc->assigned_to ?? null,
                         'duration_ms' => round((microtime(true) - $start) * 1000, 2),
                     ]);
-                    throw new \RuntimeException('Anda tidak berwenang mengakses dokumen ini');
+                    throw new RuntimeException('Anda tidak berwenang mengakses dokumen ini');
                 }
 
                 if ($mainDoc->rejected_by !== null) {
@@ -1218,7 +1283,7 @@ class SPP extends Controller
                         'doc_id' => $docId,
                         'duration_ms' => round((microtime(true) - $start) * 1000, 2),
                     ]);
-                    throw new \RuntimeException('Dokumen sudah ditolak');
+                    throw new RuntimeException('Dokumen sudah ditolak');
                 }
 
                 $submitList = $mainDoc->submit
@@ -1251,7 +1316,7 @@ class SPP extends Controller
                         'duration_ms' => round((microtime(true) - $start) * 1000, 2),
                     ]);
 
-                    throw new \RuntimeException($message);
+                    throw new RuntimeException($message);
                 }
 
                 $submitCount = array_count_values($submitList);
@@ -1267,7 +1332,7 @@ class SPP extends Controller
                         'duration_ms' => round((microtime(true) - $start) * 1000, 2),
                     ]);
 
-                    throw new \RuntimeException('Data telah disubmit sebelumnya. Silakan periksa status dokumen.');
+                    throw new RuntimeException('Data telah disubmit sebelumnya. Silakan periksa status dokumen.');
                 }
 
                 $has5or6 = in_array(5, $submitList, true) || in_array(6, $submitList, true);
@@ -1278,8 +1343,8 @@ class SPP extends Controller
                     6 => '10',
                     9, 10 => $has5or6
                         ? '7'
-                        : throw new \RuntimeException('Belum melewati verifikator 5 atau 6'),
-                    default => throw new \RuntimeException('User tidak memiliki hak submit'),
+                        : throw new RuntimeException('Belum melewati verifikator 5 atau 6'),
+                    default => throw new RuntimeException('User tidak memiliki hak submit'),
                 };
 
                 Log::channel('payment_ls')->debug('SPP LS Submit next assigned', [
@@ -1323,7 +1388,7 @@ class SPP extends Controller
                 'status' => 200,
                 'message' => 'Dokumen berhasil disubmit',
             ]);
-        } catch (\RuntimeException $e) {
+        } catch (RuntimeException $e) {
             Log::channel('payment_ls')->info('SPP LS Submit blocked', [
                 'doc_id' => $docId ?? null,
                 'reason' => $e->getMessage(),
@@ -1334,7 +1399,7 @@ class SPP extends Controller
                 'status' => 400,
                 'message' => $e->getMessage(),
             ], 400);
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             Log::channel('payment_ls')->error('SPP LS Submit system error', [
                 'doc_id' => $docId ?? null,
                 'error' => $e->getMessage(),
@@ -1368,7 +1433,7 @@ class SPP extends Controller
                 'user_to' => $userTo,
                 'duration_ms' => round((microtime(true) - $start) * 1000, 2),
             ]);
-        } catch (\Throwable) {
+        } catch (Throwable) {
 
             Log::channel('payment_ls')->warning('SPP LS Submit PPTK invalid parameter', [
                 'hash' => $request->id,
@@ -1510,7 +1575,7 @@ class SPP extends Controller
                     'message' => 'Dokumen berhasil disubmit ke PPTK.',
                 ], 200);
             });
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
 
             Log::channel('payment_ls')->error('SPP LS Submit PPTK system failure', [
                 'doc_id' => $docId ?? null,

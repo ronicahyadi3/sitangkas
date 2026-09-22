@@ -14,7 +14,10 @@ upload NPD `GU_SKPD` terkontrol sudah membuktikan artifact, workflow, dua step,
 dan event benar-benar terbentuk. Ini belum berarti process manager production
 sudah dikonfigurasi. Visible QR/footer dan public verification belum dibuat,
 workflow hasil provisioning masih `draft` dengan step `pending`, serta vertical
-slice sign canonical belum dijalankan end-to-end.
+slice sign canonical belum dijalankan end-to-end. SPP LS sudah mempunyai direct
+canonical source upload serta authenticated content/download route pada working
+tree. Formula `storage_path_sha256` pada persistence dan integrity service sudah
+disatukan melalui helper shared; route tersebut belum lulus acceptance runtime.
 
 Dokumen ini adalah handoff kondisi kode aktual. Untuk keputusan bisnis dan
 target final tetap baca:
@@ -42,7 +45,7 @@ hanya karena class-nya tersedia di repository.
 | 3 | Schema aktif, provisioning runtime terbukti lokal | Sebanyak 13 tabel canonical, model, enum cast, transition/persistence, artifact storage, provider response, event, compatibility writer, dan job provisioning idempotent tersedia. Worker lokal dan satu upload terkontrol lulus; dua migration index mapping legacy, production process manager, mapping runner, dan reconciliation belum selesai. |
 | 4 | Sebagian besar kode selesai | Policy, authorization service, signer resolver, encrypted ephemeral session, context revalidation, private preview, serta definition registry workflow payment tersedia. Assignment yang belum pasti sengaja tetap unresolved dan workflow tetap draft. |
 | 5 | Kode vertical slice tersedia, belum lulus acceptance | Endpoint internal, encrypted secret TTL, `202 Accepted`, queue job, sign-verify-finalize, polling, dan legacy projection tersedia. Schema dan provisioning data sudah aktif; sign canonical belum dapat diuji karena workflow/step hasil upload belum diaktivasi dan visible placement masih fail-closed. |
-| 6 | Belum | Visible placement QR/footer, coordinate transform, policy delivery PDF berbasis `pdf_watermark_required`, watermark/COPY-ID/cache/audit, verify endpoint publik, guest/authenticated delivery, dan legacy QR resolver belum dibuat. |
+| 6 | Sebagian kecil khusus LS SPP | Authenticated current-artifact content/download khusus LS SPP tersedia tanpa fallback public. Formula hash path sudah konsisten, tetapi acceptance runtime belum dilakukan. General delivery policy berbasis `pdf_watermark_required`, watermark/COPY-ID/cache/audit, public verify, guest delivery, visible placement, dan legacy QR resolver belum dibuat. |
 | 7 | Belum lulus | Backend Ready Gate masih terhalang production process manager/shared cache, aktivasi first signer setelah upload, binding assignment signer berikutnya saat submit/handoff, deployment index legacy, reconciliation, observability, performance proof, credential rotation, dan test yang diizinkan. |
 | 8-10 | Belum | Dependency dan komponen Svelte/Vite eSign belum dipasang. |
 | 11 | Belum | Pilot payment belum dipilih/diaktifkan. |
@@ -225,6 +228,12 @@ documents/failed-output/{YYYY}/{MM}/{uuid-prefix}/{public_id}.pdf
 SHA-256, header PDF, dan batas ukuran aplikasi sebelum preview/sign. Default
 batas aplikasi saat ini 50 MiB; nilai ini belum berarti limit resmi BSrE.
 
+Kontrak `storage_path_sha256` memakai SHA-256 dari
+`storage_disk:file_path`. Persistence dan integrity service sekarang memanggil
+`DocumentArtifactStoragePath::checksum()` yang sama. Query read-only membuktikan
+4/4 artifact lokal cocok dengan formula tersebut dan 0 memakai formula path
+saja, sehingga tidak diperlukan migrasi hash untuk data lokal saat snapshot.
+
 Private preview saat ini memakai streamed inline response exact source dengan
 `no-store` dan tidak membocorkan physical path. Endpoint aktual ini **belum**
 menegakkan `pdf_watermark_required`; sebelum rollout ia harus dipindahkan ke
@@ -233,6 +242,14 @@ internal meskipun preview user berupa derivative watermark.
 
 Yang sudah tersedia untuk upload baru:
 
+- `Payment\LS\SPP::store()` menulis file utama SPP langsung sebagai source
+  artifact private sebelum hook provisioning; ia tidak membuat file baru di
+  `public/File_SPP`;
+- route `document.ls.spp.content` dan `document.ls.spp.download` memilih tepat
+  satu current artifact `before_sign`/`after_sign`, menjalankan policy, dan
+  melakukan integrity-checked stream;
+- rollback create SPP dapat membersihkan staging/final source yang belum
+  mempunyai row artifact tanpa menghapus artifact persisten;
 - seluruh 52 pemanggilan upload controller payment melewati
   `DocumentHistoryService::upload()` dan mengantrekan
   `ProvisionCanonicalDocument` setelah transaksi commit;
@@ -258,7 +275,8 @@ Yang belum tersedia/dibuktikan:
 - historical file mapper/copy runner;
 - scheduled cleanup staging;
 - orphan/stuck artifact reconciliation;
-- public/authenticated artifact download route.
+- general public/authenticated artifact delivery untuk payment/type selain
+  vertical slice LS SPP;
 - migration/management `user_positions.pdf_watermark_required`;
 - resolver delivery mode termasuk pengecualian Admin Super acting dan guest;
 - renderer watermark server-side, COPY-ID, cache derivative 12 jam, cleanup,
@@ -770,7 +788,7 @@ dependency mendapat otorisasi.
 | Secret store | `app/Services/Esign/EphemeralSigningSecretStore.php` |
 | Worker | `app/Jobs/Esign/PerformEsignAttempt.php` |
 | Internal HTTP | `app/Http/Controllers/Esign`, `app/Http/Requests/Esign`, `routes/web.php` |
-| Artifact storage | `app/Services/Esign/Persistence/DocumentArtifactPersistenceService.php` |
+| Artifact storage/integrity/path checksum | `app/Services/Esign/Persistence/DocumentArtifactPersistenceService.php`, `app/Services/Esign/DocumentArtifactIntegrityService.php`, `app/Support/Esign/DocumentArtifactStoragePath.php` |
 | Compatibility writer | `app/Services/Esign/Persistence/LegacyEsignLedgerWriter.php` |
 | Configuration | `config/services.php`, `config/esign.php`, `config/queue.php`, `.env.example` |
 | Schema | `database/migrations/2026_09_18_*esign*`, document artifact/signing migrations |

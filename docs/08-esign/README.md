@@ -15,8 +15,11 @@ artifact/workflow/step. Worker `signatures` sudah ditambahkan ke
 terkontrol berhasil membentuk artifact, workflow, dua step, serta event.
 Production process manager, aktivasi first signer setelah upload, assignment
 signer berikutnya saat submit/handoff, dan vertical slice signing canonical
-belum selesai. Reconciliation/visible placement/public verification/mapping
-runner/frontend juga belum dibuat. Baca
+belum selesai. SPP LS sekarang mempunyai direct source artifact upload dan
+authenticated delivery route khusus current artifact pada working tree.
+Formula `storage_path_sha256` persistence/integrity sudah disatukan; acceptance
+runtime delivery masih belum dilakukan. Reconciliation/visible placement/public
+verification/mapping runner/frontend juga belum dibuat. Baca
 `CURRENT_ESIGN_IMPLEMENTATION.md` untuk kondisi kode aktual dan batas
 operasionalnya.
 
@@ -65,8 +68,9 @@ integrasi BSrE wajib membaca berurutan:
 
 Jika TTE dipanggil dari payment LS, baca juga:
 
-1. `../99-legacy/PAYMENT_LS_ANALYSIS.md`;
-2. `../99-legacy/PAYMENT_LS_IMPLEMENTATION_PLAN.md`.
+1. `../99-legacy/PAYMENT_LS_CURRENT_IMPLEMENTATION.md`;
+2. `../99-legacy/PAYMENT_LS_ANALYSIS.md`;
+3. `../99-legacy/PAYMENT_LS_IMPLEMENTATION_PLAN.md`.
 
 ## Keputusan yang sudah dikunci oleh pengguna
 

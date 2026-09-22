@@ -15,6 +15,7 @@ use App\Http\Controllers\Data\DetailTbp as DocumentDetailTbpController;
 use App\Http\Controllers\Data\History as DocumentHistoryController;
 use App\Http\Controllers\Data\Rekening as DocumentRekeningController;
 use App\Http\Controllers\Data\Verify as DocumentVerifyController;
+use App\Http\Controllers\Document\LsSppDocumentDeliveryController;
 use App\Http\Controllers\Esign\EsignAttemptController;
 use App\Http\Controllers\Esign\SigningSessionController;
 use App\Http\Controllers\Esign\SigningSessionPreviewController;
@@ -157,6 +158,12 @@ Route::middleware(['auth', 'account.accessible', 'single.device.session'])->grou
         });
 
         Route::prefix('document')->name('document.')->group(function (): void {
+            Route::get('/ls/spp/{document}/content', [LsSppDocumentDeliveryController::class, 'content'])
+                ->where('document', '[A-Za-z0-9_-]+')
+                ->name('ls.spp.content');
+            Route::get('/ls/spp/{document}/download', [LsSppDocumentDeliveryController::class, 'download'])
+                ->where('document', '[A-Za-z0-9_-]+')
+                ->name('ls.spp.download');
             Route::get('/detail', [DocumentDetailController::class, 'detail'])->name('detail');
             Route::get('/detail-tbp', [DocumentDetailTbpController::class, 'detail'])->name('detail_tbp');
             Route::post('/history', [DocumentHistoryController::class, 'history'])->name('history');
