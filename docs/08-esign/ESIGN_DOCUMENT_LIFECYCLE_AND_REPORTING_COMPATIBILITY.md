@@ -121,8 +121,10 @@ aplikasi lain.
 - PHP enum domain, model/cast/relasi, transition service, artifact persistence,
   compatibility writer, encrypted signing session/secret store, internal
   endpoint, dan asynchronous signing job sudah dibuat pada source.
-- Dua migration index mapping legacy masih `Pending`; provisioning artifact/
-  workflow/step dari controller payment, queue worker deployment, public verification route,
+- Dua migration index mapping legacy masih `Pending`. Provisioning artifact/
+  workflow/step dari controller payment sudah dibuat dan dibuktikan lokal pada
+  satu upload NPD `GU_SKPD`; production process manager/shared cache, activation
+  first signer, assignment signer berikutnya, public verification route,
   reconciliation, mapping runner, dan frontend belum selesai.
 - Credential, NIK lengkap, passphrase, Basic Auth, dan response mentah tidak
   boleh ditulis ke dokumentasi ini atau dokumentasi lanjutan.
@@ -899,7 +901,8 @@ terkontrol per explicit path, bukan recursive glob luas.
 4. Migration/indeks sudah dibuat; deployment plan, backup, dan lock assessment
    tabel besar masih wajib diselesaikan.
 5. Repository/service artifact serta runtime storage path strategy sudah
-   dibuat; source provisioning dan historical mapper belum dibuat.
+   dibuat; source provisioning sudah dibuktikan lokal, sedangkan historical
+   mapper belum dibuat.
 6. Attempt transition service, lock, fingerprint, dan event writer sudah
    dibuat pada source dan menunggu runtime proof.
 7. Compatibility writer legacy sudah dibuat; inventaris consumer dan parity
@@ -914,8 +917,10 @@ terkontrol per explicit path, bukan recursive glob luas.
     asynchronous, halaman Blade Bootstrap/Argon, intended-login flow, dan audit
     seluruh delivery.
 11. Implementasikan backend QR generation/reservation.
-12. Invisible signing orchestration sudah dibuat pada source; aktifkan schema,
-    provisioning, dan worker lalu buktikan end-to-end.
+12. Invisible signing orchestration sudah dibuat pada source; schema dan
+    provisioning worker lokal sudah terbukti. Berikutnya aktifkan first signer
+    setelah upload, sinkronkan signer berikutnya setelah TTE sukses +
+    submit/handoff, lalu buktikan signing end-to-end.
 13. Registrasikan/backfill legacy secara bertahap di lokasi existing.
 14. Inventaris dan tarik arsip fisik 2024-2025 yang belum ada pada subset 90
     hari di project baru.

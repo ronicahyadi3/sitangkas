@@ -1,17 +1,20 @@
 # Kondisi Implementasi eSign/TTE Saat Ini
 
-Tanggal snapshot: **21 September 2026**.
+Tanggal snapshot: **22 September 2026**.
 
 Status: **backend in progress**. Boundary provider, schema/model/state service,
 authorization, signing session, private artifact persistence, secret store,
 endpoint internal, dan asynchronous signing job sudah berada di working tree.
 Sebanyak 13 migration tabel canonical sudah diterapkan pada database lokal;
 dua migration index mapping legacy tetap `Pending` untuk deployment wave
-terpisah. Boundary upload controller payment kini mengantrekan provisioning
-source artifact/workflow/step setelah commit, tetapi worker server dan satu
-provisioning runtime terkontrol belum diaktifkan/dibuktikan. Visible
-QR/footer dan public verification belum dibuat, serta vertical slice baru belum
-dijalankan end-to-end melalui pipeline canonical.
+terpisah. Boundary upload controller payment mengantrekan provisioning source
+artifact/workflow/step setelah commit. Dedicated worker `signatures` sudah
+ditambahkan ke `composer run dev`, dijalankan pada environment lokal, dan satu
+upload NPD `GU_SKPD` terkontrol sudah membuktikan artifact, workflow, dua step,
+dan event benar-benar terbentuk. Ini belum berarti process manager production
+sudah dikonfigurasi. Visible QR/footer dan public verification belum dibuat,
+workflow hasil provisioning masih `draft` dengan step `pending`, serta vertical
+slice sign canonical belum dijalankan end-to-end.
 
 Dokumen ini adalah handoff kondisi kode aktual. Untuk keputusan bisnis dan
 target final tetap baca:
@@ -36,18 +39,19 @@ hanya karena class-nya tersedia di repository.
 | 0 | Sebagian selesai | Containment lokal selesai; rotasi/revoke credential eksternal tetap tanggung jawab pemilik/deployment. |
 | 1 | Minimum selesai | Invisible NIK+passphrase satu PDF dan verify minimum pernah dibuktikan; visible coordinate, limit, timeout matrix, encrypted PDF, dan multi-file belum final. |
 | 2 | Kode selesai untuk scope awal | `EsignGateway`, `BsreClient`, DTO, mapper, payload invisible satu file, error taxonomy, dan config tersedia. |
-| 3 | Schema aktif, provisioning source tersedia | Sebanyak 13 tabel canonical, model, enum cast, transition/persistence, artifact storage, provider response, event, compatibility writer, dan job provisioning idempotent tersedia. Dua migration index mapping legacy masih `Pending`; runtime worker, mapping runner, dan reconciliation belum dibuktikan. |
+| 3 | Schema aktif, provisioning runtime terbukti lokal | Sebanyak 13 tabel canonical, model, enum cast, transition/persistence, artifact storage, provider response, event, compatibility writer, dan job provisioning idempotent tersedia. Worker lokal dan satu upload terkontrol lulus; dua migration index mapping legacy, production process manager, mapping runner, dan reconciliation belum selesai. |
 | 4 | Sebagian besar kode selesai | Policy, authorization service, signer resolver, encrypted ephemeral session, context revalidation, private preview, serta definition registry workflow payment tersedia. Assignment yang belum pasti sengaja tetap unresolved dan workflow tetap draft. |
-| 5 | Kode vertical slice tersedia, belum lulus acceptance | Endpoint internal, encrypted secret TTL, `202 Accepted`, queue job, sign-verify-finalize, polling, dan legacy projection tersedia. Belum diuji end-to-end karena schema/data/worker belum aktif. |
+| 5 | Kode vertical slice tersedia, belum lulus acceptance | Endpoint internal, encrypted secret TTL, `202 Accepted`, queue job, sign-verify-finalize, polling, dan legacy projection tersedia. Schema dan provisioning data sudah aktif; sign canonical belum dapat diuji karena workflow/step hasil upload belum diaktivasi dan visible placement masih fail-closed. |
 | 6 | Belum | Visible placement QR/footer, coordinate transform, policy delivery PDF berbasis `pdf_watermark_required`, watermark/COPY-ID/cache/audit, verify endpoint publik, guest/authenticated delivery, dan legacy QR resolver belum dibuat. |
-| 7 | Belum lulus | Backend Ready Gate masih terhalang deployment index legacy, pembuktian worker/provisioning runtime, binding assignment saat submit, reconciliation, observability, performance proof, credential rotation, dan test yang diizinkan. |
+| 7 | Belum lulus | Backend Ready Gate masih terhalang production process manager/shared cache, aktivasi first signer setelah upload, binding assignment signer berikutnya saat submit/handoff, deployment index legacy, reconciliation, observability, performance proof, credential rotation, dan test yang diizinkan. |
 | 8-10 | Belum | Dependency dan komponen Svelte/Vite eSign belum dipasang. |
 | 11 | Belum | Pilot payment belum dipilih/diaktifkan. |
 | 12 | Belum | Rollout, mapping legacy resumable, reporting cutover, dan decommission belum berjalan. |
 
 Kesimpulan posisi: dari sisi source code pekerjaan sudah mencapai **Phase 5
-parsial**, tetapi dari sisi runtime/deployment masih berada pada **penutupan
-Phase 3 menuju Phase 4**.
+parsial**. Dari sisi runtime lokal, provisioning Phase 3 sudah terbukti; dari
+sisi deployment production dan workflow yang benar-benar signable pekerjaan
+masih berada pada **Phase 4 menuju Phase 5**.
 
 ## 2. Keputusan bisnis yang tetap berlaku
 
@@ -62,6 +66,11 @@ Phase 3 menuju Phase 4**.
   pengguna biasa pada posisi tersebut.
 - TTE multi-signer selalu sequential; output step sebelumnya menjadi source
   step berikutnya.
+- Pada mayoritas workflow payment, signer aktif melakukan TTE lebih dahulu,
+  lalu melakukan `SUBMIT` untuk handoff ke posisi berikutnya. Jangan memakai
+  asumsi umum `upload -> submit -> TTE`. Pengecualian preparer-only, verify,
+  routing, dan SP2D harus mengikuti matrix/controller serta histori
+  `document_process`.
 - Semua signer menempatkan QR/footer miliknya sendiri pada tahap visible.
 - Closing placement/preview sebelum final sign tidak membuat attempt/audit.
 - TTE berjalan asynchronous dari perspektif browser, tetapi HTTP BSrE tetap
@@ -240,11 +249,12 @@ Yang sudah tersedia untuk upload baru:
 
 Yang belum tersedia/dibuktikan:
 
-- binding ulang assignment canonical ketika submit/handoff legacy memilih
-  signer berikutnya;
-- aktivasi workflow dan step pertama setelah seluruh prasyarat submit/verify
-  terpenuhi;
-- controlled runtime proof job provisioning terhadap satu upload baru;
+- aktivasi workflow dan step pertama segera setelah upload bila uploader adalah
+  signer pertama yang sah dan prasyarat lokal sudah lengkap;
+- binding ulang assignment canonical ketika TTE signer saat ini sudah sukses
+  lalu submit/handoff legacy memilih signer berikutnya;
+- sinkronisasi checkpoint preparer-only, verify, routing, dan SP2D yang tidak
+  boleh dipaksa mengikuti pola generik;
 - historical file mapper/copy runner;
 - scheduled cleanup staging;
 - orphan/stuck artifact reconciliation;
@@ -440,14 +450,18 @@ reconciliation.
 - memakai `WithoutOverlapping` berdasarkan attempt ID;
 - payload hanya `attemptId` dan opaque `secretReference`.
 
-Perintah worker yang direncanakan:
+Perintah worker lokal yang sudah dijalankan dan ditambahkan ke script
+`composer run dev`:
 
 ```bash
-php artisan queue:work signatures --queue=signatures --tries=1 --timeout=900
+php artisan queue:work signatures --queue=signatures --sleep=1 --timeout=900 --memory=256 --no-interaction
 ```
 
-Worker harus dikelola Supervisor/service manager di server. Keberadaan config
-tidak membuktikan worker sedang berjalan.
+Worker lokal terbukti mengambil job `ProvisionCanonicalDocument`. Opsi
+`--tries` sengaja tidak dioverride sehingga batas pada class job tetap berlaku:
+provisioning `tries=5`, sedangkan signing `tries=1`. Worker production tetap
+harus dikelola Supervisor/systemd/service manager sesuai OS deployment;
+`composer run dev` dan PID lokal bukan mekanisme availability production.
 
 Default cache project saat snapshot adalah `database`. Untuk multi-server,
 cache signing session, secret, unique job, dan overlap lock wajib memakai store
@@ -588,25 +602,67 @@ nilai credential, passphrase, atau alamat internal deployment di file ini.
 - `git diff --check` lulus;
 - dry-run 13 migration canonical berhasil;
 - 13 migration tabel canonical berhasil diterapkan dalam batch 9-21;
-- schema aktif memiliki 48 foreign key dan masih kosong;
+- schema aktif memiliki 48 foreign key; sebelum controlled proof seluruh tabel
+  canonical masih kosong, lalu proof membuat satu artifact/workflow/event dan
+  dua step;
 - dua migration index mapping legacy tetap `Pending` untuk wave terpisah.
+- dedicated worker lokal `signatures` berhasil hidup dengan connection dan
+  queue `signatures`, timeout 900 detik, serta `retry_after` 960 detik;
+- controlled upload NPD `GU_SKPD` melalui method `store()` controller asli
+  menghasilkan HTTP 200, record `document`, dan event legacy `UPLOAD`;
+- job provisioning diselesaikan worker dalam sekitar 900 ms tanpa failed job;
+- source artifact private tersedia, berukuran 102106 byte, dan SHA-256 file
+  canonical sama dengan file upload legacy serta metadata database;
+- workflow NPD `PPTK -> PA`, dua step sequential, dan event
+  `workflow_created` benar-benar terbentuk.
 
 Yang **tidak** dilakukan pada implementasi terbaru:
 
 - tidak menjalankan dua migration index mapping pada tabel legacy besar;
 - tidak menjalankan Pest/PHPUnit/test suite sesuai instruksi pengguna;
 - tidak memanggil sign/verify BSrE production;
-- tidak menjalankan endpoint end-to-end dengan canonical database;
-- tidak mengaktifkan queue worker server.
+- tidak menjalankan signing session/TTE canonical end-to-end;
+- tidak menguji middleware/form melalui browser karena browser automation dan
+  sesi login tidak tersedia; controlled upload memanggil controller asli dengan
+  `Request`, `UploadedFile`, posisi PPTK aktif, transaksi, dan service asli;
+- tidak memasang process manager worker pada server production.
+
+### Bukti controlled provisioning 22 September 2026
+
+Data ini adalah **proof record**, bukan paket layanan riil dan tidak boleh
+dipakai sebagai baseline ID lintas environment:
+
+| Entitas | Bukti lokal |
+|---|---|
+| Dokumen | ID `482571`, nomor `CANONICAL-PROOF-20260922-011140-G9W1BB`, `GU_SKPD/NPD` |
+| Legacy upload event | `document_process` ID `2302194`, actor position `352`, jabatan PPTK |
+| Source artifact | ID `1`, public ID `bf9ae169-298b-409c-8429-79ecce2dbff6`, tipe `before_sign`, version 1/current |
+| Artifact path | `documents/source/2026/09/bf/bf9ae169-298b-409c-8429-79ecce2dbff6.pdf` pada disk private |
+| SHA-256 | `436f1f3bce1cfa1f591d78b0a6de5c6f3de24a086d931efc36ca1490e17f70f1` |
+| Workflow | ID `1`, public ID `abbcc8ee-0671-4227-afdb-df25174f4b0d`, status `draft`, assignment `partial` |
+| Step 1 | PPTK, assigned user/position `352`, status `pending`, source artifact ID `1` |
+| Step 2 | PA, assignment unresolved, status `pending` |
+| Event | ID `1`, `workflow_created`, actor bukan acting |
+| Queue akhir | queue `signatures` kosong, `failed_jobs=0`, worker error log kosong |
+
+File legacy upload tetap ada karena controller dan UI lama masih bergantung
+pada `document.src_name`. File canonical adalah copy immutable pada private
+storage. Jangan menghapus salah satunya hanya untuk membersihkan proof tanpa
+keputusan eksplisit dan pemeriksaan dependency.
 
 ## 17. Blocker operasional dan pekerjaan yang belum ada
 
 ### Prioritas langsung
 
-1. aktifkan dedicated queue worker dan shared cache yang sesuai deployment;
-2. jalankan controlled provisioning satu upload dan audit artifact/workflow/step;
-3. integrasikan assignment sync + activation pada submit/handoff payment;
-4. jalankan controlled invisible vertical slice;
+1. implementasikan activation adapter setelah upload untuk workflow yang
+   uploader-nya merupakan signer pertama, dimulai dari proof NPD `GU_SKPD`;
+2. implementasikan assignment sync + aktivasi signer berikutnya saat TTE
+   sebelumnya sudah sukses lalu submit/handoff dilakukan;
+3. konfigurasikan shared cache dan production process manager untuk worker
+   `signatures`, termasuk graceful restart dan monitoring;
+4. jalankan controlled signing vertical slice setelah first step benar-benar
+   `active` dan backend visible placement tersedia atau scope pilot secara
+   eksplisit mengizinkan invisible;
 5. implementasikan reconciliation dan stuck recovery;
 6. jadwalkan dua migration index mapping legacy sebagai deployment wave
    terpisah setelah capacity/lock review.
@@ -661,10 +717,10 @@ dependency mendapat otorisasi.
 ## 18. Urutan implementasi berikutnya
 
 ```text
-1. Queue worker + shared cache + operational preflight
-2. Controlled provisioning proof satu upload baru
-3. Assignment sync + workflow activation pada submit/handoff
-4. Controlled invisible signing vertical slice
+1. First-signer activation setelah upload sesuai matrix
+2. Next-signer assignment/activation setelah TTE sukses + submit/handoff
+3. Shared cache + production process manager + operational preflight
+4. Controlled signing vertical slice
 5. Reconciliation/stuck/cleanup/observability
 6. Legacy mapping index deployment wave
 7. Visible QR/footer placement backend
@@ -692,7 +748,9 @@ dependency mendapat otorisasi.
 - Jangan menerima NIK, file path, workflow state, atau destination path dari
   frontend.
 - Jangan menganggap hook upload berarti submit/handoff telah mengikat seluruh
-  signer atau workflow sudah boleh diaktifkan.
+  signer. Namun jangan pula menunggu submit untuk signer pertama bila matrix
+  menyatakan uploader adalah signer pertama; pada flow tersebut first step harus
+  diaktifkan setelah upload/provisioning dan submit baru dilakukan setelah TTE.
 - Jangan memasang dependency frontend sebelum Backend Ready Gate.
 - Jangan menghapus, truncate, rename, freeze, atau drop tabel compatibility.
 - Jangan menghapus/memindah source legacy dari mapping command.

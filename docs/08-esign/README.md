@@ -1,6 +1,6 @@
 # eSign Client 2.2.0 / TTE
 
-Tanggal snapshot: **21 September 2026**.
+Tanggal snapshot: **22 September 2026**.
 
 Status: **backend in progress. Boundary provider Phase 2 selesai untuk scope
 NIK+passphrase/invisible/satu-file. Migration, model, enum cast,
@@ -10,12 +10,15 @@ signing asynchronous Phase 3-5 sudah berada di working tree. Sebanyak 13
 migration tabel canonical sudah diterapkan pada database lokal; dua migration
 index mapping legacy tetap `Pending` untuk wave terpisah. Controller payment
 telah mempunyai hook upload after-commit untuk mengantrekan provisioning
-artifact/workflow/step, tetapi worker server dan satu provisioning runtime
-terkontrol belum dibuktikan aktif. Assignment sync/activation saat submit/handoff dan vertical slice
-canonical belum diuji end-to-end, reconciliation/visible placement/public
-verification/mapping runner/frontend belum dibuat. Baca
+artifact/workflow/step. Worker `signatures` sudah ditambahkan ke
+`composer run dev`, dijalankan secara lokal, dan satu upload NPD `GU_SKPD`
+terkontrol berhasil membentuk artifact, workflow, dua step, serta event.
+Production process manager, aktivasi first signer setelah upload, assignment
+signer berikutnya saat submit/handoff, dan vertical slice signing canonical
+belum selesai. Reconciliation/visible placement/public verification/mapping
+runner/frontend juga belum dibuat. Baca
 `CURRENT_ESIGN_IMPLEMENTATION.md` untuk kondisi kode aktual dan batas
-operasionalnya**.
+operasionalnya.
 
 Cluster ini adalah source of truth untuk perombakan proses Tanda Tangan
 Elektronik (TTE) SITANGKAS dari integrasi lama menuju eSign Client `2.2.0`
@@ -140,6 +143,10 @@ Jika TTE dipanggil dari payment LS, baca juga:
     Admin Super hanya dapat sign bila dirinya signer sah pada step aktif.
 23. TTE multi-signer selalu berurutan. Output step sebelumnya menjadi source
     artifact step berikutnya; setiap step mempunyai placement QR/footer sendiri.
+    Pada mayoritas flow, signer melakukan TTE terlebih dahulu lalu `SUBMIT`
+    untuk handoff. Jangan mengaktifkan signer pertama hanya pada submit bila
+    uploader memang signer pertama yang sah. Flow preparer-only, verify,
+    routing, dan SP2D mengikuti matrix khususnya.
 24. Matrix final per payment/src type harus dibuktikan dari controller backend
     lama dan urutan `document_process`, bukan dari tombol Blade saja.
 25. User Admin Super yang memilih posisi bisnis nyata yang memang assigned
@@ -332,10 +339,16 @@ publik, atau kontrak request lama dari file-file tersebut.
 - [x] Endpoint internal prepare/show/preview/sign/close/status, encrypted TTL
       secret store, dedicated `PerformEsignAttempt`, `202 Accepted`, polling,
       uniqueness, overlap lock, dan `tries=1` diimplementasikan.
-- [ ] Controller payment memprovisikan source artifact, workflow, dan signer
-      step canonical untuk dokumen runtime baru.
-- [ ] Queue worker `signatures` diaktifkan pada server dan vertical slice
-      canonical diuji end-to-end.
+- [x] Controller payment memprovisikan source artifact, workflow, dan signer
+      step canonical untuk dokumen runtime baru; satu NPD `GU_SKPD` terkontrol
+      sudah membuktikan hasilnya pada database dan private storage lokal.
+- [x] Dedicated worker `signatures` ditambahkan ke `composer run dev` dan
+      terbukti memproses job provisioning lokal tanpa failed job.
+- [ ] Worker `signatures` dikelola process manager pada server production dan
+      memakai shared cache yang sesuai topology deployment.
+- [ ] First-signer activation setelah upload serta next-signer assignment pada
+      TTE sukses + submit/handoff diimplementasikan.
+- [ ] Vertical slice signing canonical diuji end-to-end.
 - [ ] Route delivery PDF terotorisasi, guest public-watermarked delivery,
       enforcement `pdf_watermark_required`, audit access, cache derivative,
       route `/verify/{public_id}`, dan resolver URL QR lama diimplementasikan.

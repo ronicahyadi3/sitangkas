@@ -1,14 +1,15 @@
 # Rencana Implementasi eSign Client 2.2.0
 
-Tanggal snapshot: **21 September 2026**.
+Tanggal snapshot: **22 September 2026**.
 
 Status: **rencana kerja dan tracker. Kondisi source code aktual berada pada
 `CURRENT_ESIGN_IMPLEMENTATION.md`: Phase 2 selesai untuk scope awal, fondasi
 source Phase 3-5 sudah tersedia dan 13 tabel canonical sudah diterapkan pada
 database lokal. Dua migration index legacy masih `Pending`; source
-artifact/workflow/step provisioning dari upload payment sudah dibuat tetapi
-belum dibuktikan oleh worker runtime, dan Phase 6-12 belum
-diimplementasikan**.
+artifact/workflow/step provisioning dari upload payment sudah dibuat dan sudah
+dibuktikan secara lokal oleh dedicated worker melalui satu upload NPD
+`GU_SKPD`. Activation/assignment adapter dan vertical slice sign masih pending,
+dan Phase 6-12 belum diimplementasikan**.
 
 Dokumen ini mengarahkan agent pada urutan kerja, dependency, acceptance, dan
 blocker. Baca `README.md`, `PDF_DELIVERY_WATERMARK_AND_VERIFICATION.md`, backend
@@ -52,7 +53,7 @@ Urutan ini bersifat dependency, bukan sekadar nomor pekerjaan. Pekerjaan UI
 boleh didesain, tetapi implementasi frontend tidak dimulai sebelum response
 schema, application error code, route, authorization, dan state backend stabil.
 
-### Checkpoint aktual 21 September 2026
+### Checkpoint aktual 22 September 2026
 
 - **Sudah dibuat di source:** schema migration, enum, model/cast/relasi,
   workflow/step/attempt transition service, artifact persistence, provider
@@ -64,9 +65,14 @@ schema, application error code, route, authorization, dan state backend stabil.
 - **Schema aktif:** 13 migration tabel canonical sudah diterapkan pada database
   lokal dalam batch 9-21. Dua migration index mapping legacy tetap `Pending`
   untuk wave deployment terpisah.
-- **Belum diaktifkan/dibuktikan:** job provisioning belum dijalankan melalui
-  dedicated worker terhadap satu upload baru; assignment sync/activation saat
-  submit/handoff belum dibuat; pipeline canonical belum diuji end-to-end.
+- **Sudah dibuktikan lokal:** dedicated worker `signatures` memproses satu job
+  `ProvisionCanonicalDocument` dari upload NPD `GU_SKPD`; source artifact,
+  workflow `PPTK -> PA`, dua step, dan event `workflow_created` terbentuk,
+  queue kembali kosong, dan tidak ada failed job.
+- **Belum diaktifkan/dibuktikan:** first signer yang sudah resolved masih
+  `pending` pada workflow `draft`; activation setelah upload, assignment signer
+  berikutnya pada TTE sukses + submit/handoff, production process manager/shared
+  cache, dan pipeline signing canonical end-to-end belum dibuat/dibuktikan.
 - **Sengaja fail-closed:** step `placement_required=true` belum dapat sign dan
   menghasilkan `esign.visible_placement_not_ready` sampai backend visible
   placement selesai.
@@ -281,11 +287,12 @@ Acceptance:
 
 ## 7. Phase 5 - backend invisible signing flow
 
-Status source 21 September 2026: **kode vertical slice tersedia, belum lulus
+Status source 22 September 2026: **kode vertical slice tersedia, belum lulus
 end-to-end acceptance**. Route aktual memakai prefix `/esign/internal`, secret
 store terenkripsi ber-TTL dan job `PerformEsignAttempt` sudah dibuat. Schema
-canonical sudah aktif, tetapi worker server belum diaktifkan/dibuktikan dan
-belum ada data workflow runtime dari controller payment.
+canonical sudah aktif dan provisioning runtime lokal sudah terbukti. Workflow
+proof masih `draft`, step PPTK masih `pending`, worker production belum dikelola
+process manager, dan belum ada signing attempt canonical end-to-end.
 
 Tujuan phase ini adalah menyelesaikan vertical slice backend tanpa modal baru.
 Implementasikan route/controller/Form Request tipis di atas Action dan service
