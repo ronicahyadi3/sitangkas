@@ -228,6 +228,8 @@ sign final tidak membuat `before_signs`, attempt, history, atau audit.
 Aturan:
 
 - satu attempt baru dapat menghasilkan satu row kompatibel baru;
+- attempt multi-QR tetap satu aggregate: buat satu `before_signs` sebelum
+  operasi pertama, bukan satu row per QR atau intermediate;
 - retry adalah attempt baru, bukan update row lama;
 - jangan menyimpan passphrase, Basic Auth, NIK lengkap, PDF Base64, atau image
   Base64;
@@ -244,6 +246,9 @@ atau kegagalan teknis lain sesuai contract laporan legacy.
 
 Aturan:
 
+- attempt multi-QR tidak menulis row per QR/intermediate. Projector hanya boleh
+  menulis maksimal satu terminal `after_signs` yang mewakili aggregate sesuai
+  contract success/failure legacy;
 - success merujuk hasil yang sudah dipersist dan diverifikasi sebelum dokumen
   ditandai selesai;
 - failure tetap memiliki record kompatibel walaupun tidak ada output artifact;

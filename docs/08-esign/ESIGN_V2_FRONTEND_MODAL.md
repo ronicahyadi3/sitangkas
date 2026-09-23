@@ -1,9 +1,16 @@
 # Rancangan Frontend Modal TTE dan Validasi
 
-Tanggal snapshot: **18 September 2026**.
+Tanggal keputusan awal: **18 September 2026**. Pembaruan terakhir:
+**23 September 2026**.
 
 Dokumen ini menetapkan arsitektur frontend Svelte/Vite, perilaku modal, kontrak
 UI, keamanan passphrase, PDF viewer, dan integrasi dengan halaman Blade/payment.
+
+Keputusan visible/editor terbaru yang lebih spesifik berada di
+`ESIGN_VISIBLE_EDITOR_AND_MULTI_QR_DESIGN.md` dan berlaku bila ada perbedaan
+dengan asumsi lama dokumen ini. Statusnya adalah desain disetujui tetapi belum
+diimplementasikan. Lampiran rancangan UI hanya referensi; keputusan eksplisit
+pengguna dalam dokumentasi project adalah source of truth.
 
 Halaman publik `/verify/{public_id}` berada di luar Svelte island dokumen ini.
 Halaman tersebut server-rendered dengan Blade + Bootstrap 5/custom Argon,
@@ -36,6 +43,20 @@ TTE/validasi internal. Kontrak rendition lengkap berada di
 12. Frontend tidak memilih original/watermark dan tidak mengirim nilai
     `pdf_watermark_required`. Semua URL preview/view/download diperoleh dari
     backend setelah authorization serta context resolution.
+13. Editor tidak memiliki upload/replace file. PDF berasal dari exact canonical
+    artifact paket BP/BPP dan dimuat sebagai authorized binary stream, bukan
+    Base64 dalam JSON.
+14. Jika backend menyatakan PDF belum mempunyai TTE, QR pertama membuat footer
+    di seluruh halaman. Footer dapat diedit untuk text, font whitelist, size,
+    bold, italic, underline, dan posisi. PDF signed tidak mendapat footer baru.
+15. Satu signer/step dapat menempatkan beberapa QR. Satu confirmation,
+    passphrase, dan klik TTE membuat satu attempt dengan N operasi serial;
+    progress harus menunjukkan `selesai/total`.
+16. Browser hanya mengedit overlay. Review terakhir harus memakai rendition
+    dari exact prepared PDF hasil renderer backend dan tetap mengikuti policy
+    watermark; perubahan editor menginvalidasi prepared revision lama.
+17. Custom CSS editor di-scope di bawah `.esign-editor` atau root eSign yang
+    setara dan tidak membuat reset/style global.
 
 Snapshot `package.json` saat rancangan:
 
@@ -479,8 +500,11 @@ Baseline route di dalam middleware `web`/session auth, bukan public vendor API:
 | `POST` | `/esign/signing-sessions` | authorize dan siapkan context/artifact |
 | `GET` | `/esign/signing-sessions/{uuid}` | metadata/capability aman |
 | `GET` | `/esign/signing-sessions/{uuid}/preview` | preview private terotorisasi |
+| `POST` | `/esign/signing-sessions/{uuid}/renditions` | validasi placement/footer dan buat exact prepared preview revision |
 | `POST` | `/esign/signing-sessions/{uuid}/sign` | validasi final, buat attempt, simpan secret terenkripsi ber-TTL, enqueue sign, respons `202` |
 | `GET` | `/esign/attempts/{uuid}` | status/reconciliation polling |
+| `POST` | `/esign/attempts/{uuid}/resume` | passphrase baru untuk melanjutkan attempt `partially_signed` dari checkpoint |
+| `DELETE` | `/esign/signing-sessions/{uuid}` | bersihkan session/temporary sebelum attempt tanpa audit bisnis |
 | `POST` | `/esign/documents/{document}/verify` | validasi artifact server-side |
 | `GET` | route delivery artifact canonical | stream inline/attachment sesuai Policy dan resolver watermark yang sama |
 
@@ -488,6 +512,11 @@ Nama final mengikuti convention route project, tetapi responsibility tidak
 boleh digabung menjadi satu endpoint lama `/esign/sign` berbasis FormData.
 Signing session sebelum final sign adalah context ephemeral, bukan
 `esign_attempts` persisten.
+
+Route rendition dan resume pada tabel adalah kontrak target, bukan route yang
+sudah tersedia pada snapshot. Request placement harus berisi ordered geometry
+dan style yang tervalidasi, tidak boleh berisi PDF/Base64, NIK, path storage,
+atau URL provider.
 
 Setelah endpoint sign mengembalikan `202 Accepted`, frontend harus langsung
 menghapus passphrase dan menyimpan hanya attempt UUID/status aman. Modal boleh
@@ -523,6 +552,8 @@ UI memetakan application error code, bukan raw vendor response:
 - unauthorized/conflict: tutup editor atau minta reload;
 - provider unavailable: informasikan layanan sementara tidak tersedia;
 - unknown outcome: larang retry cepat dan tampilkan attempt reference;
+- partially signed: tampilkan jumlah QR yang sudah selesai, minta passphrase
+  baru, dan resume attempt yang sama tanpa mengulang QR completed;
 - validation malformed: tampilkan pesan aman dan catat correlation ID server.
 
 Raw stack trace, raw JSON vendor, credential, NIK lengkap, atau base64 tidak
@@ -540,6 +571,8 @@ wajib mengembalikan attempt yang sama, bukan membuat vendor call kedua.
 - jangan encode PDF base64 di browser;
 - jangan download-upload kembali file untuk verify;
 - render halaman PDF secara virtual/lazy bila dokumen panjang;
+- render halaman aktif dan halaman sekitar pada resolusi viewer; gunakan
+  thumbnail resolusi rendah dan DOM overlay saat drag QR/footer;
 - batasi cache berdasarkan artifact version dan release resource ketika tutup;
 - response PDF harus `no-store` pada browser/proxy; cache 12 jam adalah cache
   private server-side. Revoke setiap object URL saat modal tutup, context/posisi

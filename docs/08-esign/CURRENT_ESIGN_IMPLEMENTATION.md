@@ -29,17 +29,25 @@ Provisioning file legacy yang hanya mempunyai nama fisik UUID tidak lagi
 mengisi UUID tersebut sebagai `original_name`; nilainya disimpan sebagai
 `legacy_stored_name`, sedangkan upload runtime memakai nama client sebenarnya.
 
+Desain visible terbaru sudah disetujui tetapi **belum berada di source/schema**:
+editor membuka artifact backend melalui binary stream, footer editable hanya
+sebelum TTE pertama, dan satu signer dapat menempatkan beberapa QR yang
+dieksekusi serial dalam satu attempt. Target lengkap berada di
+`ESIGN_VISIBLE_EDITOR_AND_MULTI_QR_DESIGN.md`. Implementasi saat ini tetap
+invisible, satu property, satu provider call, dan fail-closed untuk placement.
+
 Dokumen ini adalah handoff kondisi kode aktual. Untuk keputusan bisnis dan
 target final tetap baca:
 
 1. `README.md`;
 2. `PDF_DELIVERY_WATERMARK_AND_VERIFICATION.md`;
 3. `ESIGN_V2_CONTRACT_AND_BACKEND.md`;
-4. `ESIGN_AUTHORIZATION_AND_WORKFLOW_MATRIX.md`;
-5. `LEGACY_OPERATIONAL_TABLES_COMPATIBILITY.md`;
-6. `ESIGN_DOCUMENT_LIFECYCLE_AND_REPORTING_COMPATIBILITY.md`;
-7. `ESIGN_RESUMABLE_MIGRATION_RUNBOOK.md`;
-8. `ESIGN_V2_IMPLEMENTATION_PLAN.md`.
+4. `ESIGN_VISIBLE_EDITOR_AND_MULTI_QR_DESIGN.md`;
+5. `ESIGN_AUTHORIZATION_AND_WORKFLOW_MATRIX.md`;
+6. `LEGACY_OPERATIONAL_TABLES_COMPATIBILITY.md`;
+7. `ESIGN_DOCUMENT_LIFECYCLE_AND_REPORTING_COMPATIBILITY.md`;
+8. `ESIGN_RESUMABLE_MIGRATION_RUNBOOK.md`;
+9. `ESIGN_V2_IMPLEMENTATION_PLAN.md`.
 
 Jika ada perbedaan antara tracker lama dan dokumen ini, verifikasi kode,
 migration status, dan route aktual. Jangan menganggap komponen sudah deployed
@@ -363,6 +371,23 @@ Signing session:
 saat ini sengaja mengembalikan conflict
 `esign.visible_placement_not_ready`. Ini adalah fail-closed sampai Phase 6
 selesai.
+
+### Target session visible yang belum dibuat
+
+Session target akan menyediakan authorized binary preview URL, signature state
+server-side, ordered QR placements, footer capability/default/whitelist,
+prepared rendition revision/hash, dan batas placement. Browser tidak akan
+mengunggah atau mengirim Base64 PDF.
+
+Belum tersedia pada snapshot ini:
+
+- server-side footer renderer dan decoration persistence;
+- prepared preview/invalidation;
+- beberapa QR dalam satu attempt;
+- `esign_signature_operations` dan progress counter;
+- status `partially_signed` serta artifact `intermediate_sign`;
+- worker serial/checkpoint-aware dan resume dengan passphrase baru;
+- public ID per QR yang diaktifkan setelah final verify.
 
 ## 9. Endpoint internal yang sudah terdaftar
 
@@ -770,14 +795,19 @@ keputusan eksplisit dan pemeriksaan dependency.
 
 ### Prioritas langsung
 
-1. implementasikan backend visible placement QR/footer agar endpoint sign tidak
-   lagi fail-closed untuk workflow LS SPP;
-2. jalankan controlled vertical slice LS SPP jalur BP dari lazy activation,
+1. buktikan kontrak provider untuk visible coordinate dan beberapa sign serial
+   pada satu PDF; contoh array Postman bukan bukti multi-placement;
+2. buat migration additive/model/enum untuk operation, counter,
+   `partially_signed`, `intermediate_sign`, dan decoration/footer snapshot;
+3. implementasikan backend visible placement, prepared footer rendition, dan
+   multi-QR worker checkpoint-aware agar endpoint LS SPP tidak lagi
+   fail-closed;
+4. jalankan controlled vertical slice LS SPP jalur BP dari lazy activation,
    TTE, submit ke PPTK, TTE PPTK, submit ke PA, TTE PA, sampai handoff final;
-3. konfigurasikan shared cache dan production process manager untuk worker
+5. konfigurasikan shared cache dan production process manager untuk worker
    `signatures`, termasuk graceful restart dan monitoring;
-4. implementasikan reconciliation, stuck recovery, cleanup, dan observability;
-5. jadwalkan dua migration index mapping legacy sebagai deployment wave
+6. implementasikan reconciliation, stuck recovery, cleanup, dan observability;
+7. jadwalkan dua migration index mapping legacy sebagai deployment wave
    terpisah setelah capacity/lock review.
 
 ### Backend lanjutan
@@ -785,8 +815,11 @@ keputusan eksplisit dan pemeriksaan dependency.
 - parity proof definition workflow untuk seluruh cabang payment;
 - assignment sync/activation adapter pada submit/verify controller payment;
 - visible placement DTO/validation/coordinate transform;
-- QR dan footer server-side;
+- QR dan editable footer server-side, allowed font/style, safe area, serta
+  decoration snapshot;
+- prepared rendition hash/revision dan temporary cleanup;
 - persistence `esign_attempt_signature_properties` dari placement nyata;
+- persistence operation/checkpoint/intermediate dan partial resume;
 - endpoint verification berbasis artifact;
 - `/verify/{public_id}`;
 - authenticated/guest authorized PDF delivery, enforcement satu flag
@@ -830,20 +863,23 @@ dependency mendapat otorisasi.
 ## 18. Urutan implementasi berikutnya
 
 ```text
-1. Visible QR/footer placement backend
-2. Controlled LS SPP BP -> PPTK -> PA vertical slice
-3. Shared cache + production process manager + operational preflight
-4. Reconciliation/stuck/cleanup/observability
-5. Legacy mapping index deployment wave
-6. Policy delivery PDF + watermark/cache/audit + verify/public route + legacy resolver
-7. Backend Ready Gate
-8. Svelte/Vite foundation
-9. Signing modal
-10. Visible editor + validation modal
-11. Pilot LS SPP operasional
-12. Perluasan LS SPM/SP2D lalu rollout per payment
-13. Resumable legacy mapping + reporting cutover
-14. Folder decommission setelah seluruh gate
+1. Contract proof visible coordinate + serial multi-QR satu PDF
+2. Migration additive operation/counter/partial/intermediate/decoration
+3. Placement/footer domain + exact prepared rendition
+4. Worker serial checkpoint-aware + partial resume + final verify
+5. Public ID activation + compatibility projection satu aggregate
+6. Controlled LS SPP BP -> PPTK -> PA vertical slice
+7. Shared cache + production process manager + operational preflight
+8. Reconciliation/stuck/cleanup/observability
+9. Legacy mapping index deployment wave
+10. Policy delivery PDF + watermark/cache/audit + verify/public route + legacy resolver
+11. Backend Ready Gate
+12. Svelte/Vite foundation
+13. Signing modal/editor visible + validation modal
+14. Pilot LS SPP operasional
+15. Perluasan LS SPM/SP2D lalu rollout per payment
+16. Resumable legacy mapping + reporting cutover
+17. Folder decommission setelah seluruh gate
 ```
 
 ## 19. Larangan untuk agent berikutnya
@@ -856,6 +892,12 @@ dependency mendapat otorisasi.
 - Jangan mengubah `tries=1` menjadi blind retry.
 - Jangan mengubah attempt `unknown` menjadi failed tanpa reconciliation.
 - Jangan melewati `esign.visible_placement_not_ready` dengan koordinat tebakan.
+- Jangan menganggap beberapa `signatureProperties` pada collection berarti
+  multi-QR satu PDF dapat dipanggil sekali; gunakan serial setelah proof.
+- Jangan menjalankan beberapa sign QR terhadap source yang sama secara paralel
+  atau mengulang operation yang sudah completed.
+- Jangan mengirim PDF sebagai Base64 JSON ke browser atau menerima upload PDF
+  dari editor.
 - Jangan menerima NIK, file path, workflow state, atau destination path dari
   frontend.
 - Jangan mengaktifkan seluruh step setelah upload atau setelah satu TTE sukses.

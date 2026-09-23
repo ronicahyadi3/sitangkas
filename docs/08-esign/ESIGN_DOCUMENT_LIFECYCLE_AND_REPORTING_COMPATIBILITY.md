@@ -1,7 +1,7 @@
 # Lifecycle Dokumen TTE, QR, Storage, dan Kompatibilitas Laporan
 
 Tanggal keputusan awal: **17 September 2026**. Pembaruan terakhir:
-**21 September 2026**.
+**23 September 2026**.
 
 Status: **keputusan arsitektur dan hasil analisis; 13 migration tabel canonical
 sudah diterapkan pada database lokal dan dilengkapi direct document lookup/
@@ -19,6 +19,11 @@ version chain PDF, QR verifikasi, histori attempt, dan kompatibilitas
 satu area tersebut wajib membaca dokumen ini setelah `README.md` dan
 `PDF_DELIVERY_WATERMARK_AND_VERIFICATION.md`, lalu
 `ESIGN_V2_CONTRACT_AND_BACKEND.md`.
+
+Desain approved untuk prepared footer, beberapa QR dalam satu signer/step,
+intermediate checkpoint, dan final projection berada di
+`ESIGN_VISIBLE_EDITOR_AND_MULTI_QR_DESIGN.md`. Desain itu belum
+diimplementasikan dan memperluas flow satu-signature pada dokumen ini.
 
 ## 1. Tujuan dan batas
 
@@ -105,6 +110,19 @@ aplikasi lain.
     chain, dan tidak pernah menjadi source TTE atau verifikasi BSrE. Detail
     COPY-ID, audit, cache 12 jam, dan cleanup berada di
     `PDF_DELIVERY_WATERMARK_AND_VERIFICATION.md`.
+24. Editor tidak mengunggah file. Backend mengirim exact authorized PDF sebagai
+    binary stream; Base64 hanya digunakan saat server berkomunikasi dengan
+    BSrE.
+25. Footer dibuat satu kali pada semua halaman sebelum TTE pertama dan dapat
+    diedit text/font/size/style/posisinya. Artifact yang sudah signed tidak
+    mendapat footer baru atau perubahan footer.
+26. Beberapa QR untuk signer/step yang sama merupakan satu attempt dengan N
+    operasi serial. Intermediate result immutable menjadi input operasi
+    berikutnya; hanya hasil terakhir dapat menjadi `after_sign`/current.
+27. Satu attempt multi-QR tetap menghasilkan satu row compatibility
+    `before_signs`, maksimal satu terminal `after_signs`, dan satu action `TTE`
+    pada `document_process` hanya saat sukses. Detail per QR berada di canonical
+    schema.
 
 ## 3. Status pekerjaan terkait
 
@@ -734,6 +752,34 @@ Activate public verification record
 Output attempt N menjadi input attempt N+1. QR pada output N tetap menunjuk
 output N walaupun dokumen telah memiliki output N+1.
 
+### Extension approved: beberapa QR dalam satu attempt
+
+Flow di atas tetap menjelaskan satu signature per attempt pada desain awal.
+Untuk signer/step yang membutuhkan beberapa QR, flow berikut menggantikannya:
+
+```text
+Authorize dan resolve exact source
+    -> validate placements/footer
+    -> render serta hash exact prepared before_sign
+    -> create one attempt + N operations + reserve N public_id
+    -> write one before_signs projection
+    -> sign QR1 -> immutable intermediate 1
+    -> sign QR2 memakai intermediate 1 -> intermediate 2
+    -> ... -> sign QRN
+    -> verify final PDF dan cocokkan seluruh signature
+    -> promote one final after_sign/current artifact
+    -> write one after_signs + one document_process TTE projection
+    -> activate all public_id atomically
+```
+
+Setiap HTTP sign tetap dilakukan tanpa transaksi database terbuka. Output
+operasi sebelumnya selalu menjadi input operasi berikutnya. Intermediate tidak
+menjadi current. Dalam satu attempt, setiap QR resolve final exact artifact dan
+signature spesifiknya. Dalam workflow multi-signer, output attempt signer
+sebelumnya tetap menjadi source attempt signer berikutnya. Detail checkpoint,
+partial resume, dan state berada di
+`ESIGN_VISIBLE_EDITOR_AND_MULTI_QR_DESIGN.md`.
+
 ## 14. Strategi registrasi/backfill legacy
 
 Seluruh implementasi pada bagian ini wajib mengikuti
@@ -917,22 +963,27 @@ terkontrol per explicit path, bukan recursive glob luas.
 10. Implementasikan `document_artifact_signatures`, cache/job verifikasi
     asynchronous, halaman Blade Bootstrap/Argon, intended-login flow, dan audit
     seluruh delivery.
-11. Implementasikan backend QR generation/reservation.
-12. Invisible signing orchestration sudah dibuat pada source; schema dan
+11. Buktikan kontrak visible coordinate dan beberapa sign serial pada satu PDF,
+    lalu implementasikan QR generation/reservation per operation.
+12. Buat migration additive operation/progress/intermediate/decoration,
+    prepared footer rendition, checkpoint-aware worker, partial resume, dan
+    atomic public ID activation sesuai
+    `ESIGN_VISIBLE_EDITOR_AND_MULTI_QR_DESIGN.md`.
+13. Invisible signing orchestration sudah dibuat pada source; schema dan
     provisioning worker lokal sudah terbukti. LS SPP memakai lazy activation
     saat signing session pertama serta assignment/activation step berikutnya
     saat handoff. Berikutnya selesaikan visible QR/footer dan buktikan jalur
     BP -> PPTK -> PA secara end-to-end.
-13. Registrasikan/backfill legacy secara bertahap di lokasi existing.
-14. Inventaris dan tarik arsip fisik 2024-2025 yang belum ada pada subset 90
+14. Registrasikan/backfill legacy secara bertahap di lokasi existing.
+15. Inventaris dan tarik arsip fisik 2024-2025 yang belum ada pada subset 90
     hari di project baru.
-15. Copy-verify-activate seluruh artifact ke layout canonical per tahun/bulan.
-16. Lewati Backend Ready Gate, kemudian implementasikan modal Svelte/Vite.
-17. Migrasikan consumer laporan hanya setelah parity tervalidasi, tetapi tetap
+16. Copy-verify-activate seluruh artifact ke layout canonical per tahun/bulan.
+17. Lewati Backend Ready Gate, kemudian implementasikan modal Svelte/Vite.
+18. Migrasikan consumer laporan hanya setelah parity tervalidasi, tetapi tetap
     pertahankan compatibility ledger append-only.
-18. Evaluasi freeze/read-only hanya melalui keputusan baru; tidak ada drop tabel
+19. Evaluasi freeze/read-only hanya melalui keputusan baru; tidak ada drop tabel
     dalam scope implementasi aktif.
-19. Hapus folder `File_{TYPE}` setelah migration manifest, backup, restore,
+20. Hapus folder `File_{TYPE}` setelah migration manifest, backup, restore,
     compatibility route, dan rollback gate file lulus.
 
 ## 18. Acceptance gate
@@ -941,6 +992,12 @@ Rancangan ini belum dianggap selesai sampai:
 
 - input artifact selalu dapat ditemukan untuk success maupun failure;
 - output artifact hanya menjadi current setelah persistence dan verify lulus;
+- attempt multi-QR hanya menjadi succeeded/current setelah semua operation dan
+  final verify lulus; intermediate tidak pernah current;
+- operation completed dapat di-resume dari checkpoint berikutnya tanpa
+  mengulang signature, sedangkan outcome ambigu menghentikan pipeline;
+- satu attempt multi-QR menghasilkan tepat satu compatibility before/after/TTE
+  projection;
 - retry menghasilkan attempt baru tanpa menimpa histori;
 - ambiguous timeout menjadi `unknown` dan tidak auto-retry;
 - QR exact-version dan legacy QR sama-sama dapat diselesaikan;

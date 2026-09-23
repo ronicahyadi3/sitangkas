@@ -202,6 +202,42 @@ Ini ringkasan aturan yang tidak boleh dilanggar lintas domain.
   PDF. `BsreClient` tidak melakukan auto-retry. Connection/5xx sign menjadi
   `esign.outcome_unknown`; raw request/response dan exception transport tidak
   boleh disimpan atau diteruskan.
+- Target visible/multi-QR yang sudah disetujui berada di
+  `../08-esign/ESIGN_VISIBLE_EDITOR_AND_MULTI_QR_DESIGN.md`, tetapi belum
+  diimplementasikan. Jangan menganggap target tersebut sebagai capability
+  source/schema saat ini dan jangan menghapus fail-closed visible sebelum
+  contract proof serta seluruh gate backend lulus.
+- Editor TTE tidak menerima upload atau path PDF dari browser. Backend harus
+  resolve exact canonical artifact paket BP/BPP; browser memuat authorized
+  binary `application/pdf`. Base64 hanya boleh dibuat pada boundary backend ke
+  BSrE, bukan sebagai transport JSON PDF ke browser.
+- Signature presence untuk aturan footer ditentukan backend. PDF tanpa TTE
+  membuat satu footer pada seluruh halaman ketika QR pertama ditambah; text,
+  font whitelist, size, bold/italic/underline, dan posisi dapat diedit sebelum
+  TTE pertama. PDF yang sudah signed tidak mendapat footer baru atau perubahan
+  footer. Unknown verification wajib fail-closed.
+- Preview overlay browser bukan byte authoritative. Backend memvalidasi seluruh
+  placement/footer, merender exact prepared preview, menghitung hash/revision,
+  dan final sign hanya menerima prepared revision yang masih valid. Cancel
+  sebelum attempt dibuat membersihkan temporary state tanpa audit bisnis.
+- Satu signer/step boleh mempunyai N QR. Ini tetap satu workflow step dan satu
+  `esign_attempts`, tetapi memiliki N operasi provider serial. Output operasi
+  sebelumnya menjadi input berikutnya; jangan menjalankan paralel atau membuat
+  attempt/event legacy per QR.
+- Target multi-QR memerlukan migration additive
+  `esign_signature_operations`, attempt progress counters, status
+  `partially_signed`, artifact `intermediate_sign`, dan
+  `document_artifact_decorations`. Migration canonical yang sudah diterapkan
+  tidak boleh diedit. Sampai target dibuat, status attempt aktif tetap matrix
+  minimum yang ada.
+- Step hanya selesai dan final artifact hanya current setelah semua operasi QR
+  sukses serta final verify lulus. Operasi completed tidak boleh diulang.
+  Partial yang aman melanjutkan attempt sama dari checkpoint; outcome ambigu
+  tetap `unknown`, menghentikan operasi berikutnya, dan menunggu reconciliation.
+- Satu aggregate multi-QR hanya memproyeksikan satu `before_signs`, satu
+  terminal `after_signs` sesuai contract laporan legacy, dan satu
+  `document_process` action `TTE` hanya saat sukses. Intermediate dan detail
+  operasi hanya canonical.
 - Seluruh TTE runtime berjalan asynchronous dari sisi user melalui dedicated
   queue `signatures`; HTTP BSrE tetap sinkron di dalam worker. Setelah request
   final commit dan `202`, tutup modal/browser atau putus koneksi user tidak
@@ -217,7 +253,8 @@ Ini ringkasan aturan yang tidak boleh dilanggar lintas domain.
 - Signing attempt mengikuti state minimum `prepared -> signing -> validating ->
   succeeded|failed|unknown`. Timeout setelah request terkirim harus menjadi
   `unknown`; jangan otomatis mengulangi sign karena dapat menghasilkan tanda
-  tangan ganda.
+  tangan ganda. Matrix ini menggambarkan implementasi saat ini; target multi-QR
+  menambahkan `partially_signed` melalui migration/enum/service additive.
 - Enum/state final berada di `app/Enums/Esign`: workflow
   `draft|active|completed|rejected|needs_review`; step
   `pending|active|signing|reconciliation_required|completed|rejected|skipped|needs_review`;

@@ -48,13 +48,16 @@ wajib baca:
    `pdf_watermark_required`, preview/view/download, guest, COPY-ID, watermark,
    audit delivery, atau cache verifikasi BSrE
 4. `08-esign/ESIGN_V2_CONTRACT_AND_BACKEND.md`
-5. `08-esign/ESIGN_DOCUMENT_LIFECYCLE_AND_REPORTING_COMPATIBILITY.md` bila
+5. `08-esign/ESIGN_VISIBLE_EDITOR_AND_MULTI_QR_DESIGN.md` bila menyentuh
+   source PDF editor, footer, placement, beberapa QR satu signer, operation
+   checkpoint, partial resume, atau worker visible
+6. `08-esign/ESIGN_DOCUMENT_LIFECYCLE_AND_REPORTING_COMPATIBILITY.md` bila
    menyentuh lifecycle file, QR, storage, attempt/event, atau kompatibilitas
    `before_signs`/`after_signs`
-6. `08-esign/ESIGN_RESUMABLE_MIGRATION_RUNBOOK.md` bila menyentuh mapping
+7. `08-esign/ESIGN_RESUMABLE_MIGRATION_RUNBOOK.md` bila menyentuh mapping
    resumable, zero-downtime, queue/lease, pause/resume, recovery, atau cleanup
-7. `08-esign/ESIGN_V2_FRONTEND_MODAL.md`
-8. `08-esign/ESIGN_V2_IMPLEMENTATION_PLAN.md`
+8. `08-esign/ESIGN_V2_FRONTEND_MODAL.md`
+9. `08-esign/ESIGN_V2_IMPLEMENTATION_PLAN.md`
 
 Dokumen cluster tersebut adalah sumber keputusan integrasi baru. Kode project
 lama dan collection Postman hanya menjadi bukti referensi; jangan menyalin
@@ -106,7 +109,7 @@ memanggil action.
 | `05-relationships` | Relasi lintas tabel, integrity rules, rollback dependency | Saat mengecek foreign key, dependency, audit lintas domain |
 | `06-migrations` | Readiness fresh install dan catatan masalah migration | Saat review migration, install baru, rollback, atau deployment database |
 | `07-realtime` | Reverb, presence channel, online monitoring, realtime notification, message helper | Saat mengubah WebSocket, broadcasting, Echo, online status, atau notifikasi realtime |
-| `08-esign` | Arsitektur BSrE/eSign Client 2.2.0, delivery PDF/watermark, kontrak backend, modal Svelte/Vite dengan Bootstrap/Argon, keamanan, performa, dan rollout | Saat mengubah TTE, preview/view/download PDF, watermark, validasi PDF, sertifikat signer, UI modal, atau koneksi eSign |
+| `08-esign` | Arsitektur BSrE/eSign Client 2.2.0, delivery PDF/watermark, editor visible dan multi-QR serial, kontrak backend, modal Svelte/Vite dengan Bootstrap/Argon, keamanan, performa, dan rollout | Saat mengubah TTE, preview/view/download PDF, watermark/footer, validasi PDF, operasi signature, sertifikat signer, UI modal, atau koneksi eSign |
 | `99-legacy` | Referensi project lama, pemetaan data legacy, aturan import, analisis dan rencana payment LS | Saat migrasi/import data lama, mencontoh fitur lama, atau melanjutkan implementasi LS |
 
 ## Prinsip umum

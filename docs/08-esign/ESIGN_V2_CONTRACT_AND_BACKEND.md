@@ -1,12 +1,18 @@
 # Kontrak eSign Client 2.2.0 dan Arsitektur Backend
 
 Tanggal snapshot kontrak: **18 September 2026**. Kondisi implementasi terakhir:
-**21 September 2026**.
+**23 September 2026**.
 
 Dokumen ini menetapkan boundary, kontrak internal, keamanan, state, dan pola
 integrasi backend. Baca `README.md`, `CURRENT_ESIGN_IMPLEMENTATION.md`, dan
 `PDF_DELIVERY_WATERMARK_AND_VERIFICATION.md` pada folder ini lebih dahulu untuk
 membedakan target kontrak dari kondisi source dan deployment aktual.
+
+Extension visible/multi-QR yang sudah disetujui berada di
+`ESIGN_VISIBLE_EDITOR_AND_MULTI_QR_DESIGN.md`. Extension tersebut belum ada di
+source/schema. Bagian attempt/payload satu-call di dokumen ini tetap menjelaskan
+baseline implementasi saat ini dan tidak boleh dibaca sebagai penolakan desain
+multi-QR target.
 
 ## 1. Ringkasan perubahan dari integrasi lama
 
@@ -108,6 +114,12 @@ Koleksi tidak menyediakan kontrak production lengkap:
 
 Konsekuensi: implementasi response decoder, multi-file, visible coordinate, dan
 error mapping harus mempunyai contract test sandbox sebelum cutover.
+
+Array `signatureProperties[]` dan `file[]` juga tidak membuktikan bahwa beberapa
+visible placement dapat diterapkan ke satu PDF dalam satu request. Keputusan
+target adalah satu request sign per QR secara serial, dengan output sebelumnya
+sebagai input berikutnya, sampai uji terkontrol membuktikan kontrak lain yang
+aman.
 
 ## 4. Boundary dan struktur class
 
@@ -363,7 +375,7 @@ workflow.
 
 ### Attempt
 
-Status `esign_attempts.status`:
+Status `esign_attempts.status` yang **sudah diimplementasikan saat snapshot**:
 
 ```text
 prepared -> signing -> validating -> succeeded
@@ -399,6 +411,13 @@ Transition legal:
 
 Retry selalu membuat row attempt baru. Attempt `failed`/`succeeded` tidak
 diubah kembali menjadi `prepared`/`signing`.
+
+Target multi-QR menambah `partially_signed`, operation state, progress counter,
+dan intermediate checkpoint secara additive. Dalam target itu, kegagalan aman
+setelah minimal satu operasi tidak selalu membuat attempt baru: user memasukkan
+passphrase kembali dan attempt yang sama resume dari operasi pertama yang belum
+completed. Outcome ambigu tetap `unknown` dan tidak boleh dilanjutkan sebelum
+reconciliation.
 
 ### Supporting enum yang sudah dibuat
 
@@ -457,8 +476,9 @@ belum dibuktikan melalui vertical slice runtime.
 15. Verify hasil tanpa passphrase di pipeline worker atau job read-only
     idempotent terpisah. UI tetap membaca `validating` sampai verify selesai.
 16. Setelah valid, finalisasi artifact dan database dalam transaksi singkat.
-17. Tulis history/audit, ubah attempt `succeeded`, selesaikan step, dan aktifkan
-    step berikutnya atau workflow `completed`.
+17. Tulis history/audit, ubah attempt `succeeded`, dan selesaikan step. Pada LS
+    SPP, step berikutnya baru di-assign/diaktifkan oleh handoff service setelah
+    submit gate lulus; jangan mengaktifkannya otomatis dari finalisasi TTE.
 18. Hapus secret segera pada terminal state, bersihkan staging yang tidak lagi
     diperlukan, dan kirim pembaruan status melalui polling/realtime.
 
@@ -468,6 +488,13 @@ koneksi browser, tutup modal, logout, atau navigasi tidak menghentikan job.
 
 External HTTP call tidak boleh dilakukan sambil menahan row lock atau transaksi
 database panjang.
+
+Flow di atas adalah baseline satu operasi. Untuk target multi-QR, langkah
+vendor-call sampai output persistence diulang serial per operation dengan
+artifact intermediate immutable. Hanya output terakhir diverifikasi sebagai
+final, dipromosikan current, dan diproyeksikan sekali ke tabel legacy. Algoritma,
+schema, partial failure, secret reuse, dan acceptance berada di
+`ESIGN_VISIBLE_EDITOR_AND_MULTI_QR_DESIGN.md`.
 
 ## 10. Idempotency dan retry
 
@@ -514,6 +541,10 @@ Payload sign yang aktif hanya:
 
 Builder menolak PDF kosong/non-PDF, NIK malformed, dan passphrase kosong sebelum
 request jaringan dibuat.
+
+Target visible akan memakai satu `signatureProperties` visible dan satu PDF per
+panggilan operasi QR. Beberapa QR tidak berarti beberapa file dan tidak boleh
+dijalankan paralel terhadap source yang sama.
 
 ## 12. Response dan error aplikasi
 

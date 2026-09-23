@@ -1,6 +1,7 @@
 # Matriks Authorization dan Workflow TTE
 
-Tanggal snapshot: **18 September 2026**.
+Tanggal keputusan awal: **18 September 2026**. Pembaruan terakhir:
+**23 September 2026**.
 
 Status: **keputusan bisnis target dan matriks workflow versi 1 dikunci sebagai
 dasar implementasi; data legacy yang ambigu wajib ditandai `needs_review` dan
@@ -46,14 +47,18 @@ view/download. Kebijakan byte PDF original versus watermark berada di
    signer berikutnya.
 13. Setiap signer menempatkan QR/footer untuk langkahnya sendiri. Placement
     terikat pada signer, workflow step, dan exact source artifact.
-14. Passphrase hanya dikirim pada request final sign, lalu disimpan sementara
+14. Satu workflow step dapat mempunyai beberapa QR untuk signer/jabatan yang
+    sama. Ini tetap satu step dan satu attempt dengan beberapa operasi serial,
+    bukan penambahan step signer. Desain detail berada di
+    `ESIGN_VISIBLE_EDITOR_AND_MULTI_QR_DESIGN.md`.
+15. Passphrase hanya dikirim pada request final sign, lalu disimpan sementara
     dalam secret store/cache private terenkripsi ber-TTL agar dedicated worker
     dapat melanjutkan TTE asynchronous. Passphrase tidak boleh masuk database,
     session, log, event, `failed_jobs`, atau serialized queue payload.
-15. Menutup atau membatalkan modal pada tahap penempatan/preview sebelum tombol
+16. Menutup atau membatalkan modal pada tahap penempatan/preview sebelum tombol
     sign ditekan tidak membuat audit event, signing attempt, atau record bisnis.
     Temporary preview dibersihkan segera atau melalui TTL.
-16. Authorization wajib ditegakkan backend. Visibilitas tombol Blade/Svelte
+17. Authorization wajib ditegakkan backend. Visibilitas tombol Blade/Svelte
     bukan security boundary.
 
 ## 2. Alur `SELF_SIGN`
@@ -72,7 +77,8 @@ User login
   -> worker backend memanggil BSrE walau browser/modal sudah ditutup
   -> output diverifikasi di background
   -> artifact versi baru diaktifkan
-  -> langkah berikutnya dibuka atau workflow diselesaikan
+  -> step current diselesaikan
+  -> step berikutnya baru di-assign/diaktifkan saat handoff, atau workflow selesai
 ```
 
 Frontend hanya mengirim identifier opaque untuk signing session, placement yang
@@ -362,6 +368,10 @@ preview membuat signing session kedaluwarsa dan wajib dibuat ulang.
 ## 10. Penempatan QR/footer
 
 - Signer step aktif menempatkan QR/footer sendiri.
+- Signer dapat menempatkan lebih dari satu QR pada halaman/lokasi berbeda untuk
+  step yang sama. Satu klik/passphrase mengeksekusi seluruh QR secara serial;
+  authorization tidak dievaluasi sebagai signer baru untuk setiap QR, tetapi
+  wajib direvalidasi sebelum attempt dan resume.
 - Placement tidak boleh digunakan ulang lintas signer tanpa validasi baru.
 - QR menggunakan `/verify/{public_id}` dan menunjuk exact immutable result
   artifact dari step tersebut.

@@ -10,11 +10,14 @@ artifact/workflow/step provisioning dari upload payment sudah dibuat dan sudah
 dibuktikan secara lokal oleh dedicated worker melalui satu upload NPD
 `GU_SKPD`. Untuk LS SPP, lazy activation, submit gate, assignment/activation
 PPTK dan PA/KPA saat handoff sudah tersedia. Vertical slice sign masih belum
-lulus end-to-end, dan Phase 6-12 belum diimplementasikan**.
+lulus end-to-end, dan Phase 6-12 belum diimplementasikan. Desain approved untuk
+binary PDF editor, editable footer, serta multi-QR serial satu signer berada di
+`ESIGN_VISIBLE_EDITOR_AND_MULTI_QR_DESIGN.md`**.
 
 Dokumen ini mengarahkan agent pada urutan kerja, dependency, acceptance, dan
 blocker. Baca `README.md`, `PDF_DELIVERY_WATERMARK_AND_VERIFICATION.md`, backend
-contract, dan frontend modal design lebih dahulu.
+contract, `ESIGN_VISIBLE_EDITOR_AND_MULTI_QR_DESIGN.md`, dan frontend modal
+design lebih dahulu.
 
 ## 1. Prinsip eksekusi
 
@@ -42,7 +45,7 @@ contract, dan frontend modal design lebih dahulu.
 | 3 | Persistence/state | Migration, model, lock | Attempt, state machine, fingerprint, storage reference | Duplicate dan state `unknown` terkontrol |
 | 4 | Authorization/session | Policy dan source of truth | Signing session terotorisasi dan preview private | Browser tidak menentukan signer/path/state |
 | 5 | Backend invisible flow | API sign end-to-end | Prepare, sign, verify, finalize tanpa UI baru | Invisible sign lengkap lewat API internal |
-| 6 | Backend visible/verify/delivery | Placement, validasi, dan PDF rendition | Kontrak placement, verify, artifact version, watermark/cache/audit | Semua kemampuan UI memiliki API stabil |
+| 6 | Backend visible/verify/delivery | Placement, footer, multi-QR serial, validasi, dan PDF rendition | Prepared rendition, operation checkpoint, verify, artifact version, watermark/cache/audit | Semua kemampuan UI memiliki API stabil |
 | 7 | Backend Ready Gate | Hardening dan operasional | Backend aman, observable, terdokumentasi | Gate backend dinyatakan lulus |
 | 8 | Frontend foundation | Svelte/Vite island | Root, API client, Bootstrap/Argon modal shell | UI dapat memakai API tanpa mengetahui vendor |
 | 9 | Signing modal | Flow invisible | Modal prepare/confirm/sign/result | State sukses/gagal/unknown benar |
@@ -80,6 +83,9 @@ schema, application error code, route, authorization, dan state backend stabil.
 - **Sengaja fail-closed:** step `placement_required=true` belum dapat sign dan
   menghasilkan `esign.visible_placement_not_ready` sampai backend visible
   placement selesai.
+- **Desain baru belum dibuat:** browser binary preview tanpa upload, editable
+  footer hanya sebelum TTE pertama, prepared revision, N QR dalam satu attempt,
+  operation checkpoint/intermediate, `partially_signed`, dan partial resume.
 - **Belum dibuat:** reconciliation `unknown`, stuck recovery, scheduled cleanup,
   health/metric/alert, migration/management `pdf_watermark_required`, PDF
   watermark/cache/audit, public verify/delivery, legacy QR resolver, mapping
@@ -376,13 +382,41 @@ Acceptance:
 
 Implementasikan seluruh capability yang diperlukan UI sebelum UI dibuat:
 
+- lakukan contract proof terkontrol untuk coordinate visible dan beberapa sign
+  serial pada satu PDF; array Postman tidak membuktikan multi-placement;
+- tambah migration additive `esign_signature_operations`, progress counter
+  attempt, status `partially_signed`, artifact `intermediate_sign`, serta
+  `document_artifact_decorations`; jangan edit migration yang sudah diterapkan;
 - `SignaturePlacementData` dengan page, canonical coordinate, width, height,
-  display mode, dan reason yang tervalidasi;
+  display mode, reason, `operation_index`, dan reserved public ID yang
+  tervalidasi;
 - transform canonical coordinate ke contract BSrE berdasarkan hasil sandbox;
 - validasi page exists, finite number, minimum/maximum size, bounds, rotation,
   dan capability signer/document;
 - source image/specimen/QR yang dibuat atau dipilih server; jangan menerima
   path/image arbitrer dari browser;
+- browser memperoleh PDF sebagai authorized binary stream dari exact artifact;
+  jangan mengirim PDF Base64 melalui JSON atau menerima upload editor;
+- signature presence diputuskan backend. PDF unsigned memperoleh footer pada
+  semua halaman bersama QR pertama; footer mendukung text, font whitelist,
+  size, bold/italic/underline, default bottom safe area, dan posisi per halaman;
+  PDF signed tidak boleh mendapat footer baru atau perubahan footer;
+- endpoint prepared rendition memvalidasi seluruh placement/footer, merender
+  footer server-side, menyimpan revision/hash, dan mengembalikan exact preview;
+  perubahan editor menginvalidasi revision lama;
+- satu signer/step boleh mempunyai N placement. Buat satu attempt dengan N
+  operations; jalankan satu request BSrE per QR secara serial dengan output
+  sebelumnya sebagai input berikutnya;
+- simpan intermediate output sebagai checkpoint immutable non-current. Resume
+  dari operation pertama yang belum completed; jangan mengulang operation
+  completed atau menjalankan request paralel;
+- secret passphrase multi-operation dapat dibaca terbatas sampai terminal/TTL,
+  tidak diambil destruktif setelah operasi pertama; expiry setelah partial
+  meminta re-entry dan resume attempt yang sama;
+- outcome ambigu pada operasi mana pun menghentikan pipeline sebagai `unknown`;
+  jangan lanjut ke QR berikut atau blind retry;
+- final artifact baru dipromosikan dan step diselesaikan setelah seluruh
+  operasi serta final verify berhasil;
 - mode invisible tetap tidak memerlukan placement;
 - endpoint verify berdasarkan document/artifact ID, bukan upload ulang dari
   browser;
@@ -430,6 +464,12 @@ Implementasikan seluruh capability yang diperlukan UI sebelum UI dibuat:
 
 Acceptance matrix backend:
 
+- satu QR dan beberapa QR pada signer/step yang sama;
+- progress counter, crash-resume dari checkpoint, secret expiry setelah partial,
+  serta outcome unknown pada operasi tengah;
+- satu compatibility before/after/TTE event per aggregate, bukan per QR;
+- public ID unik per QR diaktifkan atomik dan resolve final exact artifact serta
+  signature spesifik;
 - A4 portrait dan landscape;
 - rotation 0/90/180/270;
 - mixed page sizes;
@@ -557,12 +597,26 @@ Acceptance:
 
 ### Visible editor
 
+- PDF hanya berasal dari authorized backend binary stream; tidak ada upload,
+  replace file, path, atau Base64 JSON;
 - lazy-load PDF renderer/worker;
-- render halaman secara virtual untuk dokumen panjang;
-- sediakan zoom/page navigation dan overlay drag/resize;
+- render halaman aktif/sekitar secara virtual dan thumbnail resolusi rendah;
+- sediakan zoom/page navigation serta DOM overlay drag/resize untuk satu atau
+  beberapa QR;
 - simpan placement dalam coordinate canonical, bukan CSS pixel;
 - preview client-side tidak menggantikan backend bounds validation;
 - tampilkan capability visible/invisible yang diberikan backend.
+- pada PDF unsigned, QR pertama membuat footer seluruh halaman dengan editor
+  text, font, size, bold/italic/underline, posisi per halaman, apply-all, dan
+  reset; pada PDF signed tidak tampilkan editor footer;
+- sebelum confirmation, tampilkan authorized rendition dari exact prepared
+  artifact backend. Setiap perubahan placement/footer harus meminta revision
+  baru;
+- confirmation menjelaskan jumlah operasi; progress menampilkan `i dari N`;
+- state `partially_signed` meminta passphrase baru untuk resume attempt yang
+  sama, sedangkan `unknown` tidak menyediakan blind retry;
+- custom CSS harus ter-scope dan mengikuti Bootstrap 5/custom Argon, tanpa
+  Tailwind atau nested modal.
 
 ### Validation modal
 
@@ -592,9 +646,12 @@ Urutan:
 1. aktifkan feature flag hanya untuk scope pilot;
 2. pasang adapter tombol TTE/validasi baru tanpa menjalankan handler legacy
    bersamaan;
-3. jalankan invisible sign terlebih dahulu;
-4. setelah stabil, aktifkan visible placement;
-5. pantau latency, memory, error category, failed/unknown, staging cleanup, dan
+3. gunakan proof invisible yang sudah tersedia sebagai baseline, lalu jalankan
+   visible satu QR pada scope pilot;
+4. setelah visible satu QR stabil, buktikan multi-QR serial pada dokumen uji
+   yang memang membutuhkan beberapa placement untuk signer sama;
+5. pantau latency per operasi/aggregate, memory, progress, partial/unknown,
+   staging/intermediate cleanup, dan
    hasil verify;
 6. bandingkan audit/history/workflow dengan expected behavior lama;
 7. tetapkan rollback trigger dan rollback window.
@@ -703,6 +760,14 @@ Integrasi tidak boleh disebut selesai sebelum:
   watermark, dan seluruh delivery teraudit tanpa direct public/original bypass;
 - modal sign dan validasi Svelte menggantikan UX lama;
 - visible coordinates lulus matrix;
+- browser memuat exact authorized PDF sebagai binary stream tanpa upload atau
+  Base64 JSON;
+- footer editable hanya dirender pada PDF unsigned dan exact prepared preview
+  cocok dengan byte sebelum sign pertama;
+- satu signer dapat menyelesaikan N QR serial dengan satu klik/passphrase,
+  checkpoint dapat resume tanpa mengulang operasi completed, dan final artifact
+  baru current setelah seluruh operasi serta verify lulus;
+- satu attempt multi-QR hanya membuat satu projection before/after/TTE legacy;
 - legacy caller sudah dimigrasi atau dinyatakan jelas belum;
 - observability, cleanup, dan reconciliation tersedia;
 - test yang disetujui sudah lulus;
@@ -719,9 +784,13 @@ Integrasi tidak boleh disebut selesai sebelum:
    capability akses untuk setiap `payment_type + src_type + workflow_variant`?
    Mode byte sesudah akses bukan blocker lagi: wajib mengikuti satu flag
    `pdf_watermark_required` dan aturan acting/guest yang sudah dikunci.
-6. Detail final render QR/footer server-side: ukuran minimum, margin aman,
-   template footer, page rotation, dan aturan overlap per tipe dokumen.
+6. Nilai konfigurasi final per tipe dokumen untuk batas QR (baseline target
+   maksimal lima), ukuran minimum, margin aman, font whitelist, footer default,
+   page rotation, dan aturan overlap.
 7. Berapa retention attempt, staging, sanitized vendor metadata, dan encrypted
    secret TTL final setelah observasi beban produksi?
 8. Pilot backend pertama sudah dipilih: LS SPP jalur BP -> PPTK -> PA. Scope
    rollout operasional setelah proof tersebut masih harus ditetapkan.
+9. Apakah provider mempertahankan seluruh signature valid pada rangkaian
+   visible sign serial satu PDF, termasuk shape response dan latency setiap
+   operasi? Ini wajib dibuktikan; array collection bukan jawaban kontrak.

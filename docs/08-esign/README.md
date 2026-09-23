@@ -45,33 +45,37 @@ integrasi BSrE wajib membaca berurutan:
    bila menyentuh `pdf_watermark_required`, preview/view/download PDF, guest,
    Admin Super acting, COPY-ID, cache derivative, atau cache verifikasi BSrE;
 4. [kontrak dan arsitektur backend](ESIGN_V2_CONTRACT_AND_BACKEND.md);
-5. [matriks authorization dan workflow TTE](ESIGN_AUTHORIZATION_AND_WORKFLOW_MATRIX.md)
+5. [desain editor visible dan multi-QR satu signer](ESIGN_VISIBLE_EDITOR_AND_MULTI_QR_DESIGN.md)
+   bila menyentuh source PDF editor, binary preview, placement, footer,
+   beberapa QR dalam satu step, worker sequential, partial signing, atau
+   frontend Svelte;
+6. [matriks authorization dan workflow TTE](ESIGN_AUTHORIZATION_AND_WORKFLOW_MATRIX.md)
    bila menyentuh signer, Admin Super, posisi aktif, penempatan QR/footer,
    urutan TTE, pembatalan/retry, atau akses view/download;
-6. [kontrak enam tabel operasional legacy dan audit canonical](LEGACY_OPERATIONAL_TABLES_COMPATIBILITY.md)
+7. [kontrak enam tabel operasional legacy dan audit canonical](LEGACY_OPERATIONAL_TABLES_COMPATIBILITY.md)
    bila menyentuh `document`, `document_process`, `anggaran_kegiatan`,
    `anggaran_kegiatan_temp`, `before_signs`, `after_signs`, dual-write, atau
    compatibility ledger;
-7. [lifecycle dokumen, QR, storage, dan kompatibilitas laporan](ESIGN_DOCUMENT_LIFECYCLE_AND_REPORTING_COMPATIBILITY.md)
+8. [lifecycle dokumen, QR, storage, dan kompatibilitas laporan](ESIGN_DOCUMENT_LIFECYCLE_AND_REPORTING_COMPATIBILITY.md)
    bila menyentuh file sebelum/sesudah TTE, `document_artifacts`, attempt/event,
    URL verifikasi, `before_signs`/`after_signs`, backfill, atau aplikasi laporan;
-8. [runbook mapping resumable dan zero-downtime](ESIGN_RESUMABLE_MIGRATION_RUNBOOK.md)
+9. [runbook mapping resumable dan zero-downtime](ESIGN_RESUMABLE_MIGRATION_RUNBOOK.md)
    bila menyentuh backfill, file copy, queue mapping, checkpoint, lease,
    pause/resume, throttling, catch-up, recovery, atau decommission;
-9. [rancangan frontend modal](ESIGN_V2_FRONTEND_MODAL.md) bila menyentuh Blade,
+10. [rancangan frontend modal](ESIGN_V2_FRONTEND_MODAL.md) bila menyentuh Blade,
    Svelte, Vite, PDF viewer, koordinat, atau UX;
-10. [rencana implementasi](ESIGN_V2_IMPLEMENTATION_PLAN.md);
-11. [laporan Phase 0](PHASE_0_SECURITY_CONTAINMENT_REPORT.md) sebelum memakai
+11. [rencana implementasi](ESIGN_V2_IMPLEMENTATION_PLAN.md);
+12. [laporan Phase 0](PHASE_0_SECURITY_CONTAINMENT_REPORT.md) sebelum memakai
    credential atau memulai sandbox;
-12. [laporan Phase 1](PHASE_1_SANDBOX_CONTRACT_REPORT.md) sebelum mengunci
+13. [laporan Phase 1](PHASE_1_SANDBOX_CONTRACT_REPORT.md) sebelum mengunci
    response decoder, error mapping, koordinat, limit, atau multi-file;
-13. `../00-ai-agent/PROJECT_INVARIANTS.md`;
-14. `../01-authentication/AUTH_CONTEXT_DECISIONS.md` dan
+14. `../00-ai-agent/PROJECT_INVARIANTS.md`;
+15. `../01-authentication/AUTH_CONTEXT_DECISIONS.md` dan
    `../01-authentication/CURRENT_AUTH_CONTEXT_IMPLEMENTATION.md` bila menyentuh
    signer, posisi aktif, atau Admin Super acting context;
-15. `../06-migrations/FRESH_INSTALL_READINESS.md` sebelum membuat atau mengubah
+16. `../06-migrations/FRESH_INSTALL_READINESS.md` sebelum membuat atau mengubah
    migration;
-16. `../99-legacy/OLD_PROJECT_REFERENCE.md` hanya untuk memahami perilaku lama.
+17. `../99-legacy/OLD_PROJECT_REFERENCE.md` hanya untuk memahami perilaku lama.
 
 Jika TTE dipanggil dari payment LS, baca juga:
 
@@ -225,6 +229,38 @@ Jika TTE dipanggil dari payment LS, baca juga:
     12 jam, verifikasi BSrE asynchronous, cleanup, dan acceptance criteria berada
     di `PDF_DELIVERY_WATERMARK_AND_VERIFICATION.md`. Fitur ini masih rancangan dan
     belum boleh dianggap telah diimplementasikan.
+44. Editor tidak mengunggah PDF. Backend me-resolve exact canonical artifact
+    paket BP/BPP lalu browser memuatnya sebagai authorized binary
+    `application/pdf`; Base64 hanya digunakan pada boundary backend-BSrE.
+45. Pada PDF tanpa TTE, penambahan QR pertama juga membuat footer di seluruh
+    halaman. Text, font whitelist, size, bold, italic, underline, dan posisi
+    footer dapat diedit sebelum TTE pertama. PDF yang sudah mempunyai TTE tidak
+    mendapat footer baru dan footer lama tidak diubah.
+46. Browser hanya menampilkan overlay edit. Backend memvalidasi koordinat dan
+    merender exact prepared preview; perubahan placement/footer membatalkan
+    prepared revision lama. Cancel sebelum final sign membersihkan temporary
+    context tanpa attempt atau audit bisnis.
+47. Satu signer/posisi boleh mempunyai beberapa QR dalam satu workflow step.
+    Satu klik TTE dan satu passphrase membuat satu attempt berisi N operasi
+    provider serial: output QR sebelumnya menjadi input QR berikutnya.
+48. Multi-QR satu PDF bukan multi-file provider. Sampai kontrak provider
+    dibuktikan, jangan memasangkan banyak `signatureProperties` dengan satu
+    file dalam satu request atau menjalankan panggilan sign paralel.
+49. Multi-QR membutuhkan migration additive operation/checkpoint, counter
+    attempt, artifact `intermediate_sign`, status `partially_signed`, serta
+    snapshot decoration/footer. Desainnya berada di
+    `ESIGN_VISIBLE_EDITOR_AND_MULTI_QR_DESIGN.md` dan belum ada di source/schema.
+50. Final artifact menjadi current dan workflow step selesai hanya setelah
+    seluruh operasi QR sukses serta verifikasi final lulus. Attempt partial
+    resume dari operasi pertama yang belum selesai; outcome ambigu berhenti
+    sebagai `unknown` dan tidak boleh blind retry.
+51. Untuk satu attempt multi-QR, compatibility projection tetap satu
+    `before_signs`, maksimal satu terminal `after_signs`, dan satu event `TTE`
+    pada `document_process` hanya saat sukses; detail per QR hanya berada di
+    schema canonical.
+52. Frontend visible tetap Svelte island dalam modal Bootstrap 5/custom Argon.
+    CSS editor harus scoped, tidak memakai Tailwind, tidak membuat modal
+    bertumpuk, dan menampilkan progress seperti `2 dari 3`.
 
 ## Batas keputusan
 
@@ -237,6 +273,8 @@ Hal berikut belum boleh dianggap final hanya berdasarkan koleksi Postman:
 - ukuran file dan jumlah file maksimum;
 - daftar error code resmi versi 2.2.0;
 - apakah response sign berupa PDF binary, base64, atau JSON wrapper;
+- apakah beberapa visible placement pada satu PDF dapat diproses dalam satu
+  request tanpa merusak signature sebelumnya.
 
 Semua butir tersebut wajib dibuktikan dengan dokumentasi resmi tambahan atau
 sandbox BSrE sebelum diaktifkan di production.
@@ -394,4 +432,9 @@ publik, atau kontrak request lama dari file-file tersebut.
 - [ ] Visible QR/footer placement, coordinate validation, dan payload visible
       diimplementasikan; sign saat ini fail-closed untuk
       `placement_required=true`.
+- [x] Desain source PDF backend, binary browser delivery, editable footer,
+      exact prepared preview, dan multi-QR serial satu signer didokumentasikan.
+- [ ] Contract proof visible serial, operation/checkpoint schema,
+      `partially_signed`, `intermediate_sign`, decoration persistence, worker
+      multi-operation, dan resume partial diimplementasikan.
 - [ ] Uji penerapan BSrE dan cutover production selesai.
