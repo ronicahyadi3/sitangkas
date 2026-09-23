@@ -16,6 +16,10 @@ use Illuminate\Support\Str;
 
 final class LegacyEsignLedgerWriter
 {
+    public function __construct(
+        private readonly LsSppCompatibilityProjector $lsSppProjector,
+    ) {}
+
     public function writeBefore(
         EsignAttempt $attempt,
         DocumentArtifact $artifact,
@@ -96,6 +100,14 @@ final class LegacyEsignLedgerWriter
         DocumentArtifact $artifact,
         string $md5,
     ): void {
+        $document = $attempt->document()->first();
+
+        if ($document instanceof Document && $this->lsSppProjector->supports($document)) {
+            $this->lsSppProjector->projectSuccessfulSignature($attempt, $artifact, $md5);
+
+            return;
+        }
+
         DB::transaction(function () use ($attempt, $artifact, $md5): void {
             if ($this->linkExists($attempt, 'document_process')) {
                 return;

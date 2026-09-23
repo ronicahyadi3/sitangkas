@@ -15,11 +15,15 @@ artifact/workflow/step. Worker `signatures` sudah ditambahkan ke
 terkontrol berhasil membentuk artifact, workflow, dua step, serta event.
 Production process manager, aktivasi first signer setelah upload, assignment
 signer berikutnya saat submit/handoff, dan vertical slice signing canonical
-belum selesai. SPP LS sekarang mempunyai direct source artifact upload dan
+belum selesai. SPP LS sekarang mempunyai direct source artifact upload,
+replacement artifact berversi dengan draft-workflow rebind/revision cycle, dan
 authenticated delivery route khusus current artifact pada working tree.
 Formula `storage_path_sha256` persistence/integrity sudah disatukan; acceptance
-runtime delivery masih belum dilakukan. Reconciliation/visible placement/public
-verification/mapping runner/frontend juga belum dibuat. Baca
+runtime delivery masih belum dilakukan. Create/update SPP sudah memakai
+protokol lock dan pemeriksaan ulang pagu yang sama di dalam transaksi, sedangkan
+attachment SPJ/Billing/BMD masih memakai public storage.
+Reconciliation/visible placement/public verification/mapping runner/frontend
+juga belum dibuat. Baca
 `CURRENT_ESIGN_IMPLEMENTATION.md` untuk kondisi kode aktual dan batas
 operasionalnya.
 

@@ -4,31 +4,46 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Payment\LS;
 
+use App\Actions\Esign\ProvisionCanonicalDocument as ProvisionCanonicalDocumentAction;
 use App\Data\Esign\StagedDocumentArtifact;
+use App\Enums\Esign\DocumentArtifactType;
+use App\Enums\Esign\DocumentSigningWorkflowStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\LS\StoreSppRequest;
 use App\Http\Requests\LS\UpdateSppRequest;
 use App\Models\AnggaranKegiatan;
 use App\Models\AnggaranKegiatanTemp;
 use App\Models\Document;
+use App\Models\Esign\DocumentArtifact;
+use App\Models\Esign\DocumentSigningWorkflow;
 use App\Models\Jabatan;
 use App\Models\Payment\LS;
+use App\Models\UnitKerja;
+use App\Models\UserPosition;
 use App\Services\Document\DocumentHistoryService;
 use App\Services\Document\DocumentOrganizationScope;
 use App\Services\Esign\Persistence\DocumentArtifactPersistenceService;
 use App\Services\User\ActivePositionService;
 use App\Services\User\PositionIdentityResolver;
+use App\Services\User\YearAccessService;
 use App\Support\EncryptedId;
 use DB;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use RuntimeException;
 use Throwable;
 use Yajra\DataTables\Facades\DataTables;
 
 class SPP extends Controller
 {
+    private const SETDA_SOURCE_UNIT_CODE = 'SKPD_SETDA';
+
+    private const SETDA_TARGET_UNIT_CODE = 'SETDA_BAG_UMUM';
+
     public function __construct(
         private readonly PositionIdentityResolver $positionIdentityResolver,
         private readonly DocumentOrganizationScope $documentOrganizationScope,
@@ -648,17 +663,19 @@ class SPP extends Controller
     public function store(
         StoreSppRequest $request,
         ActivePositionService $activePosition,
+        YearAccessService $yearAccess,
         DocumentHistoryService $documentHistoryService,
         DocumentArtifactPersistenceService $artifactPersistence,
-    ) {
+    ): JsonResponse {
         $start = microtime(true);
         $sppId = null;
+        $validated = $request->validated();
 
         Log::channel('payment_ls')->info('SPP LS Store request', [
-            'nomor_spp' => $request->nomor_spp,
-            'nominal' => $request->nominal,
-            'belanja' => $request->belanja,
-            'rekening_count' => count($request->rekening ?? []),
+            'nomor_spp' => $validated['nomor_spp'],
+            'nominal' => $validated['nominal'],
+            'belanja' => $validated['belanja'],
+            'rekening_count' => count($validated['rekening']),
             'has_spp' => $request->hasFile('file_spp'),
             'has_spj' => $request->hasFile('file_spj'),
             'has_billing' => $request->hasFile('file_billing'),
@@ -667,11 +684,20 @@ class SPP extends Controller
         ]);
 
         $user = $activePosition->get();
+
+        if (! $user instanceof UserPosition || ! $user->unitKerja) {
+            return response()->json([
+                'status' => 403,
+                'message' => 'Posisi aktif atau unit kerja tidak valid.',
+            ], 403);
+        }
+
         $userId = $user->id;
         $artifactCreatorUserId = $activePosition->real()?->user_id
             ?? $request->user()?->getKey();
-        $unitKerja = $user?->unitKerja?->id;
-        $rekeningMap = [];
+        $unitKerja = (int) $user->unitKerja->id;
+        $selectedYear = $yearAccess->selectedYear();
+        $targetBudgetUnitId = $this->resolveSppBudgetUnitId($user);
         $storedFiles = [];
         $stagedSppArtifact = null;
 
@@ -712,26 +738,17 @@ class SPP extends Controller
             ], 400);
         }
 
-        foreach ($request->rekening as $r) {
-            $rekeningMap[$r['id']] = (float) $r['nominal'];
-        }
-
-        $tempData = AnggaranKegiatanTemp::tahunAktif()
-            ->whereIn('id_rekening', array_keys($rekeningMap))
-            ->get()
-            ->keyBy('id_rekening');
-
         try {
             DB::transaction(function () use (
-                $request,
+                $validated,
                 $filename_spp,
                 $filename_spj,
                 $filename_billing,
                 $filename_bmd,
                 $userId,
                 $unitKerja,
-                $rekeningMap,
-                $tempData,
+                $selectedYear,
+                $targetBudgetUnitId,
                 $documentHistoryService,
                 $artifactPersistence,
                 $stagedSppArtifact,
@@ -739,22 +756,33 @@ class SPP extends Controller
                 $artifactCreatorUserId,
                 $start,
                 &$sppId
-            ) {
+            ): void {
                 Log::channel('payment_ls')->debug('SPP LS Store transaction start', [
-                    'nomor_spp' => $request->nomor_spp,
+                    'nomor_spp' => $validated['nomor_spp'],
                     'duration_ms' => round((microtime(true) - $start) * 1000, 2),
                 ]);
 
+                $lockedBudget = $this->lockAndValidateSppBudget(
+                    rekeningItems: $validated['rekening'],
+                    subKegiatanId: $validated['sub_kegiatan_id'],
+                    submittedNominal: $validated['nominal'],
+                    selectedYear: $selectedYear,
+                    activeUnitId: $unitKerja,
+                    targetBudgetUnitId: $targetBudgetUnitId,
+                );
+                $rekeningInput = $lockedBudget['rekening'];
+                $budgetRows = $lockedBudget['budgets'];
+
                 $spp = $this->saveDocumentData([
-                    'nomor' => $request->nomor_spp,
+                    'nomor' => $validated['nomor_spp'],
                     'src_name' => $filename_spp,
-                    'src_type' => 'SPP',
+                    'src_type' => Document::TYPE_SPP,
                     'payment_type' => 'LS',
                     'id_unit_kerja' => $unitKerja,
                     'uploaded_by' => $userId,
-                    'nominal' => $request->nominal,
-                    'uraian' => $request->uraian,
-                    'expenditure_type' => $request->belanja,
+                    'nominal' => $validated['nominal'],
+                    'uraian' => $validated['uraian'],
+                    'expenditure_type' => $validated['belanja'],
                 ]);
                 $sppId = $spp->id;
 
@@ -779,7 +807,7 @@ class SPP extends Controller
                 $spj = $this->saveDocumentData([
                     'reference_id' => $spp->id,
                     'src_name' => $filename_spj,
-                    'src_type' => 'SPJ',
+                    'src_type' => Document::TYPE_SPJ,
                     'payment_type' => 'LS',
                     'id_unit_kerja' => $unitKerja,
                     'uploaded_by' => $userId,
@@ -790,7 +818,7 @@ class SPP extends Controller
                     $bmd = $this->saveDocumentData([
                         'reference_id' => $spp->id,
                         'src_name' => $filename_bmd,
-                        'src_type' => 'BMD',
+                        'src_type' => Document::TYPE_BMD,
                         'payment_type' => 'LS',
                         'id_unit_kerja' => $unitKerja,
                         'uploaded_by' => $userId,
@@ -799,11 +827,9 @@ class SPP extends Controller
                 }
                 $now = now();
                 $insertData = [];
-                foreach ($rekeningMap as $idRekening => $nominal) {
-                    if (! isset($tempData[$idRekening])) {
-                        continue;
-                    }
-                    $row = $tempData[$idRekening];
+                foreach ($rekeningInput as $idRekening => $rekening) {
+                    /** @var AnggaranKegiatanTemp $row */
+                    $row = $budgetRows->get($idRekening);
                     $insertData[] = [
                         'tahun' => $row->tahun,
                         'kode_urusan' => $row->kode_urusan,
@@ -825,7 +851,7 @@ class SPP extends Controller
                         'kode_rekening' => $row->kode_rekening,
                         'nama_rekening' => $row->nama_rekening,
                         'id_rekening' => $row->id_rekening,
-                        'nominal' => $nominal,
+                        'nominal' => $rekening['nominal'],
                         'pagu' => $row->pagu,
                         'id_spp' => $spp->id,
                         'id_unit_kerja' => $unitKerja,
@@ -833,7 +859,6 @@ class SPP extends Controller
                         'updated_at' => $now,
                     ];
                 }
-                AnggaranKegiatan::where('id_spp', $spp->id)->delete();
                 AnggaranKegiatan::insert($insertData);
             });
 
@@ -846,6 +871,11 @@ class SPP extends Controller
                 'status' => 200,
                 'message' => 'Data Tersimpan...',
             ]);
+        } catch (ValidationException $e) {
+            $this->cleanupStoredFiles($storedFiles);
+            $this->cleanupUnpersistedSppArtifact($stagedSppArtifact, $artifactPersistence);
+
+            throw $e;
         } catch (Throwable $e) {
             $this->cleanupStoredFiles($storedFiles);
             $this->cleanupUnpersistedSppArtifact($stagedSppArtifact, $artifactPersistence);
@@ -978,18 +1008,23 @@ class SPP extends Controller
 
     public function update(
         UpdateSppRequest $request,
-        $id,
+        string $id,
         ActivePositionService $activePosition,
-        DocumentHistoryService $documentHistoryService
-    ) {
+        YearAccessService $yearAccess,
+        DocumentHistoryService $documentHistoryService,
+        DocumentArtifactPersistenceService $artifactPersistence,
+        ProvisionCanonicalDocumentAction $provisionCanonicalDocument,
+    ): JsonResponse {
         $start = microtime(true);
+        $validated = $request->validated();
+
         Log::channel('payment_ls')->info('SPP LS Update request', [
             'hash' => $id,
-            'has_spp' => $request->has('nomor_spp'),
+            'has_nomor_spp' => $request->has('nomor_spp'),
             'has_nominal' => $request->has('nominal'),
             'has_belanja' => $request->has('belanja'),
-            'rekening_count' => count($request->rekening ?? []),
-            'has_spp' => $request->hasFile('file_spp'),
+            'rekening_count' => count($validated['rekening']),
+            'has_file_spp' => $request->hasFile('file_spp'),
             'has_spj' => $request->hasFile('file_spj'),
             'has_billing' => $request->hasFile('file_billing'),
             'has_bmd' => $request->hasFile('file_bmd'),
@@ -997,7 +1032,20 @@ class SPP extends Controller
         ]);
 
         $user = $activePosition->get();
-        $unitKerjaId = $user->unitKerja->id;
+
+        if (! $user instanceof UserPosition || ! $user->unitKerja) {
+            return response()->json([
+                'status' => 403,
+                'message' => 'Posisi aktif atau unit kerja tidak valid.',
+            ], 403);
+        }
+
+        $unitKerjaId = (int) $user->unitKerja->id;
+        $selectedYear = $yearAccess->selectedYear();
+        $artifactCreatorUserId = $activePosition->real()?->user_id
+            ?? $request->user()?->getKey();
+        $artifactCreatorPositionId = $activePosition->real()?->getKey();
+        $artifactCreatorIsActing = $user->getAttribute('is_acting_context') === true;
 
         try {
             $decryptedId = EncryptedId::decode($id);
@@ -1013,30 +1061,95 @@ class SPP extends Controller
             ], 400);
         }
 
+        $storedFiles = [];
+        $stagedSppArtifact = null;
+        $uploadedSpp = $request->file('file_spp');
+        $replacementOriginalName = $uploadedSpp?->getClientOriginalName();
+
         try {
-            $storedFiles = [];
+            if ($uploadedSpp !== null) {
+                $sppStream = fopen($uploadedSpp->getPathname(), 'rb');
+
+                if (! is_resource($sppStream)) {
+                    throw new RuntimeException('spp_replacement_stream_unreadable');
+                }
+
+                try {
+                    $stagedSppArtifact = $artifactPersistence->stagePdfStream($sppStream);
+                } finally {
+                    fclose($sppStream);
+                }
+            }
+
             DB::transaction(function () use (
                 $request,
+                $validated,
                 $decryptedId,
                 $unitKerjaId,
+                $selectedYear,
                 $user,
                 $documentHistoryService,
+                $artifactPersistence,
+                $provisionCanonicalDocument,
+                $artifactCreatorUserId,
+                $artifactCreatorPositionId,
+                $artifactCreatorIsActing,
+                $replacementOriginalName,
                 $start,
-                &$storedFiles
-            ) {
+                &$storedFiles,
+                $stagedSppArtifact,
+            ): void {
                 Log::channel('payment_ls')->debug('SPP LS Update transaction start', [
                     'id_spp' => $decryptedId,
                     'duration_ms' => round((microtime(true) - $start) * 1000, 2),
                 ]);
 
+                /** @var Document|null $spp */
+                $spp = Document::query()
+                    ->forPaymentType('LS')
+                    ->ofType(Document::TYPE_SPP)
+                    ->whereKey($decryptedId)
+                    ->where('id_unit_kerja', $unitKerjaId)
+                    ->whereYear('created_at', $selectedYear)
+                    ->lockForUpdate()
+                    ->first();
+
+                if (! $spp instanceof Document) {
+                    throw ValidationException::withMessages([
+                        'id' => 'Dokumen SPP tidak ditemukan untuk unit dan tahun anggaran aktif.',
+                    ]);
+                }
+
+                $replaceableDraftWorkflow = $this->assertLockedSppCanBeUpdated($spp);
+
+                $targetBudgetUnitId = $this->resolveSppBudgetUnitId($user);
+                $lockedBudget = $this->lockAndValidateSppBudget(
+                    rekeningItems: $validated['rekening'],
+                    subKegiatanId: $validated['sub_kegiatan_id'],
+                    submittedNominal: $validated['nominal'],
+                    selectedYear: $selectedYear,
+                    activeUnitId: $unitKerjaId,
+                    targetBudgetUnitId: $targetBudgetUnitId,
+                    excludedSppId: $decryptedId,
+                );
+                $rekeningInput = $lockedBudget['rekening'];
+                $budgetRows = $lockedBudget['budgets'];
+
+                $existing = AnggaranKegiatan::query()
+                    ->forYear($selectedYear)
+                    ->forSpp($decryptedId)
+                    ->orderBy('id')
+                    ->lockForUpdate()
+                    ->get()
+                    ->keyBy(static fn (AnggaranKegiatan $row): string => (string) $row->id_rekening);
+
                 $dataSpp = [
-                    'nomor' => $request->nomor_spp,
-                    'nominal' => $request->nominal,
-                    'uraian' => $request->uraian,
-                    'expenditure_type' => $request->belanja,
+                    'nomor' => $validated['nomor_spp'],
+                    'nominal' => $validated['nominal'],
+                    'uraian' => $validated['uraian'],
+                    'expenditure_type' => $validated['belanja'],
                     'id_unit_kerja' => $unitKerjaId,
                     'uploaded_by' => $user->id,
-                    'updated_at' => now(),
                     'rejected_by' => null,
                     'notes' => null,
                     'assigned_to' => null,
@@ -1044,17 +1157,67 @@ class SPP extends Controller
                     'users_to' => null,
                 ];
 
-                if ($request->hasFile('file_spp')) {
-                    $dataSpp['src_name'] = $this->storeFile($request->file('file_spp'), '/File_SPP', $storedFiles);
+                $parentArtifact = null;
+
+                if ($stagedSppArtifact instanceof StagedDocumentArtifact) {
+                    $parentArtifact = $this->lockedCurrentSppSourceArtifact($spp);
+                    $dataSpp['src_name'] = $stagedSppArtifact->publicId.'.pdf';
                     $dataSpp['status'] = null;
                 }
 
-                $spp = $this->updateDocumentData($decryptedId, $dataSpp);
+                $spp->fill($dataSpp);
+                $spp->save();
+
+                if ($stagedSppArtifact instanceof StagedDocumentArtifact) {
+                    $artifactPersistence->finalizeSourceArtifact(
+                        stagedArtifact: $stagedSppArtifact,
+                        document: $spp,
+                        parentArtifact: $parentArtifact,
+                        originalName: $replacementOriginalName,
+                        createdByUserId: $artifactCreatorUserId === null
+                            ? null
+                            : (int) $artifactCreatorUserId,
+                        sourceSystem: 'application',
+                        sourceReferenceType: 'document',
+                        sourceReferenceId: (string) $spp->getKey(),
+                        metadata: [
+                            'document_type' => Document::TYPE_SPP,
+                            'payment_type' => 'LS',
+                            'storage_strategy' => 'canonical_private_replacement',
+                            'operation' => 'update',
+                            'replaced_artifact_public_id' => $parentArtifact?->public_id,
+                        ],
+                        replaceableDraftWorkflow: $replaceableDraftWorkflow,
+                        actorUserPositionId: $artifactCreatorPositionId === null
+                            ? null
+                            : (int) $artifactCreatorPositionId,
+                        actorIsActing: $artifactCreatorIsActing,
+                    );
+
+                    $provisionCanonicalDocument->handle(
+                        documentId: (int) $spp->getKey(),
+                        actorUserId: $artifactCreatorUserId === null
+                            ? null
+                            : (int) $artifactCreatorUserId,
+                        actorUserPositionId: $artifactCreatorPositionId === null
+                            ? null
+                            : (int) $artifactCreatorPositionId,
+                        actorIsActing: $artifactCreatorIsActing,
+                    );
+                }
+
                 $documentHistoryService->edited($spp->id, $spp->src_name);
 
+                /** @var Document|null $spj */
+                $spj = Document::query()
+                    ->forPaymentType('LS')
+                    ->ofType(Document::TYPE_SPJ)
+                    ->where('reference_id', $decryptedId)
+                    ->lockForUpdate()
+                    ->first();
                 $billing = $request->hasFile('file_billing')
                     ? $this->storeFile($request->file('file_billing'), '/File_Billing', $storedFiles)
-                    : Document::where('reference_id', $decryptedId)->value('billing');
+                    : $spj?->billing;
 
                 $dataSpj = [
                     'billing' => $billing,
@@ -1073,15 +1236,25 @@ class SPP extends Controller
                     $dataSpj['status'] = null;
                 }
 
-                $spj = Document::updateOrCreate(
-                    ['reference_id' => $decryptedId, 'src_type' => 'SPJ', 'payment_type' => 'LS'],
-                    $dataSpj
-                );
+                $spj ??= new Document([
+                    'reference_id' => $decryptedId,
+                    'src_type' => Document::TYPE_SPJ,
+                    'payment_type' => 'LS',
+                ]);
+                $spj->fill($dataSpj);
+                $spj->save();
                 $documentHistoryService->edited($spj->id, $spj->src_name);
 
-                $belanja = array_map('intval', explode(',', (string) $request->belanja));
+                $belanja = array_map('intval', explode(',', (string) $validated['belanja']));
 
                 if (count(array_intersect($belanja, [1, 2])) > 0) {
+                    /** @var Document|null $bmd */
+                    $bmd = Document::query()
+                        ->forPaymentType('LS')
+                        ->ofType(Document::TYPE_BMD)
+                        ->where('reference_id', $decryptedId)
+                        ->lockForUpdate()
+                        ->first();
                     $dataBmd = [
                         'id_unit_kerja' => $unitKerjaId,
                         'uploaded_by' => $user->id,
@@ -1097,40 +1270,32 @@ class SPP extends Controller
                         $dataBmd['src_name'] = $this->storeFile($request->file('file_bmd'), '/File_BMD', $storedFiles);
                     }
 
-                    $bmd = Document::updateOrCreate(
-                        ['reference_id' => $decryptedId, 'src_type' => 'BMD', 'payment_type' => 'LS'],
-                        $dataBmd
-                    );
+                    $bmd ??= new Document([
+                        'reference_id' => $decryptedId,
+                        'src_type' => Document::TYPE_BMD,
+                        'payment_type' => 'LS',
+                    ]);
+                    $bmd->fill($dataBmd);
+                    $bmd->save();
 
                     $documentHistoryService->edited($bmd->id, $bmd->src_name);
                 }
 
-                $rekeningInput = collect($request->rekening)->keyBy('id');
-
-                $existing = AnggaranKegiatan::where('tahun', session('tahun_aktif'))
-                    ->where('id_spp', $decryptedId)
-                    ->get()
-                    ->keyBy('id_rekening');
-
                 $deleteIds = $existing->keys()->diff($rekeningInput->keys());
 
                 if ($deleteIds->isNotEmpty()) {
-                    AnggaranKegiatan::where('tahun', session('tahun_aktif'))
-                        ->where('id_spp', $decryptedId)
+                    AnggaranKegiatan::query()
+                        ->forYear($selectedYear)
+                        ->forSpp($decryptedId)
                         ->whereIn('id_rekening', $deleteIds)
                         ->delete();
                 }
-
-                $tempData = AnggaranKegiatanTemp::where('tahun', session('tahun_aktif'))
-                    ->whereIn('id_rekening', $rekeningInput->keys())
-                    ->get()
-                    ->keyBy('id_rekening');
 
                 $updateData = [];
                 $insertData = [];
 
                 foreach ($rekeningInput as $idRekening => $item) {
-                    $nominal = (float) $item['nominal'];
+                    $nominal = $item['nominal'];
 
                     if ($existing->has($idRekening)) {
                         $updateData[] = [
@@ -1139,7 +1304,8 @@ class SPP extends Controller
                             'updated_at' => now(),
                         ];
                     } else {
-                        $temp = $tempData[$idRekening];
+                        /** @var AnggaranKegiatanTemp $temp */
+                        $temp = $budgetRows[$idRekening];
 
                         $insertData[] = [
                             'tahun' => $temp->tahun,
@@ -1173,8 +1339,9 @@ class SPP extends Controller
                 }
 
                 foreach ($updateData as $row) {
-                    AnggaranKegiatan::where('tahun', session('tahun_aktif'))
-                        ->where('id_spp', $decryptedId)
+                    AnggaranKegiatan::query()
+                        ->forYear($selectedYear)
+                        ->forSpp($decryptedId)
                         ->where('id_rekening', $row['id_rekening'])
                         ->update([
                             'nominal' => $row['nominal'],
@@ -1196,8 +1363,14 @@ class SPP extends Controller
                 'status' => 200,
                 'message' => 'Update SPP Berhasil',
             ]);
+        } catch (ValidationException $e) {
+            $this->cleanupStoredFiles($storedFiles);
+            $this->cleanupUnpersistedSppArtifact($stagedSppArtifact, $artifactPersistence);
+
+            throw $e;
         } catch (Throwable $e) {
-            $this->cleanupStoredFiles($storedFiles ?? []);
+            $this->cleanupStoredFiles($storedFiles);
+            $this->cleanupUnpersistedSppArtifact($stagedSppArtifact, $artifactPersistence);
 
             Log::channel('payment_ls')->error('SPP LS Update failed', [
                 'id_spp' => $decryptedId ?? null,
@@ -1212,6 +1385,202 @@ class SPP extends Controller
                 'message' => 'Gagal update SPP',
             ], 400);
         }
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $rekeningItems
+     * @return array{
+     *     rekening: Collection<string, array<string, mixed>>,
+     *     budgets: Collection<string, AnggaranKegiatanTemp>
+     * }
+     */
+    private function lockAndValidateSppBudget(
+        array $rekeningItems,
+        string $subKegiatanId,
+        mixed $submittedNominal,
+        int $selectedYear,
+        int $activeUnitId,
+        int $targetBudgetUnitId,
+        ?int $excludedSppId = null,
+    ): array {
+        $rekeningCollection = collect($rekeningItems);
+        $rekeningInput = $rekeningCollection->keyBy(
+            static fn (array $item): string => trim((string) $item['id']),
+        );
+
+        if ($rekeningCollection->count() !== $rekeningInput->count()) {
+            throw ValidationException::withMessages([
+                'rekening' => 'Rekening yang sama tidak boleh dipilih lebih dari satu kali.',
+            ]);
+        }
+
+        $rekeningIds = $rekeningInput->keys()->all();
+        $budgetRows = AnggaranKegiatanTemp::query()
+            ->forYear($selectedYear)
+            ->forUnit($targetBudgetUnitId)
+            ->where('kode_sub_kegiatan', $subKegiatanId)
+            ->whereIn('id_rekening', $rekeningIds)
+            ->orderBy('id')
+            ->lockForUpdate()
+            ->get()
+            ->keyBy(static fn (AnggaranKegiatanTemp $row): string => (string) $row->id_rekening);
+
+        if ($rekeningInput->keys()->diff($budgetRows->keys())->isNotEmpty()) {
+            throw ValidationException::withMessages([
+                'rekening' => 'Rekening tidak tersedia untuk sub kegiatan, unit kerja, dan tahun anggaran aktif.',
+            ]);
+        }
+
+        $submittedTotal = self::decimalToCents($submittedNominal);
+        $rekeningTotal = $rekeningInput->sum(
+            static fn (array $item): int => self::decimalToCents($item['nominal']),
+        );
+
+        if ($submittedTotal !== $rekeningTotal) {
+            throw ValidationException::withMessages([
+                'nominal' => 'Total nominal harus sama dengan jumlah seluruh nominal rekening.',
+            ]);
+        }
+
+        $budgetUnitIds = array_values(array_unique([
+            $activeUnitId,
+            $targetBudgetUnitId,
+        ]));
+        $realizedQuery = AnggaranKegiatan::query()
+            ->forYear($selectedYear)
+            ->whereIn('id_unit_kerja', $budgetUnitIds)
+            ->whereIn('id_rekening', $rekeningIds)
+            ->orderBy('id')
+            ->lockForUpdate();
+
+        if ($excludedSppId !== null) {
+            $realizedQuery->where('id_spp', '<>', $excludedSppId);
+        }
+
+        $realizedAmounts = $realizedQuery
+            ->get(['id_rekening', 'nominal'])
+            ->groupBy(static fn (AnggaranKegiatan $row): string => (string) $row->id_rekening)
+            ->map(static fn ($rows): int => $rows->sum(
+                static fn (AnggaranKegiatan $row): int => self::decimalToCents($row->nominal),
+            ));
+
+        foreach ($rekeningInput as $accountId => $item) {
+            /** @var AnggaranKegiatanTemp $budget */
+            $budget = $budgetRows->get($accountId);
+            $remainingBudget = self::decimalToCents($budget->pagu)
+                - (int) $realizedAmounts->get($accountId, 0);
+
+            if (self::decimalToCents($item['nominal']) > $remainingBudget) {
+                throw ValidationException::withMessages([
+                    'rekening' => "Nominal rekening {$budget->kode_rekening} melebihi sisa pagu yang tersedia.",
+                ]);
+            }
+        }
+
+        return [
+            'rekening' => $rekeningInput,
+            'budgets' => $budgetRows,
+        ];
+    }
+
+    private function assertLockedSppCanBeUpdated(Document $spp): ?DocumentSigningWorkflow
+    {
+        if ($spp->signed_at !== null || $spp->finished_at !== null) {
+            throw ValidationException::withMessages([
+                'id' => 'Dokumen yang sudah ditandatangani atau selesai tidak dapat diubah.',
+            ]);
+        }
+
+        if ($spp->rejected_by === null && $spp->submit_list !== []) {
+            throw ValidationException::withMessages([
+                'id' => 'Dokumen sedang berada dalam proses persetujuan dan tidak dapat diubah.',
+            ]);
+        }
+
+        $inProgressWorkflows = DocumentSigningWorkflow::query()
+            ->where('document_id', $spp->getKey())
+            ->whereIn('status', [
+                DocumentSigningWorkflowStatus::Draft->value,
+                DocumentSigningWorkflowStatus::Active->value,
+                DocumentSigningWorkflowStatus::NeedsReview->value,
+            ])
+            ->orderBy('id')
+            ->lockForUpdate()
+            ->get();
+
+        if ($inProgressWorkflows->isNotEmpty()) {
+            $draftWorkflows = $inProgressWorkflows->where(
+                'status',
+                DocumentSigningWorkflowStatus::Draft,
+            );
+            $blockingWorkflows = $inProgressWorkflows->reject(
+                static fn (DocumentSigningWorkflow $workflow): bool => $workflow->status === DocumentSigningWorkflowStatus::Draft,
+            );
+
+            if ($draftWorkflows->count() !== 1 || $blockingWorkflows->isNotEmpty()) {
+                throw ValidationException::withMessages([
+                    'id' => 'Workflow tanda tangan dokumen masih aktif. Selesaikan proses revisi terlebih dahulu.',
+                ]);
+            }
+
+            /** @var DocumentSigningWorkflow $draftWorkflow */
+            $draftWorkflow = $draftWorkflows->first();
+
+            if ($draftWorkflow->started_at !== null || $draftWorkflow->current_sequence !== null) {
+                throw ValidationException::withMessages([
+                    'id' => 'Workflow tanda tangan sudah dimulai dan dokumen tidak dapat diubah.',
+                ]);
+            }
+
+            return $draftWorkflow;
+        }
+
+        return null;
+    }
+
+    private function lockedCurrentSppSourceArtifact(Document $spp): DocumentArtifact
+    {
+        $currentArtifacts = DocumentArtifact::query()
+            ->where('document_id', $spp->getKey())
+            ->where('is_current', true)
+            ->orderBy('id')
+            ->lockForUpdate()
+            ->get();
+
+        if ($currentArtifacts->count() !== 1) {
+            throw ValidationException::withMessages([
+                'file_spp' => 'Artifact canonical aktif SPP tidak tersedia atau ambigu. Jalankan provisioning/backfill sebelum mengganti file.',
+            ]);
+        }
+
+        /** @var DocumentArtifact $currentArtifact */
+        $currentArtifact = $currentArtifacts->first();
+
+        if ($currentArtifact->artifact_type !== DocumentArtifactType::BeforeSign) {
+            throw ValidationException::withMessages([
+                'file_spp' => 'Artifact aktif bukan sumber SPP yang dapat direvisi.',
+            ]);
+        }
+
+        return $currentArtifact;
+    }
+
+    private function resolveSppBudgetUnitId(UserPosition $position): int
+    {
+        $activeUnitId = (int) $position->unitKerja?->id;
+
+        if ($position->unitKerja?->kode !== self::SETDA_SOURCE_UNIT_CODE) {
+            return $activeUnitId;
+        }
+
+        return (int) (UnitKerja::query()
+            ->where('kode', self::SETDA_TARGET_UNIT_CODE)
+            ->value('id') ?? $activeUnitId);
+    }
+
+    private static function decimalToCents(mixed $value): int
+    {
+        return (int) round((float) $value * 100);
     }
 
     // ######################################################################################################################################################
@@ -1249,24 +1618,22 @@ class SPP extends Controller
 
         try {
             DB::transaction(function () use ($docId, $userLevel, $userUnit, $documentHistoryService, $start) {
-                $docs = Document::select('id', 'src_name', 'submit', 'assigned_to', 'rejected_by', 'src_type', 'id_unit_kerja')
-                    ->where(function ($q) use ($docId) {
-                        $q->where('id', $docId)
-                            ->orWhere('reference_id', $docId);
-                    })
-                    ->whereIn('src_type', ['SPP', 'SPJ', 'BMD'])
+                $mainDoc = Document::select('id', 'src_name', 'submit', 'assigned_to', 'rejected_by', 'src_type', 'id_unit_kerja')
+                    ->whereKey($docId)
+                    ->forPaymentType('LS')
+                    ->ofType(Document::TYPE_SPP)
+                    ->whereNull('reference_id')
+                    ->whereNull('parent_id')
                     ->lockForUpdate()
-                    ->get();
+                    ->first();
 
-                if ($docs->isEmpty()) {
+                if (! $mainDoc instanceof Document) {
                     Log::channel('payment_ls')->warning('SPP LS Submit document not found', [
                         'doc_id' => $docId,
                         'duration_ms' => round((microtime(true) - $start) * 1000, 2),
                     ]);
                     throw new RuntimeException('Dokumen tidak ditemukan');
                 }
-
-                $mainDoc = $docs->firstWhere('id', $docId) ?? $docs->first();
 
                 if (! $this->canAccessForSubmit($mainDoc, $userLevel, $userUnit)) {
                     Log::channel('payment_ls')->warning('SPP LS Submit forbidden document access', [
@@ -1356,20 +1723,18 @@ class SPP extends Controller
                 $submitList[] = $userLevel;
                 $newSubmit = implode(',', $submitList);
 
-                Document::whereIn('id', $docs->pluck('id'))
+                Document::whereKey($mainDoc->getKey())
                     ->update([
                         'submit' => $newSubmit,
                         'assigned_to' => $assignedTo,
                         'updated_at' => now(),
                     ]);
 
-                foreach ($docs as $doc) {
-                    $documentHistoryService->submit(
-                        $doc->id,
-                        $doc->src_name,
-                        $userUnit
-                    );
-                }
+                $documentHistoryService->submit(
+                    (int) $mainDoc->getKey(),
+                    $mainDoc->src_name,
+                    $userUnit
+                );
 
                 Log::channel('payment_ls')->info('SPP LS Submit persisted', [
                     'doc_id' => $docId,
@@ -1460,7 +1825,7 @@ class SPP extends Controller
         try {
             return DB::transaction(function () use ($docId, $userTo, $userJabatan, $user, $userUnit, $documentHistoryService, $start) {
 
-                $docs = Document::select(
+                $firstDoc = Document::select(
                     'id',
                     'src_name',
                     'submit',
@@ -1468,15 +1833,15 @@ class SPP extends Controller
                     'rejected_by',
                     'id_unit_kerja'
                 )
-                    ->where(function ($q) use ($docId) {
-                        $q->where('id', $docId)
-                            ->orWhere('reference_id', $docId);
-                    })
-                    ->whereIn('src_type', ['SPP', 'SPJ', 'BMD'])
+                    ->whereKey($docId)
+                    ->forPaymentType('LS')
+                    ->ofType(Document::TYPE_SPP)
+                    ->whereNull('reference_id')
+                    ->whereNull('parent_id')
                     ->lockForUpdate()
-                    ->get();
+                    ->first();
 
-                if ($docs->isEmpty()) {
+                if (! $firstDoc instanceof Document) {
                     Log::channel('payment_ls')->warning('SPP LS Submit PPTK document not found', [
                         'doc_id' => $docId,
                         'duration_ms' => round((microtime(true) - $start) * 1000, 2),
@@ -1499,8 +1864,6 @@ class SPP extends Controller
                         'message' => 'Anda tidak berwenang melakukan aksi ini.',
                     ], 403);
                 }
-
-                $firstDoc = $docs->first();
 
                 if (! $this->canAccessForSubmit($firstDoc, $userJabatan, $userUnit)) {
                     Log::channel('payment_ls')->warning('SPP LS Submit PPTK forbidden document access', [
@@ -1548,20 +1911,18 @@ class SPP extends Controller
                     ], 400);
                 }
 
-                Document::whereIn('id', $docs->pluck('id'))
+                Document::whereKey($firstDoc->getKey())
                     ->update([
                         'submit' => $userJabatan,
                         'assigned_to' => 8,
                         'users_to' => $userTo,
                     ]);
 
-                foreach ($docs as $doc) {
-                    $documentHistoryService->submit(
-                        $doc->id,
-                        $doc->src_name,
-                        $user->unitKerja->id
-                    );
-                }
+                $documentHistoryService->submit(
+                    (int) $firstDoc->getKey(),
+                    $firstDoc->src_name,
+                    $user->unitKerja->id
+                );
 
                 Log::channel('payment_ls')->info('SPP LS Submit PPTK success', [
                     'doc_id' => $docId,

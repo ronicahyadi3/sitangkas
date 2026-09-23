@@ -4,7 +4,7 @@ Tanggal rencana awal: **8 September 2026**. Status diperbarui **22 September
 2026**.
 
 Status: **sedang diimplementasikan; Tahap 1 sebagian besar tersedia dan vertical
-slice create/upload SPP sedang berjalan**.
+slice create/update file utama SPP sudah memakai private canonical artifact**.
 
 Dokumen pendamping: [analisis dan bukti kode](PAYMENT_LS_ANALYSIS.md).
 Dokumen ini tidak menetapkan schema atau aturan bisnis baru secara final.
@@ -27,8 +27,13 @@ Kondisi kode dan blocker terbaru wajib dibaca pada
   pada source code.
 - [x] Formula `storage_path_sha256` disatukan melalui helper shared; 4/4 artifact
   lokal cocok dengan formula `storage_disk:file_path`.
-- [ ] Buat `UpdateSppRequest` yang saat ini masih missing dependency.
-- [ ] Migrasikan replacement SPP pada `update()` ke artifact version canonical.
+- [x] `UpdateSppRequest` tersedia dengan authorization resource, validasi file,
+  rekening/nominal, dan sisa pagu yang mengecualikan SPP aktif.
+- [x] Replacement SPP pada `update()` membuat artifact version canonical di
+  private storage, parent=current, rebind draft workflow, dan revision cycle
+  setelah reject.
+- [x] Samakan penguncian dan pemeriksaan ulang pagu di dalam transaksi
+  `SPP::store()` dengan protokol yang sudah digunakan `SPP::update()`.
 - [ ] Migrasikan SPJ, Billing, dan BMD create/update dari public storage.
 - [ ] Validasi runtime upload, rollback, delivery, provisioning, dan TTE LS.
 - [ ] Review dan selesaikan SPM, SP2D, bank, serta penyelesaian LS.
@@ -60,11 +65,10 @@ diaktifkan atau direfaktor.
    melalui `search-docs`. Sebelum model/migration, inspeksi schema dan baca
    [readiness migration](../06-migrations/FRESH_INSTALL_READINESS.md).
 
-Fondasi awal, create/upload SPP, dan kontrak `storage_path_sha256` sudah
-dikerjakan. Hasil konkret berikutnya yang disarankan adalah melengkapi
-`UpdateSppRequest`, lalu membuat replacement SPP sebagai version canonical baru
-di private storage. Setelah vertical slice SPP lulus runtime, lanjutkan
-attachment SPP, SPM, dan SP2D secara bertahap.
+Fondasi awal, create/upload SPP, kontrak `storage_path_sha256`, request update,
+replacement canonical SPP, dan locking pagu create/update sudah dikerjakan.
+Hasil konkret berikutnya adalah memigrasikan attachment SPJ/Billing/BMD. Setelah
+vertical slice SPP lulus runtime, lanjutkan SPM dan SP2D secara bertahap.
 
 ## 3. Keputusan yang belum ditetapkan
 
@@ -235,7 +239,9 @@ berlaku; jangan meminta ulang bila izin tersebut sudah diberikan.
 - [x] Upload utama SPP memakai private canonical artifact.
 - [x] Perbaikan blocker delivery hash.
 - [ ] Validasi runtime delivery.
-- [ ] Update SPP canonical dan private attachment SPP.
+- [x] Replacement file utama SPP pada update memakai private canonical artifact.
+- [x] Lock dan pemeriksaan ulang pagu pada create SPP di dalam transaksi.
+- [ ] Private artifact dan delivery SPJ/Billing/BMD.
 - [ ] Implementasi SPP lengkap.
 - [ ] Implementasi SPM lengkap.
 - [ ] Implementasi SP2D, TTE, billing, dan penyelesaian bank khusus LS.

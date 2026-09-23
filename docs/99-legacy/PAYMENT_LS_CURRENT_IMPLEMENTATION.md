@@ -2,9 +2,9 @@
 
 Tanggal snapshot: **22 September 2026**.
 
-Status: **SPP LS sedang diintegrasikan; create/upload SPP sudah memakai
-canonical private artifact, tetapi keseluruhan Payment LS belum selesai dan
-belum dinyatakan lulus runtime end-to-end**.
+Status: **SPP LS sedang diintegrasikan; create/upload dan replacement file utama
+SPP sudah memakai canonical private artifact. Keseluruhan Payment LS belum
+selesai dan belum dinyatakan lulus runtime end-to-end**.
 
 Dokumen ini adalah handoff utama untuk AI agent yang melanjutkan Payment LS.
 Dokumen analisis dan rencana lama tetap berguna sebagai baseline, tetapi status
@@ -91,9 +91,23 @@ Model berikut sudah disesuaikan dengan project sekarang:
 - total nominal rekening harus sama dengan nominal SPP;
 - validasi sisa pagu.
 
-`UpdateSppRequest` **belum tersedia**, walaupun masih di-import oleh controller
-SPP LS dan LS Gaji. Endpoint update akan gagal resolve class sebelum request
-dapat diproses. Ini blocker langsung untuk edit/update.
+`UpdateSppRequest` sekarang tersedia. Request ini:
+
+- membatasi aktor ke posisi BP/BPP yang memiliki akses tulis pada tahun aktif;
+- membuka encrypted route ID dan memastikan resource adalah SPP untuk payment,
+  unit kerja, serta tahun aktif yang benar;
+- hanya mengizinkan update ketika dokumen belum ditandatangani/selesai dan
+  masih draft atau sudah ditolak;
+- membuat seluruh file replacement opsional, tetapi tetap mewajibkan BMD untuk
+  Belanja Modal/Persediaan apabila BMD lama belum tersedia;
+- memakai aturan rekening, total nominal, sub-kegiatan, unit, tahun, dan sisa
+  pagu yang setara dengan create;
+- mengecualikan alokasi SPP yang sedang diedit saat menghitung realisasi agar
+  nominal lamanya tidak dihitung dua kali.
+
+Request yang sama masih dapat mengenali controller LS Gaji dan memakai
+`payment_type=LS_GAJI`. Aktivasi penuh LS Gaji tetap berada di luar fokus
+vertical slice LS saat ini.
 
 ## 4. Route dan menu yang aktif
 
@@ -195,15 +209,41 @@ Pada create SPP saat ini:
 
 - SPP, SPJ/BMD, histori, dan snapshot `anggaran_kegiatan` dibuat dalam transaksi
   controller yang sama.
+- `SPP::store()` mengambil tahun dari `YearAccessService` dan hanya memakai
+  payload hasil `validated()` untuk field bisnis serta rekening.
+- Di awal transaksi, row sumber pagu `anggaran_kegiatan_temp` untuk tahun, unit
+  anggaran, sub-kegiatan, dan rekening yang diajukan dikunci secara deterministik
+  dengan `orderBy('id')->lockForUpdate()`.
+- Setelah lock diperoleh, controller memeriksa ulang duplikasi rekening,
+  keberadaan rekening, kecocokan total nominal, serta sisa pagu.
+- Row realisasi `anggaran_kegiatan` yang relevan juga dibaca dengan
+  `lockForUpdate()`. Lock row sumber pagu menjadi mutex bersama ketika row
+  realisasi belum ada, sehingga dua create pada rekening yang sama tidak dapat
+  sama-sama memakai snapshot sisa pagu lama.
+- Create dan update memakai helper `lockAndValidateSppBudget()` yang sama.
+  Update mengecualikan alokasi SPP yang sedang diedit, sedangkan create
+  menghitung seluruh realisasi yang sudah ada.
+- Nominal dibandingkan sebagai integer dua desimal melalui `decimalToCents()`;
+  data alokasi tidak lagi dibentuk dari cast `float` di controller.
+- Rekening yang hilang tidak lagi dilewati diam-diam. Kondisi tersebut
+  menghasilkan `ValidationException`, transaksi rollback, dan respons validasi
+  `422`.
 - Jika transaksi gagal, file pendamping public yang baru dibuat dibersihkan.
 - Source SPP private dibersihkan melalui
   `discardUnpersistedSourceArtifact()` hanya jika tidak ada row
   `document_artifacts` untuk public ID tersebut.
 - Cleanup memeriksa integritas staging/final sebelum menghapus sehingga tidak
   menghapus artifact sah yang sudah persisten.
-- Validasi pagu dilakukan sebelum transaksi. Belum ada lock sumber pagu di
-  `SPP::store()`, sehingga perlindungan penuh terhadap dua request bersamaan
-  masih terbuka.
+
+Validasi pagu pada `StoreSppRequest` tetap dijalankan sebagai pemeriksaan awal,
+tetapi hasilnya bukan keputusan commit. Keputusan akhir selalu dihitung ulang di
+dalam transaksi setelah lock diperoleh.
+
+Schema aktif baru mempunyai indeks `anggaran_kegiatan_temp.id_unit_kerja` dan
+belum mempunyai indeks komposit tahun/unit/sub-kegiatan/rekening. Correctness
+locking sudah tersedia, tetapi query dapat memindai dan mengunci lebih banyak
+row pada volume besar. Penambahan indeks perlu dirancang sebagai migration wave
+terpisah setelah review kapasitas dan metadata lock.
 
 ## 7. Delivery route dan current artifact resolver
 
@@ -324,19 +364,41 @@ Keberadaan row `after_signs` saja bukan bukti sukses. Bukti sukses minimum:
 
 ## 10. Kondisi update SPP
 
-`SPP::update()` belum mengikuti storage canonical:
+`SPP::update()` sekarang menangani replacement file utama SPP secara canonical:
 
-- `UpdateSppRequest` belum ada;
-- replacement `file_spp` masih menulis ke `public/File_SPP`;
-- SPJ/Billing/BMD replacement masih public;
-- perubahan file belum membuat artifact source version baru dengan parent
-  artifact current;
-- signed/current artifact lama belum ditangani dengan aturan revisi canonical;
-  jangan menimpa atau mewariskan bukti TTE lama ke konten baru;
-- update masih mereset beberapa CSV/state legacy dan perlu direview bersama
-  matriks workflow/revisi;
-- otorisasi resource, tahun, unit, dan stage update harus tetap diperiksa
-  server-side.
+- file pengganti di-stage dan difinalisasi pada private storage;
+- dokumen SPP, workflow, artifact current, row pagu, dan alokasi anggaran yang
+  relevan dikunci dengan `lockForUpdate()` di dalam transaksi;
+- scope payment `LS`, tipe `SPP`, unit, tahun, state dokumen, rekening,
+  sub-kegiatan, total nominal, dan sisa pagu diperiksa ulang setelah lock;
+- replacement membentuk `before_sign` artifact versi berikutnya dengan
+  `parent_artifact_id` menunjuk artifact current lama;
+- artifact lama dipertahankan sebagai histori dan `is_current` dipindahkan ke
+  versi baru;
+- `document.src_name` menyimpan identifier UUID kompatibilitas, sedangkan
+  `document_artifacts.original_name` mengambil nama file dari
+  `UploadedFile::getClientOriginalName()`;
+- draft workflow yang belum dimulai dan belum mempunyai attempt diikat ulang ke
+  artifact baru, `lock_version` dinaikkan, dan event
+  `source_artifact_replaced` ditambahkan;
+- replacement setelah workflow `rejected` membentuk cycle workflow berikutnya;
+- workflow aktif/needs-review, dokumen signed/finished, dan artifact current
+  yang hilang/ambigu ditolak;
+- bila transaksi gagal, staging/final canonical yang belum mempunyai row
+  artifact dibersihkan dengan aman.
+
+SPJ, Billing, dan BMD replacement masih memakai folder public. SPP historis
+yang belum mempunyai current canonical artifact harus melalui provisioning atau
+backfill sebelum file utamanya dapat diganti.
+
+UUID pada `original_name` row hasil provisioning legacy bukan nama asli yang
+dibuat oleh storage canonical. Project lama hanya menyimpan nama fisik UUID pada
+`document.src_name`; nama file yang dipilih pengguna sudah tidak tersedia untuk
+dipulihkan. Provisioning legacy baru sekarang menyimpan `original_name=null`
+ketika `src_name` terdeteksi sebagai UUID dan mempertahankan nama tersebut pada
+metadata `legacy_stored_name`. Row lama tidak diubah karena artifact bersifat
+immutable. Upload SPP langsung dan replacement baru menyimpan nama client yang
+sebenarnya, sedangkan `stored_name` tetap UUID agar aman dan unik.
 
 ## 11. Status SPM dan SP2D
 
@@ -356,17 +418,16 @@ terdaftar. Sebelum mengaktifkan operasional:
 
 Urutan prioritas blocker saat snapshot:
 
-1. Buat dan adaptasikan `UpdateSppRequest`; endpoint update sekarang mempunyai
-   missing dependency.
-2. Migrasikan replacement SPP pada `update()` menjadi source artifact version
-   baru di private storage, dengan parent=current dan aturan workflow/revisi.
-3. Migrasikan SPJ, Billing, dan BMD create/update dari public storage.
-4. Tutup seluruh URL langsung `public/File_*` untuk LS setelah setiap tipe
+1. Migrasikan SPJ, Billing, dan BMD create/update dari public storage.
+2. Tutup seluruh URL langsung `public/File_*` untuk LS setelah setiap tipe
    mempunyai delivery resolver/policy canonical.
-5. Selesaikan konkurensi pagu dengan lock/constraint yang sesuai.
-6. Validasi runtime create SPP, rollback, preview, download, provisioning, dan
+3. Validasi runtime create/update SPP, termasuk konkurensi dua request pada
+   rekening yang sama, rollback, preview, download,
+   provisioning, dan
    TTE setelah ada izin test dari pengguna.
-7. Review SPM lalu SP2D sebagai vertical slice terpisah.
+4. Review kebutuhan indeks komposit anggaran berdasarkan query plan dan volume
+   produksi sebelum membuat migration indeks.
+5. Review SPM lalu SP2D sebagai vertical slice terpisah.
 
 Risiko tambahan:
 
@@ -381,17 +442,16 @@ Risiko tambahan:
 
 ## 13. Urutan implementasi berikutnya
 
-1. Lengkapi `UpdateSppRequest` dengan authorization/validation setara store dan
-   scope resource update.
-2. Ubah `SPP::update()` agar replacement SPP membuat version canonical baru dan
-   membersihkan orphan secara aman ketika transaksi gagal.
-3. Migrasikan SPJ, Billing, dan BMD ke private storage dengan pemodelan artifact
+1. Migrasikan SPJ, Billing, dan BMD ke private storage dengan pemodelan artifact
    yang eksplisit; Billing saat ini masih nama file pada row SPJ sehingga perlu
    keputusan mapping yang tidak ambigu.
-4. Selesaikan delivery policy LS SPP, termasuk watermark/audit bila scope fase
+2. Tambahkan resolver dan delivery route untuk artifact pendamping yang sudah
+   dimigrasikan, lalu hentikan URL langsung ke folder public untuk tipe itu.
+3. Selesaikan delivery policy LS SPP, termasuk watermark/audit bila scope fase
    tersebut sudah diaktifkan.
-5. Validasi workflow TTE SPP LS dari current source sampai current signed output.
-6. Baru lanjutkan SPM dan SP2D, lalu bank/penyelesaian LS.
+4. Validasi runtime transaksi/locking anggaran dan workflow TTE SPP LS dari
+   current source sampai current signed output.
+5. Baru lanjutkan SPM dan SP2D, lalu bank/penyelesaian LS.
 
 ## 14. Verifikasi yang sudah dan belum dilakukan
 
@@ -405,6 +465,12 @@ Pada perubahan upload/delivery terakhir sudah dilakukan:
   `storage_disk:file_path`;
 - inspeksi statis alur store, persistence, resolver, delivery, TTE, dan
   compatibility writer.
+- pemeriksaan sintaks `UpdateSppRequest`, resolve route `ls.spp.update`, Laravel
+  Pint, serta `git diff --check` setelah request update ditambahkan.
+- pemeriksaan sintaks controller/persistence/provisioning/enum setelah canonical
+  replacement update, resolve route update, Laravel Pint, dan `git diff --check`.
+- pemeriksaan sintaks controller, resolve seluruh route `ls/spp`, dan Laravel
+  Pint setelah locking create disatukan dengan update.
 
 Belum dilakukan:
 

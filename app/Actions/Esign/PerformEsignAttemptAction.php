@@ -10,6 +10,7 @@ use App\Data\Esign\VerifyPdfData;
 use App\Enums\Esign\EsignAttemptStatus;
 use App\Enums\Esign\EsignErrorCode;
 use App\Enums\Esign\EsignProviderOperation;
+use App\Exceptions\Esign\EsignInvariantViolationException;
 use App\Exceptions\Esign\EsignOperationException;
 use App\Models\Esign\DocumentArtifact;
 use App\Models\Esign\EsignAttempt;
@@ -41,8 +42,15 @@ final class PerformEsignAttemptAction
     public function handle(int $attemptId, string $secretReference): void
     {
         $attempt = EsignAttempt::query()
-            ->with(['signer', 'signerPosition', 'sourceArtifact'])
+            ->with(['resultArtifact', 'signer', 'signerPosition', 'sourceArtifact'])
             ->findOrFail($attemptId);
+
+        if ($attempt->status === EsignAttemptStatus::Succeeded) {
+            $this->secrets->forget($secretReference);
+            $this->replaySucceededCompatibilityProjection($attempt);
+
+            return;
+        }
 
         if ($attempt->status !== EsignAttemptStatus::Prepared) {
             $this->secrets->forget($secretReference);
@@ -285,6 +293,15 @@ final class PerformEsignAttemptAction
     ): bool {
         $freshAttempt = EsignAttempt::query()->find($attempt->getKey());
 
+        if ($freshAttempt?->status === EsignAttemptStatus::Succeeded) {
+            Log::channel('module_esign')->critical('Projection compatibility gagal setelah attempt TTE sukses.', [
+                'attempt_id' => $attempt->getKey(),
+                'exception_class' => $exception::class,
+            ]);
+
+            return false;
+        }
+
         if ($freshAttempt instanceof EsignAttempt
             && in_array($freshAttempt->status, [
                 EsignAttemptStatus::Prepared,
@@ -321,6 +338,38 @@ final class PerformEsignAttemptAction
         ]);
 
         return $freshAttempt instanceof EsignAttempt;
+    }
+
+    private function replaySucceededCompatibilityProjection(EsignAttempt $attempt): void
+    {
+        $resultArtifact = $attempt->resultArtifact;
+        $signer = $attempt->signer;
+        $signerPosition = $attempt->signerPosition;
+
+        if (! $resultArtifact instanceof DocumentArtifact) {
+            throw new EsignInvariantViolationException('succeeded_attempt_result_artifact_missing');
+        }
+
+        $nik = $this->signerNik($attempt, $signer, $signerPosition);
+        $maskedNik = str_repeat('*', 12).substr($nik, -4);
+        $signedPdfContents = $this->artifactIntegrity->readVerifiedPdfContents($resultArtifact);
+        $md5 = md5($signedPdfContents);
+
+        unset($signedPdfContents);
+
+        $this->legacyLedger->writeAfter(
+            attempt: $attempt,
+            artifact: $resultArtifact,
+            maskedNik: $maskedNik,
+            md5: $md5,
+            succeeded: true,
+            safeResponse: 'Dokumen berhasil ditandatangani dan diverifikasi.',
+        );
+        $this->legacyLedger->writeSuccessfulDocumentHistory(
+            attempt: $attempt,
+            artifact: $resultArtifact,
+            md5: $md5,
+        );
     }
 
     private function finalizeOutput(

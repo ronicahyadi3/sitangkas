@@ -15,9 +15,13 @@ dan event benar-benar terbentuk. Ini belum berarti process manager production
 sudah dikonfigurasi. Visible QR/footer dan public verification belum dibuat,
 workflow hasil provisioning masih `draft` dengan step `pending`, serta vertical
 slice sign canonical belum dijalankan end-to-end. SPP LS sudah mempunyai direct
-canonical source upload serta authenticated content/download route pada working
-tree. Formula `storage_path_sha256` pada persistence dan integrity service sudah
+canonical source upload, canonical replacement dengan parent/current version
+chain, draft-workflow rebind/revision cycle, serta authenticated content/download
+route pada working tree. Formula `storage_path_sha256` pada persistence dan integrity service sudah
 disatukan melalui helper shared; route tersebut belum lulus acceptance runtime.
+Provisioning file legacy yang hanya mempunyai nama fisik UUID tidak lagi
+mengisi UUID tersebut sebagai `original_name`; nilainya disimpan sebagai
+`legacy_stored_name`, sedangkan upload runtime memakai nama client sebenarnya.
 
 Dokumen ini adalah handoff kondisi kode aktual. Untuk keputusan bisnis dan
 target final tetap baca:
@@ -245,6 +249,13 @@ Yang sudah tersedia untuk upload baru:
 - `Payment\LS\SPP::store()` menulis file utama SPP langsung sebagai source
   artifact private sebelum hook provisioning; ia tidak membuat file baru di
   `public/File_SPP`;
+- `Payment\LS\SPP::update()` membuat versi `before_sign` baru untuk replacement
+  file utama, mempertahankan parent artifact, memindahkan current pointer,
+  mengikat ulang workflow draft yang masih bersih, atau membuat revision cycle
+  setelah workflow ditolak;
+- create dan update SPP memakai helper transaksi yang sama untuk mengunci sumber
+  pagu, menghitung ulang realisasi, dan menolak commit bila nominal melampaui
+  sisa pagu setelah lock;
 - route `document.ls.spp.content` dan `document.ls.spp.download` memilih tepat
   satu current artifact `before_sign`/`after_sign`, menjalankan policy, dan
   melakukan integrity-checked stream;
@@ -260,7 +271,11 @@ Yang sudah tersedia untuk upload baru:
 - workflow dibuat `draft`, step dibuat sequential `pending`, assignment exact
   dari uploader/`users_to` dipakai bila role cocok, dan sisanya disimpan
   `unresolved`/`partial` tanpa tebakan;
-- `BMD` dan `SPJ` mendapat artifact canonical tanpa workflow TTE;
+- `BMD` dan `SPJ` dapat diprovisikan menjadi artifact canonical tanpa workflow
+  TTE, tetapi upload LS saat ini masih lebih dahulu menulis byte baru ke
+  `public/File_BMD` dan `public/File_SPJ`; Billing masih berada pada field row
+  SPJ dan folder `public/File_Billing`. Ketiganya belum selesai dimigrasikan ke
+  direct private upload;
 - job memakai queue `signatures`, unique per document, row locking, retry
   terbatas, dan dapat diulang secara idempotent.
 

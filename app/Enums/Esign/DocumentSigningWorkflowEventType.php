@@ -5,6 +5,7 @@ namespace App\Enums\Esign;
 enum DocumentSigningWorkflowEventType: string
 {
     case WorkflowCreated = 'workflow_created';
+    case SourceArtifactReplaced = 'source_artifact_replaced';
     case WorkflowActivated = 'workflow_activated';
     case StepActivated = 'step_activated';
     case StepCompleted = 'step_completed';

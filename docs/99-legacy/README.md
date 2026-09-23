@@ -89,6 +89,9 @@ delivery route khusus LS SPP sudah dibuat. Mulai dari
 [kondisi implementasi aktual](PAYMENT_LS_CURRENT_IMPLEMENTATION.md), lalu baca
 [hasil analisis awal](PAYMENT_LS_ANALYSIS.md) dan
 [rencana implementasi](PAYMENT_LS_IMPLEMENTATION_PLAN.md). Jangan menganggap
-SPP/LS siap produksi; dokumen aktual mencatat missing `UpdateSppRequest`,
-storage public yang tersisa, dan validasi runtime yang belum dilakukan. Blocker
-formula integrity hash sudah diperbaiki melalui helper shared.
+SPP/LS siap produksi; create dan replacement file utama SPP sudah canonical,
+dan create/update sekarang memakai protokol lock serta pemeriksaan ulang pagu
+yang sama di dalam transaksi. Attachment SPJ/Billing/BMD masih menuju storage
+public dan validasi runtime belum dilakukan. `UpdateSppRequest`, replacement
+version chain, draft-workflow rebind/revision cycle, serta blocker formula
+integrity hash sudah diselesaikan.

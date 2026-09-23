@@ -98,10 +98,12 @@ final class ProvisionCanonicalDocument
         }
 
         try {
+            $legacyOriginalName = $this->legacyOriginalName($document);
+
             return $this->artifactPersistence->finalizeSourceArtifact(
                 stagedArtifact: $stagedArtifact,
                 document: $document,
-                originalName: (string) $document->src_name,
+                originalName: $legacyOriginalName,
                 createdByUserId: $actorUserId ?? $this->ownerPosition($document)?->user_id,
                 sourceSystem: 'application',
                 sourceReferenceType: 'document',
@@ -109,6 +111,8 @@ final class ProvisionCanonicalDocument
                 metadata: [
                     'legacy_document_type' => (string) $document->src_type,
                     'legacy_payment_type' => (string) $document->payment_type,
+                    'legacy_stored_name' => (string) $document->src_name,
+                    'original_name_available' => $legacyOriginalName !== null,
                     'provisioned_from' => 'payment_controller_upload',
                 ],
             );
@@ -141,17 +145,30 @@ final class ProvisionCanonicalDocument
             $lockedDocument = Document::withTrashed()
                 ->lockForUpdate()
                 ->findOrFail($document->getKey());
-            /** @var DocumentSigningWorkflow|null $existingWorkflow */
-            $existingWorkflow = DocumentSigningWorkflow::query()
+            /** @var DocumentSigningWorkflow|null $latestWorkflow */
+            $latestWorkflow = DocumentSigningWorkflow::query()
                 ->where('document_id', $lockedDocument->getKey())
-                ->where('cycle_number', 1)
+                ->orderByDesc('cycle_number')
+                ->orderByDesc('id')
                 ->lockForUpdate()
                 ->first();
 
-            if ($existingWorkflow instanceof DocumentSigningWorkflow) {
-                $this->assertExistingWorkflowMatches($existingWorkflow, $artifact, $definition);
+            $cycleNumber = 1;
+            $previousWorkflowId = null;
 
-                return $existingWorkflow;
+            if ($latestWorkflow instanceof DocumentSigningWorkflow) {
+                if ((int) $latestWorkflow->current_artifact_id === (int) $artifact->getKey()) {
+                    $this->assertExistingWorkflowMatches($latestWorkflow, $artifact, $definition);
+
+                    return $latestWorkflow;
+                }
+
+                if ($latestWorkflow->status !== DocumentSigningWorkflowStatus::Rejected) {
+                    throw new EsignInvariantViolationException('canonical_workflow_definition_conflict');
+                }
+
+                $cycleNumber = (int) $latestWorkflow->cycle_number + 1;
+                $previousWorkflowId = (int) $latestWorkflow->getKey();
             }
 
             $ownerPosition = $this->ownerPosition($document);
@@ -176,7 +193,7 @@ final class ProvisionCanonicalDocument
                 'document_type' => Str::upper((string) $lockedDocument->src_type),
                 'workflow_variant' => $definition->variant,
                 'definition_version' => $definition->version,
-                'cycle_number' => 1,
+                'cycle_number' => $cycleNumber,
                 'status' => DocumentSigningWorkflowStatus::Draft,
                 'current_artifact_id' => $artifact->getKey(),
                 'unit_kerja_id' => $lockedDocument->id_unit_kerja,
@@ -187,6 +204,8 @@ final class ProvisionCanonicalDocument
                 'metadata' => [
                     'provisioned_from' => 'payment_controller_upload',
                     'assignment_state' => $unresolvedSequences === [] ? 'resolved' : 'partial',
+                    'previous_workflow_id' => $previousWorkflowId,
+                    'revision_cycle' => $cycleNumber > 1,
                     'unresolved_sequences' => $unresolvedSequences,
                 ],
             ]);
@@ -229,7 +248,9 @@ final class ProvisionCanonicalDocument
                 'actor_is_acting' => $actorIsActing,
                 'metadata' => [
                     'definition_version' => $definition->version,
+                    'previous_workflow_id' => $previousWorkflowId,
                     'role_codes' => $definition->roleCodes,
+                    'revision_cycle' => $cycleNumber > 1,
                     'workflow_variant' => $definition->variant,
                     'unresolved_sequences' => $unresolvedSequences,
                 ],
@@ -272,6 +293,18 @@ final class ProvisionCanonicalDocument
     private function ownerPosition(Document $document): ?UserPosition
     {
         return $this->canonicalPosition($document->uploadedByPosition);
+    }
+
+    private function legacyOriginalName(Document $document): ?string
+    {
+        $name = basename(str_replace('\\', '/', trim((string) $document->src_name)));
+        $filenameWithoutExtension = pathinfo($name, PATHINFO_FILENAME);
+
+        if ($name === '' || Str::isUuid($filenameWithoutExtension)) {
+            return null;
+        }
+
+        return $name;
     }
 
     /** @return list<UserPosition> */
