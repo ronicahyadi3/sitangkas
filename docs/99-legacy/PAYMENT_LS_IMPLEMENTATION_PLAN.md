@@ -1,10 +1,12 @@
 # Rencana Implementasi Payment LS
 
-Tanggal rencana awal: **8 September 2026**. Status diperbarui **22 September
+Tanggal rencana awal: **8 September 2026**. Status diperbarui **23 September
 2026**.
 
-Status: **sedang diimplementasikan; Tahap 1 sebagian besar tersedia dan vertical
-slice create/update file utama SPP sudah memakai private canonical artifact**.
+Status: **sedang diimplementasikan; Tahap 1 sebagian besar tersedia. Vertical
+slice LS SPP jalur BP/BPP sudah mempunyai private canonical artifact, lazy
+activation, submit gate, dan assignment/activation saat handoff, tetapi belum
+lulus TTE end-to-end**.
 
 Dokumen pendamping: [analisis dan bukti kode](PAYMENT_LS_ANALYSIS.md).
 Dokumen ini tidak menetapkan schema atau aturan bisnis baru secara final.
@@ -12,7 +14,7 @@ Dokumen ini tidak menetapkan schema atau aturan bisnis baru secara final.
 Kondisi kode dan blocker terbaru wajib dibaca pada
 [PAYMENT_LS_CURRENT_IMPLEMENTATION.md](PAYMENT_LS_CURRENT_IMPLEMENTATION.md).
 
-## 0. Kemajuan aktual 22 September 2026
+## 0. Kemajuan aktual 23 September 2026
 
 - [x] Model bersama `Document`, `DocumentHistory`, anggaran, `BeforeSign`, dan
   `AfterSign` tersedia.
@@ -34,6 +36,18 @@ Kondisi kode dan blocker terbaru wajib dibaca pada
   setelah reject.
 - [x] Samakan penguncian dan pemeriksaan ulang pagu di dalam transaksi
   `SPP::store()` dengan protokol yang sudah digunakan `SPP::update()`.
+- [x] Provision artifact/workflow/step SPP langsung dari `store()` secara
+  transaksional dan idempotent.
+- [x] Aktifkan workflow dan step BP/BPP secara lazy saat signer nyata membuka
+  signing session; acting Admin Super tetap ditolak untuk TTE.
+- [x] Tambahkan submit gate yang mewajibkan proof TTE canonical sebelum
+  `document.submit`, `assigned_to`, atau `users_to` berubah.
+- [x] Assign dan aktifkan PPTK pada handoff BP/BPP, lalu PA/KPA pada handoff
+  PPTK. TTE sukses tidak lagi mengaktifkan step berikutnya secara otomatis.
+- [x] Pertahankan projector `document.status` dan event `document_process.TTE`
+  transaksional serta idempotent.
+- [ ] Jalankan vertical slice BP -> PPTK -> PA sampai handoff final secara
+  permanen dan terkontrol.
 - [ ] Migrasikan SPJ, Billing, dan BMD create/update dari public storage.
 - [ ] Validasi runtime upload, rollback, delivery, provisioning, dan TTE LS.
 - [ ] Review dan selesaikan SPM, SP2D, bank, serta penyelesaian LS.
@@ -66,9 +80,11 @@ diaktifkan atau direfaktor.
    [readiness migration](../06-migrations/FRESH_INSTALL_READINESS.md).
 
 Fondasi awal, create/upload SPP, kontrak `storage_path_sha256`, request update,
-replacement canonical SPP, dan locking pagu create/update sudah dikerjakan.
-Hasil konkret berikutnya adalah memigrasikan attachment SPJ/Billing/BMD. Setelah
-vertical slice SPP lulus runtime, lanjutkan SPM dan SP2D secara bertahap.
+replacement canonical SPP, locking pagu, lazy activation, submit gate, serta
+assignment signer pada handoff sudah dikerjakan. Hasil konkret berikutnya adalah
+backend visible placement dan controlled signing vertical slice LS SPP. Setelah
+alur itu terbukti, migrasikan attachment SPJ/Billing/BMD dan lanjutkan SPM serta
+SP2D secara bertahap.
 
 ## 3. Keputusan yang belum ditetapkan
 
@@ -81,7 +97,7 @@ vertical slice SPP lulus runtime, lanjutkan SPM dan SP2D secara bertahap.
 | Tahap/revisi | Legacy memakai CSV dan BP/BPP mengajukan lebih dari sekali | Matriks action-stage, kapan revisi/tolak/hapus boleh, serta dampak terhadap persetujuan dan dokumen turunan |
 | Identitas posisi | Lookup dan `users_to` lama mengacu posisi; acting overlay mempertahankan ID posisi Admin Super | Kontrak identitas setiap kolom dan perlakuan pergantian pejabat/posisi |
 | Tahun historis | Permission melekat pada posisi dan tidak memperluas role | Penegakan pada LS, audit used/denied, tahun mendatang, dan penerapan pengecualian Admin Super |
-| TTE | Backend canonical, queue, artifact, attempt, verify, dan compatibility writer tersedia; formula integrity hash sudah konsisten; LS belum lulus end-to-end | Aktivasi workflow/step LS, assignment signer, environment, dan acceptance runtime |
+| TTE | Backend canonical, queue, artifact, attempt, verify, compatibility writer, lazy activation, submit gate, dan assignment handoff LS SPP tersedia | Visible placement, worker/shared cache production, dan acceptance runtime end-to-end |
 | Acting dan tanda tangan | Effective context dapat berbeda dari aktor nyata | Jangan menganggap acting otomatis mengizinkan tanda tangan atas identitas orang lain; cocokkan kebijakan dan identitas provider |
 | Bank dan billing | Legacy menandai selesai dan memperbarui keluarga LS | Peran bank, arti selesai, aturan penolakan/revisi billing, dan batas integrasi eksternal yang diperlukan |
 
@@ -241,6 +257,12 @@ berlaku; jangan meminta ulang bila izin tersebut sudah diberikan.
 - [ ] Validasi runtime delivery.
 - [x] Replacement file utama SPP pada update memakai private canonical artifact.
 - [x] Lock dan pemeriksaan ulang pagu pada create SPP di dalam transaksi.
+- [x] Lazy activation first signer BP/BPP melalui signing session.
+- [x] Submit gate canonical dengan fallback hanya untuk dokumen murni legacy.
+- [x] Assignment dan activation PPTK/PA/KPA pada handoff secara transaksional.
+- [x] Next step tetap pending setelah TTE sampai handoff dilakukan.
+- [ ] Visible placement QR/footer backend.
+- [ ] Controlled signing/handoff LS SPP end-to-end.
 - [ ] Private artifact dan delivery SPJ/Billing/BMD.
 - [ ] Implementasi SPP lengkap.
 - [ ] Implementasi SPM lengkap.

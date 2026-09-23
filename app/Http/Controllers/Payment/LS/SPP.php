@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Payment\LS;
 
 use App\Actions\Esign\ProvisionCanonicalDocument as ProvisionCanonicalDocumentAction;
+use App\Data\Esign\EsignTransitionContext;
 use App\Data\Esign\StagedDocumentArtifact;
 use App\Enums\Esign\DocumentArtifactType;
 use App\Enums\Esign\DocumentSigningWorkflowStatus;
+use App\Exceptions\Esign\LsSppSubmitGateException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\LS\StoreSppRequest;
 use App\Http\Requests\LS\UpdateSppRequest;
@@ -22,6 +24,8 @@ use App\Models\UnitKerja;
 use App\Models\UserPosition;
 use App\Services\Document\DocumentHistoryService;
 use App\Services\Document\DocumentOrganizationScope;
+use App\Services\Esign\Authorization\LsSppSubmitGate;
+use App\Services\Esign\LsSppWorkflowHandoffService;
 use App\Services\Esign\Persistence\DocumentArtifactPersistenceService;
 use App\Services\User\ActivePositionService;
 use App\Services\User\PositionIdentityResolver;
@@ -47,6 +51,8 @@ class SPP extends Controller
     public function __construct(
         private readonly PositionIdentityResolver $positionIdentityResolver,
         private readonly DocumentOrganizationScope $documentOrganizationScope,
+        private readonly LsSppSubmitGate $lsSppSubmitGate,
+        private readonly LsSppWorkflowHandoffService $lsSppWorkflowHandoff,
     ) {}
 
     protected function storeFile($file, $directory, ?array &$storedFiles = null)
@@ -666,6 +672,7 @@ class SPP extends Controller
         YearAccessService $yearAccess,
         DocumentHistoryService $documentHistoryService,
         DocumentArtifactPersistenceService $artifactPersistence,
+        ProvisionCanonicalDocumentAction $provisionCanonicalDocument,
     ): JsonResponse {
         $start = microtime(true);
         $sppId = null;
@@ -693,8 +700,12 @@ class SPP extends Controller
         }
 
         $userId = $user->id;
-        $artifactCreatorUserId = $activePosition->real()?->user_id
+        $realActorPosition = $activePosition->real();
+        $artifactCreatorUserId = $realActorPosition?->user_id
             ?? $request->user()?->getKey();
+        $artifactCreatorPositionId = $realActorPosition?->getKey();
+        $artifactCreatorIsActing = $realActorPosition instanceof UserPosition
+            && (int) $realActorPosition->getKey() !== (int) $user->getKey();
         $unitKerja = (int) $user->unitKerja->id;
         $selectedYear = $yearAccess->selectedYear();
         $targetBudgetUnitId = $this->resolveSppBudgetUnitId($user);
@@ -751,9 +762,12 @@ class SPP extends Controller
                 $targetBudgetUnitId,
                 $documentHistoryService,
                 $artifactPersistence,
+                $provisionCanonicalDocument,
                 $stagedSppArtifact,
                 $uploadedSpp,
                 $artifactCreatorUserId,
+                $artifactCreatorPositionId,
+                $artifactCreatorIsActing,
                 $start,
                 &$sppId
             ): void {
@@ -801,6 +815,17 @@ class SPP extends Controller
                         'payment_type' => 'LS',
                         'storage_strategy' => 'canonical_private_upload',
                     ],
+                );
+
+                $provisionCanonicalDocument->handle(
+                    documentId: (int) $spp->getKey(),
+                    actorUserId: $artifactCreatorUserId === null
+                        ? null
+                        : (int) $artifactCreatorUserId,
+                    actorUserPositionId: $artifactCreatorPositionId === null
+                        ? null
+                        : (int) $artifactCreatorPositionId,
+                    actorIsActing: $artifactCreatorIsActing,
                 );
 
                 $documentHistoryService->upload($spp->id, $filename_spp, $unitKerja);
@@ -1042,10 +1067,12 @@ class SPP extends Controller
 
         $unitKerjaId = (int) $user->unitKerja->id;
         $selectedYear = $yearAccess->selectedYear();
-        $artifactCreatorUserId = $activePosition->real()?->user_id
+        $realActorPosition = $activePosition->real();
+        $artifactCreatorUserId = $realActorPosition?->user_id
             ?? $request->user()?->getKey();
-        $artifactCreatorPositionId = $activePosition->real()?->getKey();
-        $artifactCreatorIsActing = $user->getAttribute('is_acting_context') === true;
+        $artifactCreatorPositionId = $realActorPosition?->getKey();
+        $artifactCreatorIsActing = $realActorPosition instanceof UserPosition
+            && (int) $realActorPosition->getKey() !== (int) $user->getKey();
 
         try {
             $decryptedId = EncryptedId::decode($id);
@@ -1596,6 +1623,7 @@ class SPP extends Controller
         }
         $userLevel = (int) $user->jabatan->id;
         $userUnit = $user->unitKerja->id ?? null;
+        $handoffContext = $this->esignHandoffContext($request, $activePosition, $user);
 
         Log::channel('payment_ls')->info('SPP LS Submit request', [
             'hash' => $request->id,
@@ -1617,8 +1645,29 @@ class SPP extends Controller
         }
 
         try {
-            DB::transaction(function () use ($docId, $userLevel, $userUnit, $documentHistoryService, $start) {
-                $mainDoc = Document::select('id', 'src_name', 'submit', 'assigned_to', 'rejected_by', 'src_type', 'id_unit_kerja')
+            DB::transaction(function () use (
+                $docId,
+                $user,
+                $userLevel,
+                $userUnit,
+                $handoffContext,
+                $documentHistoryService,
+                $start,
+            ) {
+                $mainDoc = Document::select(
+                    'id',
+                    'src_name',
+                    'submit',
+                    'assigned_to',
+                    'rejected_by',
+                    'src_type',
+                    'payment_type',
+                    'reference_id',
+                    'parent_id',
+                    'id_unit_kerja',
+                    'status',
+                    'signed_at',
+                )
                     ->whereKey($docId)
                     ->forPaymentType('LS')
                     ->ofType(Document::TYPE_SPP)
@@ -1702,10 +1751,25 @@ class SPP extends Controller
                     throw new RuntimeException('Data telah disubmit sebelumnya. Silakan periksa status dokumen.');
                 }
 
+                $canonicalGateApplied = $this->lsSppSubmitGate->assertSubsequentHandoff(
+                    $mainDoc,
+                    $user,
+                    $submitList,
+                );
+                $canonicalHeadPosition = $canonicalGateApplied && $userLevel === 8
+                    ? $this->lsSppWorkflowHandoff->assignHeadAndActivate(
+                        $mainDoc,
+                        $user,
+                        $handoffContext,
+                    )
+                    : null;
+
                 $has5or6 = in_array(5, $submitList, true) || in_array(6, $submitList, true);
 
                 $assignedTo = match ($userLevel) {
-                    8 => '5,6',
+                    8 => $canonicalHeadPosition instanceof UserPosition
+                        ? (string) $canonicalHeadPosition->jabatan_id
+                        : '5,6',
                     5 => '9',
                     6 => '10',
                     9, 10 => $has5or6
@@ -1717,6 +1781,7 @@ class SPP extends Controller
                 Log::channel('payment_ls')->debug('SPP LS Submit next assigned', [
                     'doc_id' => $docId,
                     'assigned_to' => $assignedTo,
+                    'canonical_gate_applied' => $canonicalGateApplied,
                     'duration_ms' => round((microtime(true) - $start) * 1000, 2),
                 ]);
 
@@ -1753,6 +1818,18 @@ class SPP extends Controller
                 'status' => 200,
                 'message' => 'Dokumen berhasil disubmit',
             ]);
+        } catch (LsSppSubmitGateException $e) {
+            Log::channel('payment_ls')->info('SPP LS Submit blocked by canonical gate', [
+                'doc_id' => $docId ?? null,
+                'reason_code' => $e->reasonCode,
+                'duration_ms' => round((microtime(true) - $start) * 1000, 2),
+            ]);
+
+            return response()->json([
+                'status' => 409,
+                'message' => $e->getMessage(),
+                'error' => ['code' => $e->reasonCode],
+            ], 409);
         } catch (RuntimeException $e) {
             Log::channel('payment_ls')->info('SPP LS Submit blocked', [
                 'doc_id' => $docId ?? null,
@@ -1821,9 +1898,19 @@ class SPP extends Controller
         }
         $userJabatan = (int) $user->jabatan->id;
         $userUnit = $user->unitKerja->id ?? null;
+        $handoffContext = $this->esignHandoffContext($request, $activePosition, $user);
 
         try {
-            return DB::transaction(function () use ($docId, $userTo, $userJabatan, $user, $userUnit, $documentHistoryService, $start) {
+            return DB::transaction(function () use (
+                $docId,
+                $userTo,
+                $userJabatan,
+                $user,
+                $userUnit,
+                $handoffContext,
+                $documentHistoryService,
+                $start,
+            ) {
 
                 $firstDoc = Document::select(
                     'id',
@@ -1831,7 +1918,13 @@ class SPP extends Controller
                     'submit',
                     'assigned_to',
                     'rejected_by',
-                    'id_unit_kerja'
+                    'src_type',
+                    'payment_type',
+                    'reference_id',
+                    'parent_id',
+                    'id_unit_kerja',
+                    'status',
+                    'signed_at',
                 )
                     ->whereKey($docId)
                     ->forPaymentType('LS')
@@ -1911,11 +2004,25 @@ class SPP extends Controller
                     ], 400);
                 }
 
+                $canonicalGateApplied = $this->lsSppSubmitGate->assertInitialHandoffToPptk(
+                    $firstDoc,
+                    $user,
+                );
+                $canonicalTargetPosition = $canonicalGateApplied
+                    ? $this->lsSppWorkflowHandoff->assignPptkAndActivate(
+                        $firstDoc,
+                        $user,
+                        $userTo,
+                        $handoffContext,
+                    )
+                    : null;
+                $targetPositionId = $canonicalTargetPosition?->getKey() ?? $userTo;
+
                 Document::whereKey($firstDoc->getKey())
                     ->update([
                         'submit' => $userJabatan,
                         'assigned_to' => 8,
-                        'users_to' => $userTo,
+                        'users_to' => $targetPositionId,
                     ]);
 
                 $documentHistoryService->submit(
@@ -1927,7 +2034,8 @@ class SPP extends Controller
                 Log::channel('payment_ls')->info('SPP LS Submit PPTK success', [
                     'doc_id' => $docId,
                     'assigned_to' => 8,
-                    'users_to' => $userTo,
+                    'users_to' => $targetPositionId,
+                    'canonical_gate_applied' => $canonicalGateApplied,
                     'duration_ms' => round((microtime(true) - $start) * 1000, 2),
                 ]);
 
@@ -1936,6 +2044,18 @@ class SPP extends Controller
                     'message' => 'Dokumen berhasil disubmit ke PPTK.',
                 ], 200);
             });
+        } catch (LsSppSubmitGateException $e) {
+            Log::channel('payment_ls')->info('SPP LS Submit PPTK blocked by canonical gate', [
+                'doc_id' => $docId ?? null,
+                'reason_code' => $e->reasonCode,
+                'duration_ms' => round((microtime(true) - $start) * 1000, 2),
+            ]);
+
+            return response()->json([
+                'status' => 409,
+                'message' => $e->getMessage(),
+                'error' => ['code' => $e->reasonCode],
+            ], 409);
         } catch (Throwable $e) {
 
             Log::channel('payment_ls')->error('SPP LS Submit PPTK system failure', [
@@ -1951,6 +2071,30 @@ class SPP extends Controller
                 'message' => 'Terjadi kesalahan sistem.',
             ], 500);
         }
+    }
+
+    private function esignHandoffContext(
+        Request $request,
+        ActivePositionService $activePosition,
+        UserPosition $effectivePosition,
+    ): EsignTransitionContext {
+        $realPosition = $activePosition->real();
+        $auditPosition = $realPosition instanceof UserPosition
+            ? $realPosition
+            : $effectivePosition;
+        $actorIsActing = (int) $auditPosition->getKey() !== (int) $effectivePosition->getKey();
+
+        return new EsignTransitionContext(
+            actorUserId: $request->user()?->getKey() ?? $auditPosition->user_id,
+            actorUserPositionId: (int) $auditPosition->getKey(),
+            actorIsActing: $actorIsActing,
+            reasonCode: 'ls_spp_handoff',
+            message: 'Assignment signer canonical diperbarui saat handoff LS SPP.',
+            metadata: [
+                'effective_actor_position_id' => (int) $effectivePosition->getKey(),
+                'effective_actor_role_id' => (int) $effectivePosition->jabatan_id,
+            ],
+        );
     }
 
     private function canAccessForSubmit(Document $document, int $jabatanId, ?int $unitKerjaId): bool

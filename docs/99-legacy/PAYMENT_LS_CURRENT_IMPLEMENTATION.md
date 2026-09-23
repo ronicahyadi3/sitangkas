@@ -1,10 +1,12 @@
 # Kondisi Implementasi Payment LS Saat Ini
 
-Tanggal snapshot: **22 September 2026**.
+Tanggal snapshot: **23 September 2026**.
 
-Status: **SPP LS sedang diintegrasikan; create/upload dan replacement file utama
-SPP sudah memakai canonical private artifact. Keseluruhan Payment LS belum
-selesai dan belum dinyatakan lulus runtime end-to-end**.
+Status: **SPP LS sedang diintegrasikan. Create/upload dan replacement file utama
+SPP sudah memakai canonical private artifact. Vertical slice canonical jalur
+BP/BPP sekarang mempunyai lazy activation, submit gate, assignment signer pada
+handoff, dan legacy projection, tetapi belum dinyatakan lulus runtime
+end-to-end. Keseluruhan Payment LS belum selesai.**
 
 Dokumen ini adalah handoff utama untuk AI agent yang melanjutkan Payment LS.
 Dokumen analisis dan rencana lama tetap berguna sebagai baseline, tetapi status
@@ -76,6 +78,15 @@ Model berikut sudah disesuaikan dengan project sekarang:
   mengantrekan `ProvisionCanonicalDocument`.
 - `DocumentArtifactPersistenceService` menulis file canonical ke disk private,
   menghitung hash/size, dan membuat version chain artifact.
+- `LsSppSubmitGate` membuktikan step canonical benar-benar selesai dan memiliki
+  attempt/artifact/projection yang konsisten sebelum legacy handoff boleh
+  mengubah assignment.
+- `LsSppWorkflowHandoffService` mengaktifkan first step secara lazy, menetapkan
+  PPTK atau PA/KPA pada handoff, menulis event assignment, dan mengaktifkan
+  hanya step tujuan.
+- `LsSppCompatibilityProjector` memproyeksikan keberhasilan TTE ke
+  `document.status` dan satu event `document_process.action=TTE` secara
+  transaksional serta idempotent.
 
 ### 3.3 Request SPP
 
@@ -188,9 +199,11 @@ Entry point: `Payment\LS\SPP::store()`.
    - metadata `document_type=SPP`, `payment_type=LS`, dan
      `storage_strategy=canonical_private_upload`.
 7. `DocumentHistoryService::upload()` menulis histori `UPLOAD`.
-8. Hook after-commit provisioning tetap berjalan, tetapi menemukan source
-   artifact current yang sudah ada sehingga tidak perlu membaca
-   `public/File_SPP`.
+8. `SPP::store()` memanggil `ProvisionCanonicalDocumentAction` setelah source
+   artifact selesai, masih di dalam transaksi create yang sama. Workflow dan
+   step tidak menunggu worker after-commit untuk vertical slice ini.
+9. Hook provisioning umum tetap idempotent; bila berjalan ulang ia menemukan
+   source artifact/workflow yang sudah ada dan tidak menggandakannya.
 
 `SPP::store()` tidak membuat file SPP baru di `public/File_SPP`.
 
@@ -362,6 +375,76 @@ Keberadaan row `after_signs` saja bukan bukti sukses. Bukti sukses minimum:
 - artifact canonical `after_sign` tersedia;
 - histori `document_process` action `TTE` tersedia.
 
+### 9.1 State dan handoff canonical LS SPP
+
+Definisi workflow final untuk vertical slice ini:
+
+```text
+BP  -> PPTK -> PA
+BPP -> PPTK -> KPA
+```
+
+Urutan runtime:
+
+1. Upload membuat workflow `draft`. Step BP/BPP sudah assigned ke uploader,
+   tetapi tetap `pending`; PPTK dan PA/KPA belum ditebak.
+2. Ketika BP/BPP yang benar-benar memiliki posisi tersebut membuka signing
+   session, `prepareInitialStepForSigning()` mengunci document, workflow, dan
+   step. Workflow menjadi `active` dan step pertama menjadi `active`.
+3. Admin Super yang sedang acting tidak dapat memicu aktivasi atau TTE. Admin
+   Super dengan posisi bisnis nyata yang assigned diperlakukan sebagai user
+   biasa.
+4. Setelah TTE BP/BPP sukses, step pertama menjadi `completed`; result artifact
+   menjadi current. Step PPTK tetap `pending`.
+5. `submit_pptk()` menjalankan submit gate. Setelah proof TTE lengkap, posisi
+   PPTK pilihan divalidasi terhadap canonical position, role aktif, unit, dan
+   instansi. Service mengisi assignment/source artifact, menulis
+   `step_assigned`, lalu mengaktifkan step PPTK.
+6. Setelah TTE PPTK sukses, step PPTK menjadi `completed`; PA/KPA tetap
+   `pending` sampai PPTK melakukan `submit()`.
+7. Handoff PPTK memilih role dari variant workflow: jalur BP hanya ke PA dan
+   jalur BPP hanya ke KPA. Harus ada tepat satu posisi target aktif pada scope
+   organisasi tersebut; nol atau lebih dari satu menghasilkan HTTP `409`.
+8. Setelah TTE PA/KPA sukses, step terakhir dan workflow menjadi `completed`.
+9. Submit PA/KPA kembali ke BP/BPP tetap merupakan handoff administratif
+   legacy; tidak dibuat step TTE BP/BPP kedua.
+10. Submit final BP/BPP ke PPK-SKPD hanya boleh setelah workflow completed,
+    seluruh required step mempunyai proof sukses, current artifact benar, dan
+    `document.signed_at` telah terisi.
+
+`EsignAttemptPersistenceService` sengaja **tidak** mengaktifkan next step
+setelah success. Assignment dan activation hanya terjadi saat handoff agar
+signer tujuan selalu sama dengan keputusan operasional pada submit.
+
+### 9.2 Submit gate dan konsistensi legacy
+
+Gate canonical memeriksa sedikitnya:
+
+- root document, payment/type, variant, dan urutan required step;
+- actor/role/assigned position tepat;
+- step actor berstatus `completed`;
+- tepat satu attempt `succeeded` untuk proof step;
+- result artifact bertipe `after_sign`, menjadi current, dan sesuai workflow;
+- link compatibility ke `document_process` action `TTE` tersedia;
+- status projection `document` sesuai hasil TTE;
+- untuk handoff final, workflow dan seluruh required step sudah completed.
+
+Semua perubahan gate, assignment canonical, `document.submit`, `assigned_to`,
+`users_to`, dan histori `SUBMIT` berada di transaksi controller yang sama.
+Kegagalan mengembalikan `409` dengan `error.code` terstruktur dan tidak
+meninggalkan perubahan parsial.
+
+Boundary fallback:
+
+- murni legacy tanpa workflow dan tanpa artifact canonical boleh memakai alur
+  lama;
+- artifact canonical tanpa workflow dianggap korup/incomplete dan gagal
+  tertutup; tidak boleh fallback ke legacy;
+- canonical PPTK menyimpan exact `user_positions.id` pada `document.users_to`;
+- pada handoff PPTK, canonical `assigned_to` menjadi tepat `5` (PA) atau `6`
+  (KPA), bukan nilai ambigu `5,6`; nilai `5,6` hanya tersisa untuk fallback
+  legacy.
+
 ## 10. Kondisi update SPP
 
 `SPP::update()` sekarang menangani replacement file utama SPP secara canonical:
@@ -418,16 +501,19 @@ terdaftar. Sebelum mengaktifkan operasional:
 
 Urutan prioritas blocker saat snapshot:
 
-1. Migrasikan SPJ, Billing, dan BMD create/update dari public storage.
-2. Tutup seluruh URL langsung `public/File_*` untuk LS setelah setiap tipe
+1. Implementasikan visible placement QR/footer. Endpoint sign masih fail-closed
+   ketika `placement_required=true`.
+2. Jalankan vertical slice LS SPP jalur BP secara terkontrol dari lazy
+   activation sampai handoff final; validasi rollback dan idempotency pada
+   setiap batas transaksi.
+3. Siapkan worker `signatures` production dan shared cache sesuai topology
+   server; worker lokal bukan bukti availability production.
+4. Migrasikan SPJ, Billing, dan BMD create/update dari public storage.
+5. Tutup seluruh URL langsung `public/File_*` untuk LS setelah setiap tipe
    mempunyai delivery resolver/policy canonical.
-3. Validasi runtime create/update SPP, termasuk konkurensi dua request pada
-   rekening yang sama, rollback, preview, download,
-   provisioning, dan
-   TTE setelah ada izin test dari pengguna.
-4. Review kebutuhan indeks komposit anggaran berdasarkan query plan dan volume
+6. Review kebutuhan indeks komposit anggaran berdasarkan query plan dan volume
    produksi sebelum membuat migration indeks.
-5. Review SPM lalu SP2D sebagai vertical slice terpisah.
+7. Review SPM lalu SP2D sebagai vertical slice terpisah.
 
 Risiko tambahan:
 
@@ -442,16 +528,20 @@ Risiko tambahan:
 
 ## 13. Urutan implementasi berikutnya
 
-1. Migrasikan SPJ, Billing, dan BMD ke private storage dengan pemodelan artifact
+1. Selesaikan backend visible placement QR/footer beserta persistence
+   `esign_attempt_signature_properties`.
+2. Jalankan controlled vertical slice BP -> PPTK -> PA, termasuk signing job,
+   submit gate, assignment event, legacy projection, dan current artifact.
+3. Konfigurasikan shared cache, production process manager, health/heartbeat,
+   dan recovery worker `signatures`.
+4. Migrasikan SPJ, Billing, dan BMD ke private storage dengan pemodelan artifact
    yang eksplisit; Billing saat ini masih nama file pada row SPJ sehingga perlu
    keputusan mapping yang tidak ambigu.
-2. Tambahkan resolver dan delivery route untuk artifact pendamping yang sudah
+5. Tambahkan resolver dan delivery route untuk artifact pendamping yang sudah
    dimigrasikan, lalu hentikan URL langsung ke folder public untuk tipe itu.
-3. Selesaikan delivery policy LS SPP, termasuk watermark/audit bila scope fase
+6. Selesaikan delivery policy LS SPP, termasuk watermark/audit bila scope fase
    tersebut sudah diaktifkan.
-4. Validasi runtime transaksi/locking anggaran dan workflow TTE SPP LS dari
-   current source sampai current signed output.
-5. Baru lanjutkan SPM dan SP2D, lalu bank/penyelesaian LS.
+7. Baru lanjutkan SPM dan SP2D, lalu bank/penyelesaian LS.
 
 ## 14. Verifikasi yang sudah dan belum dilakukan
 
@@ -470,7 +560,14 @@ Pada perubahan upload/delivery terakhir sudah dilakukan:
 - pemeriksaan sintaks controller/persistence/provisioning/enum setelah canonical
   replacement update, resolve route update, Laravel Pint, dan `git diff --check`.
 - pemeriksaan sintaks controller, resolve seluruh route `ls/spp`, dan Laravel
-  Pint setelah locking create disatukan dengan update.
+  Pint setelah locking create disatukan dengan update;
+- PHP lint, Pint, container resolution, route inspection, dan
+  `git diff --check` setelah submit gate serta handoff service ditambahkan;
+- query read-only menemukan dua workflow LS SPP masih `draft`, dengan signer
+  BP assigned dan step berikutnya unresolved; masing-masing unit mempunyai
+  tepat satu kandidat PA aktif;
+- proof lazy activation di dalam transaksi menghasilkan workflow/step active,
+  lalu rollback mengembalikan database ke draft/pending tanpa mutasi permanen.
 
 Belum dilakukan:
 
@@ -480,6 +577,7 @@ Belum dilakukan:
 - preview/download canonical runtime;
 - rollback terkontrol;
 - TTE LS end-to-end;
+- submit/handoff canonical LS SPP secara permanen;
 - validasi queue/process manager production;
 - migration/backfill dokumen historis.
 

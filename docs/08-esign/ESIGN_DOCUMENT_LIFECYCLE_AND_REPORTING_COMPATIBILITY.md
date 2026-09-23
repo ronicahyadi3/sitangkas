@@ -123,8 +123,9 @@ aplikasi lain.
   endpoint, dan asynchronous signing job sudah dibuat pada source.
 - Dua migration index mapping legacy masih `Pending`. Provisioning artifact/
   workflow/step dari controller payment sudah dibuat dan dibuktikan lokal pada
-  satu upload NPD `GU_SKPD`; production process manager/shared cache, activation
-  first signer, assignment signer berikutnya, public verification route,
+  satu upload NPD `GU_SKPD`. Lazy activation, submit gate, serta assignment
+  signer saat handoff sudah dibuat untuk LS SPP; production process manager/
+  shared cache, acceptance end-to-end, public verification route,
   reconciliation, mapping runner, dan frontend belum selesai.
 - Credential, NIK lengkap, passphrase, Basic Auth, dan response mentah tidak
   boleh ditulis ke dokumentasi ini atau dokumentasi lanjutan.
@@ -918,9 +919,10 @@ terkontrol per explicit path, bukan recursive glob luas.
     seluruh delivery.
 11. Implementasikan backend QR generation/reservation.
 12. Invisible signing orchestration sudah dibuat pada source; schema dan
-    provisioning worker lokal sudah terbukti. Berikutnya aktifkan first signer
-    setelah upload, sinkronkan signer berikutnya setelah TTE sukses +
-    submit/handoff, lalu buktikan signing end-to-end.
+    provisioning worker lokal sudah terbukti. LS SPP memakai lazy activation
+    saat signing session pertama serta assignment/activation step berikutnya
+    saat handoff. Berikutnya selesaikan visible QR/footer dan buktikan jalur
+    BP -> PPTK -> PA secara end-to-end.
 13. Registrasikan/backfill legacy secara bertahap di lokasi existing.
 14. Inventaris dan tarik arsip fisik 2024-2025 yang belum ada pada subset 90
     hari di project baru.

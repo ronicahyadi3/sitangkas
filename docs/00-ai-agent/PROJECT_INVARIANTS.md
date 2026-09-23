@@ -171,11 +171,13 @@ Ini ringkasan aturan yang tidak boleh dilanggar lintas domain.
   detail yang dirujuknya. Collection Postman 2.2.0-beta dan project lama hanya
   merupakan bukti referensi, bukan spesifikasi produksi yang lengkap.
 - Kondisi source/deployment terakhir wajib dibaca dari
-  `../08-esign/CURRENT_ESIGN_IMPLEMENTATION.md`. Pada snapshot 21 September
+  `../08-esign/CURRENT_ESIGN_IMPLEMENTATION.md`. Pada snapshot 23 September
   2026, fondasi source Phase 3-5 dan 13 tabel canonical sudah tersedia pada
   database lokal. Dua migration index mapping legacy masih `Pending`;
-  provisioning controller payment dan worker runtime belum dibuktikan,
-  visible/public verification/reconciliation/frontend belum ada.
+  provisioning serta dedicated worker sudah dibuktikan lokal. Vertical slice
+  LS SPP mempunyai lazy activation, submit gate, dan assignment/activation
+  signer saat handoff, tetapi belum lulus TTE end-to-end. Visible/public
+  verification, reconciliation, dan frontend belum ada.
   Jangan menyamakan keberadaan class/route dengan fitur production-ready.
 - Integrasi baru menargetkan eSign Client 2.2.0/API v2. Concrete service client
   wajib bernama `BsreClient`, bukan `BsreV22Client`.
@@ -381,8 +383,19 @@ Ini ringkasan aturan yang tidak boleh dilanggar lintas domain.
 - Reject langkah hanya dilakukan penerima setelah submit dan mengembalikan paket
   kepada pembuat untuk revisi/resubmit. Data legacy yang ambigu ditandai
   `needs_review`, bukan dihapus atau diperbaiki otomatis.
-- TTE multi-signer selalu sequential. Result artifact satu step menjadi source
-  artifact step berikutnya; setiap step mempunyai placement sendiri.
+- TTE multi-signer selalu sequential. Result artifact satu step menjadi current
+  artifact workflow dan, pada flow yang memakai handoff, baru diikat sebagai
+  source step berikutnya saat assignment/handoff berhasil. Setiap step
+  mempunyai placement sendiri.
+- Khusus LS SPP, workflow upload tetap `draft`; signing session BP/BPP nyata
+  mengaktifkan first step secara lazy. TTE sukses menyelesaikan current step
+  tanpa mengaktifkan next step. Handoff BP/BPP mengikat PPTK, handoff PPTK
+  mengikat PA/KPA, dan seluruh assignment canonical + projection legacy harus
+  commit/rollback dalam satu transaksi setelah `LsSppSubmitGate` lulus.
+- Jangan mengembalikan auto-activation next step ke attempt persistence, jangan
+  mengubah `document.submit`/`assigned_to`/`users_to` tanpa canonical gate untuk
+  dokumen LS SPP, dan jangan fallback ke legacy bila artifact canonical sudah
+  ada tetapi workflow hilang.
 - Matrix authorization/workflow canonical berada di
   `../08-esign/ESIGN_AUTHORIZATION_AND_WORKFLOW_MATRIX.md`. Jangan menyimpulkan
   hak create/sign/download hanya dari tombol Blade atau numeric role legacy.

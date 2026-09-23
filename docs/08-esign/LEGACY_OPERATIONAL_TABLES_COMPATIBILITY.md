@@ -1,14 +1,15 @@
 # Kontrak Tabel Operasional Legacy dan Audit Canonical
 
 Tanggal keputusan: **18 September 2026**. Kondisi implementasi diperbarui
-**21 September 2026**.
+**23 September 2026**.
 
 Status: **keputusan arsitektur yang dikunci pengguna; 13 migration tabel
 canonical sudah diterapkan pada database lokal setelah lolos simulasi SQL.
 Dua migration index mapping legacy tetap `Pending`. PHP enum, model/cast/relasi, transition
 service, artifact persistence, dan compatibility writer runtime sudah dibuat
-pada source. Reconciliation runner, provisioning controller payment, parity
-report, mapping runner, dan cutover belum diimplementasikan**.
+pada source. Provisioning controller payment serta projector `TTE` LS SPP sudah
+dibuat. Reconciliation runner, parity report, mapping runner, dan cutover belum
+diimplementasikan**.
 
 Dokumen ini adalah sumber keputusan utama untuk enam tabel operasional berikut:
 
@@ -275,6 +276,14 @@ Final sign confirmation
 Atomic lock, request fingerprint, idempotency key, dan unique constraint wajib
 mencegah double sign serta duplicate compatibility row.
 
+Untuk vertical slice LS SPP, `LsSppCompatibilityProjector` memperbarui
+`document.status` dan menulis tepat satu `document_process.action=TTE` setelah
+step canonical berhasil. `LsSppSubmitGate` kemudian mewajibkan projection link
+tersebut sebelum handoff. Assignment canonical, kolom `document.submit`/
+`assigned_to`/`users_to`, serta histori `SUBMIT` ditulis pada transaksi
+controller yang sama. Dokumen murni legacy boleh memakai fallback lama; artifact
+canonical tanpa workflow harus gagal tertutup.
+
 Jika post-call transaction gagal, jangan menganggap dokumen sukses. Simpan atau
 rekonsiliasi outcome menurut state `unknown`/failure policy; jangan mengulang
 vendor sign otomatis.
@@ -325,8 +334,9 @@ archive, truncate, atau drop tabel.
 - 13 migration tabel canonical sudah diterapkan dalam batch 9-21;
 - dua migration index mapping legacy belum dijalankan;
 - tidak ada row legacy yang diubah/dihapus;
-- model canonical dan compatibility writer runtime sudah dibuat pada source,
-  tetapi belum dibuktikan melalui vertical slice runtime;
+- model canonical dan compatibility writer runtime sudah dibuat pada source;
+  projector/gate/handoff LS SPP tersedia tetapi belum dibuktikan melalui
+  vertical slice TTE end-to-end;
 - reconciliation service, parity report, dan mapping runner belum dibuat;
 - kandidat indeks anggaran belum dibuat karena harus melalui query/lock review;
 - audit event anggaran belum dibuat dan menjadi pekerjaan lanjutan terpisah.

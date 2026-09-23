@@ -13,6 +13,7 @@ use App\Services\Auth\CurrentUserContext;
 use App\Services\Esign\Authorization\EsignAuthorizationService;
 use App\Services\Esign\DocumentArtifactIntegrityService;
 use App\Services\Esign\EphemeralSigningSessionStore;
+use App\Services\Esign\LsSppWorkflowHandoffService;
 use App\Services\Esign\SignerIdentityResolver;
 use App\Services\User\YearAccessService;
 use Carbon\CarbonImmutable;
@@ -27,6 +28,7 @@ final class CreateSigningSession
         private SignerIdentityResolver $signerIdentityResolver,
         private DocumentArtifactIntegrityService $artifactIntegrity,
         private EphemeralSigningSessionStore $sessions,
+        private LsSppWorkflowHandoffService $lsSppWorkflowHandoff,
         private CurrentUserContext $currentUserContext,
         private YearAccessService $yearAccess,
         private ConfigRepository $config,
@@ -35,18 +37,34 @@ final class CreateSigningSession
 
     public function handle(User $user, DocumentSigningStep $step): SigningSessionData
     {
+        $realPosition = $this->currentUserContext->realActivePosition($this->request);
+        $effectivePosition = $this->currentUserContext->activePosition($this->request);
+        $actorIsActing = $this->currentUserContext->effectiveContextIsActing($this->request);
+
+        if ($user->isActive()
+            && ! $user->isLocked()
+            && $realPosition instanceof UserPosition
+            && $effectivePosition instanceof UserPosition
+            && $realPosition->isAvailableForSelection()
+            && ! $actorIsActing) {
+            $step = $this->lsSppWorkflowHandoff->prepareInitialStepForSigning(
+                $step,
+                $user,
+                $realPosition,
+                false,
+            );
+        }
+
         $this->authorization->placeSignature($user, $step)->authorize();
         $signer = $this->signerIdentityResolver->resolve($user, $step);
         $workflow = $step->workflow()->first();
         $artifact = $step->sourceArtifact()->first();
-        $realPosition = $this->currentUserContext->realActivePosition($this->request);
-        $effectivePosition = $this->currentUserContext->activePosition($this->request);
 
         if (! $workflow instanceof DocumentSigningWorkflow
             || ! $artifact instanceof DocumentArtifact
             || ! $realPosition instanceof UserPosition
             || ! $effectivePosition instanceof UserPosition
-            || $this->currentUserContext->effectiveContextIsActing($this->request)) {
+            || $actorIsActing) {
             throw new EsignInvariantViolationException('signing_session_context_invalid');
         }
 

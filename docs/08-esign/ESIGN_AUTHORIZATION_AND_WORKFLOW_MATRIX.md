@@ -260,6 +260,22 @@ memilih tepat satu actor sesuai variant atau assignment, bukan signer paralel.
 aktif. Dokumen bertanda tangan mempunyai satu sampai tiga signer; maksimum yang
 ditemukan pada workflow versi 1 adalah tiga signer.
 
+### Status implementasi LS SPP per 23 September 2026
+
+Matrix `BP -> PPTK -> PA` dan `BPP -> PPTK -> KPA` sudah dikodekan sebagai
+vertical slice pertama. Workflow upload tetap `draft`; BP/BPP nyata
+mengaktifkan step pertama secara lazy ketika membuka signing session. Setelah
+TTE sukses, step berikutnya tetap `pending`. Submit/handoff baru menetapkan
+signer tujuan, menyalin current result artifact sebagai source step tujuan,
+menulis event `step_assigned`, dan mengaktifkan step tersebut. Dengan demikian,
+urutan bisnis **TTE lalu SUBMIT** ditegakkan tanpa menebak signer berikutnya.
+
+Submit gate LS SPP wajib membuktikan completed step, succeeded attempt,
+after-sign artifact current, compatibility projection `TTE`, dan assignment
+aktor sebelum projection legacy berubah. Handoff canonical dan legacy commit
+atau rollback dalam satu transaksi. Implementasi ini belum menjadi bukti
+end-to-end sampai controlled signing jalur BP selesai.
+
 Untuk SP2D, Verifikator BUD memilih tepat satu penerima penugasan: BUD atau
 Kuasa BUD. Simpan assigned position/user secara spesifik. Hanya penerima tersebut
 yang boleh TTE. Assignment boleh diubah sebelum signature sukses dengan event
@@ -315,8 +331,10 @@ BP dan jalur BPP. Setiap step menyimpan minimal:
 - status serta timestamp;
 - actor/certificate-owner snapshot.
 
-Setelah satu step sukses, result artifact menjadi source artifact step
-berikutnya. Kegagalan step berikutnya tidak menghapus hasil step sebelumnya.
+Setelah satu step sukses, result artifact menjadi current artifact workflow.
+Pada flow yang memakai handoff seperti LS SPP, artifact tersebut baru diikat
+sebagai source step berikutnya ketika assignment/handoff berhasil. Kegagalan
+step berikutnya tidak menghapus hasil step sebelumnya.
 
 ## 9. Prasyarat sebelum TTE
 

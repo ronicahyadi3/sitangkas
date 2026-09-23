@@ -41,14 +41,24 @@ final class LsSppCompatibilityProjector
             ->whereKey($stepId)
             ->valueOrFail('document_signing_workflow_id');
         $artifactId = (int) $artifact->getKey();
+        $documentId = (int) $attempt->document_id;
+
+        if ($documentId <= 0) {
+            throw new EsignInvariantViolationException('ls_spp_projection_document_id_missing');
+        }
 
         DB::transaction(function () use (
             $attemptId,
             $stepId,
             $workflowId,
             $artifactId,
+            $documentId,
             $md5,
         ): void {
+            /** @var Document $document */
+            $document = Document::withTrashed()
+                ->lockForUpdate()
+                ->findOrFail($documentId);
             /** @var DocumentSigningWorkflow $workflow */
             $workflow = DocumentSigningWorkflow::query()
                 ->lockForUpdate()
@@ -63,6 +73,17 @@ final class LsSppCompatibilityProjector
                 ->findOrFail($attemptId);
 
             $this->assertCanonicalState($lockedAttempt, $step, $workflow, $artifactId, $md5);
+
+            if ((int) $lockedAttempt->document_id !== $documentId || ! $this->supports($document)) {
+                throw new EsignInvariantViolationException('ls_spp_projection_document_not_root');
+            }
+
+            if ((int) $workflow->document_id !== (int) $document->getKey()
+                || (int) $workflow->root_document_id !== (int) $document->getKey()
+                || Str::upper(trim((string) $workflow->payment_type)) !== 'LS'
+                || Str::upper(trim((string) $workflow->document_type)) !== Document::TYPE_SPP) {
+                throw new EsignInvariantViolationException('ls_spp_projection_workflow_document_mismatch');
+            }
 
             $existingLinks = EsignAttemptLegacyLink::query()
                 ->where('esign_attempt_id', $lockedAttempt->getKey())
@@ -82,22 +103,6 @@ final class LsSppCompatibilityProjector
                 $this->assertIdempotentReplay($existingLink, $lockedAttempt, $artifactId, $workflowId, $stepId);
 
                 return;
-            }
-
-            /** @var Document $document */
-            $document = Document::withTrashed()
-                ->lockForUpdate()
-                ->findOrFail($lockedAttempt->document_id);
-
-            if (! $this->supports($document)) {
-                throw new EsignInvariantViolationException('ls_spp_projection_document_not_root');
-            }
-
-            if ((int) $workflow->document_id !== (int) $document->getKey()
-                || (int) $workflow->root_document_id !== (int) $document->getKey()
-                || Str::upper(trim((string) $workflow->payment_type)) !== 'LS'
-                || Str::upper(trim((string) $workflow->document_type)) !== Document::TYPE_SPP) {
-                throw new EsignInvariantViolationException('ls_spp_projection_workflow_document_mismatch');
             }
 
             /** @var DocumentArtifact $lockedArtifact */

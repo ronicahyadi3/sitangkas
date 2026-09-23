@@ -1,6 +1,6 @@
 # eSign Client 2.2.0 / TTE
 
-Tanggal snapshot: **22 September 2026**.
+Tanggal snapshot: **23 September 2026**.
 
 Status: **backend in progress. Boundary provider Phase 2 selesai untuk scope
 NIK+passphrase/invisible/satu-file. Migration, model, enum cast,
@@ -13,9 +13,12 @@ telah mempunyai hook upload after-commit untuk mengantrekan provisioning
 artifact/workflow/step. Worker `signatures` sudah ditambahkan ke
 `composer run dev`, dijalankan secara lokal, dan satu upload NPD `GU_SKPD`
 terkontrol berhasil membentuk artifact, workflow, dua step, serta event.
-Production process manager, aktivasi first signer setelah upload, assignment
-signer berikutnya saat submit/handoff, dan vertical slice signing canonical
-belum selesai. SPP LS sekarang mempunyai direct source artifact upload,
+Production process manager dan vertical slice signing canonical end-to-end
+belum selesai. Untuk LS SPP, first signer sekarang aktif secara lazy saat
+signer BP/BPP nyata membuka session; PPTK dan PA/KPA baru di-assign serta
+diaktifkan saat handoff setelah step sebelumnya terbukti completed. Submit gate
+menjaga projection legacy tidak melompat mendahului canonical proof. SPP LS
+sekarang mempunyai direct source artifact upload,
 replacement artifact berversi dengan draft-workflow rebind/revision cycle, dan
 authenticated delivery route khusus current artifact pada working tree.
 Formula `storage_path_sha256` persistence/integrity sudah disatukan; acceptance
@@ -354,8 +357,11 @@ publik, atau kontrak request lama dari file-file tersebut.
       terbukti memproses job provisioning lokal tanpa failed job.
 - [ ] Worker `signatures` dikelola process manager pada server production dan
       memakai shared cache yang sesuai topology deployment.
-- [ ] First-signer activation setelah upload serta next-signer assignment pada
-      TTE sukses + submit/handoff diimplementasikan.
+- [x] Lazy first-signer activation dan next-signer assignment/activation saat
+      submit/handoff diimplementasikan untuk vertical slice LS SPP BP/BPP.
+- [x] Submit gate LS SPP memeriksa completed step, succeeded attempt,
+      after-sign artifact, compatibility projection, current artifact, dan
+      workflow lengkap sebelum legacy assignment berubah.
 - [ ] Vertical slice signing canonical diuji end-to-end.
 - [ ] Route delivery PDF terotorisasi, guest public-watermarked delivery,
       enforcement `pdf_watermark_required`, audit access, cache derivative,

@@ -1,6 +1,6 @@
 # Rencana Implementasi eSign Client 2.2.0
 
-Tanggal snapshot: **22 September 2026**.
+Tanggal snapshot: **23 September 2026**.
 
 Status: **rencana kerja dan tracker. Kondisi source code aktual berada pada
 `CURRENT_ESIGN_IMPLEMENTATION.md`: Phase 2 selesai untuk scope awal, fondasi
@@ -8,8 +8,9 @@ source Phase 3-5 sudah tersedia dan 13 tabel canonical sudah diterapkan pada
 database lokal. Dua migration index legacy masih `Pending`; source
 artifact/workflow/step provisioning dari upload payment sudah dibuat dan sudah
 dibuktikan secara lokal oleh dedicated worker melalui satu upload NPD
-`GU_SKPD`. Activation/assignment adapter dan vertical slice sign masih pending,
-dan Phase 6-12 belum diimplementasikan**.
+`GU_SKPD`. Untuk LS SPP, lazy activation, submit gate, assignment/activation
+PPTK dan PA/KPA saat handoff sudah tersedia. Vertical slice sign masih belum
+lulus end-to-end, dan Phase 6-12 belum diimplementasikan**.
 
 Dokumen ini mengarahkan agent pada urutan kerja, dependency, acceptance, dan
 blocker. Baca `README.md`, `PDF_DELIVERY_WATERMARK_AND_VERIFICATION.md`, backend
@@ -53,7 +54,7 @@ Urutan ini bersifat dependency, bukan sekadar nomor pekerjaan. Pekerjaan UI
 boleh didesain, tetapi implementasi frontend tidak dimulai sebelum response
 schema, application error code, route, authorization, dan state backend stabil.
 
-### Checkpoint aktual 22 September 2026
+### Checkpoint aktual 23 September 2026
 
 - **Sudah dibuat di source:** schema migration, enum, model/cast/relasi,
   workflow/step/attempt transition service, artifact persistence, provider
@@ -69,10 +70,13 @@ schema, application error code, route, authorization, dan state backend stabil.
   `ProvisionCanonicalDocument` dari upload NPD `GU_SKPD`; source artifact,
   workflow `PPTK -> PA`, dua step, dan event `workflow_created` terbentuk,
   queue kembali kosong, dan tidak ada failed job.
-- **Belum diaktifkan/dibuktikan:** first signer yang sudah resolved masih
-  `pending` pada workflow `draft`; activation setelah upload, assignment signer
-  berikutnya pada TTE sukses + submit/handoff, production process manager/shared
-  cache, dan pipeline signing canonical end-to-end belum dibuat/dibuktikan.
+- **Sudah dibuat untuk LS SPP:** workflow tetap draft sampai BP/BPP nyata
+  membuka signing session; setelah itu first step aktif secara lazy. TTE sukses
+  menyelesaikan current step tetapi membiarkan next step pending. Submit gate
+  lalu mengikat serta mengaktifkan PPTK atau PA/KPA pada handoff atomik bersama
+  projection legacy.
+- **Belum dibuktikan:** production process manager/shared cache dan pipeline
+  signing/handoff canonical LS SPP end-to-end.
 - **Sengaja fail-closed:** step `placement_required=true` belum dapat sign dan
   menghasilkan `esign.visible_placement_not_ready` sampai backend visible
   placement selesai.
@@ -287,12 +291,13 @@ Acceptance:
 
 ## 7. Phase 5 - backend invisible signing flow
 
-Status source 22 September 2026: **kode vertical slice tersedia, belum lulus
+Status source 23 September 2026: **kode vertical slice tersedia, belum lulus
 end-to-end acceptance**. Route aktual memakai prefix `/esign/internal`, secret
 store terenkripsi ber-TTL dan job `PerformEsignAttempt` sudah dibuat. Schema
 canonical sudah aktif dan provisioning runtime lokal sudah terbukti. Workflow
-proof masih `draft`, step PPTK masih `pending`, worker production belum dikelola
-process manager, dan belum ada signing attempt canonical end-to-end.
+LS SPP aktif secara lazy, sedangkan PPTK/PA/KPA aktif saat handoff. Worker
+production belum dikelola process manager dan belum ada signing attempt
+canonical end-to-end.
 
 Tujuan phase ini adalah menyelesaikan vertical slice backend tanpa modal baru.
 Implementasikan route/controller/Form Request tipis di atas Action dan service
@@ -339,6 +344,17 @@ Urutan implementasi internal:
     `reconciliation_required`;
 12. hapus secret pada terminal state; status dibaca frontend melalui polling
     dan optional realtime notification.
+
+Khusus LS SPP, setelah item 10:
+
+1. current step menjadi `completed`, tetapi next step tetap `pending`;
+2. submit gate membuktikan attempt sukses, after-sign artifact, current pointer,
+   compatibility link, dan projection `TTE`;
+3. handoff BP/BPP menetapkan PPTK, sedangkan handoff PPTK menetapkan PA/KPA;
+4. assignment, event `step_assigned`, activation next step, kolom legacy, dan
+   histori `SUBMIT` commit atau rollback bersama;
+5. workflow baru `completed` pada sukses step terakhir; handoff final ke
+   PPK-SKPD wajib memeriksa keseluruhan workflow.
 
 Acceptance:
 
@@ -703,7 +719,9 @@ Integrasi tidak boleh disebut selesai sebelum:
    capability akses untuk setiap `payment_type + src_type + workflow_variant`?
    Mode byte sesudah akses bukan blocker lagi: wajib mengikuti satu flag
    `pdf_watermark_required` dan aturan acting/guest yang sudah dikunci.
-6. Apakah visible image berasal dari specimen user, QR, atau template resmi?
+6. Detail final render QR/footer server-side: ukuran minimum, margin aman,
+   template footer, page rotation, dan aturan overlap per tipe dokumen.
 7. Berapa retention attempt, staging, sanitized vendor metadata, dan encrypted
    secret TTL final setelah observasi beban produksi?
-8. Payment/flow mana yang dipilih sebagai pilot final?
+8. Pilot backend pertama sudah dipilih: LS SPP jalur BP -> PPTK -> PA. Scope
+   rollout operasional setelah proof tersebut masih harus ditetapkan.

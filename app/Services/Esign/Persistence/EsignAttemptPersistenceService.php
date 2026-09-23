@@ -477,14 +477,6 @@ final class EsignAttemptPersistenceService
             ->first();
 
         if ($nextStep instanceof DocumentSigningStep) {
-            $nextStep->source_artifact_id = $attempt->result_artifact_id;
-            $nextStep->save();
-            $this->stepTransitions->transition(
-                $nextStep,
-                DocumentSigningStepStatus::Active,
-                $context,
-            );
-
             return;
         }
 

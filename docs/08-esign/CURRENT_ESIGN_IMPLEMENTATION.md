@@ -1,20 +1,26 @@
 # Kondisi Implementasi eSign/TTE Saat Ini
 
-Tanggal snapshot: **22 September 2026**.
+Tanggal snapshot: **23 September 2026**.
 
 Status: **backend in progress**. Boundary provider, schema/model/state service,
 authorization, signing session, private artifact persistence, secret store,
 endpoint internal, dan asynchronous signing job sudah berada di working tree.
 Sebanyak 13 migration tabel canonical sudah diterapkan pada database lokal;
 dua migration index mapping legacy tetap `Pending` untuk deployment wave
-terpisah. Boundary upload controller payment mengantrekan provisioning source
-artifact/workflow/step setelah commit. Dedicated worker `signatures` sudah
+terpisah. Boundary upload controller payment umumnya mengantrekan provisioning
+source artifact/workflow/step setelah commit; `Payment\LS\SPP::store()` kini
+memprovisikan canonical workflow langsung di dalam transaksi vertical slice.
+Dedicated worker `signatures` sudah
 ditambahkan ke `composer run dev`, dijalankan pada environment lokal, dan satu
 upload NPD `GU_SKPD` terkontrol sudah membuktikan artifact, workflow, dua step,
 dan event benar-benar terbentuk. Ini belum berarti process manager production
 sudah dikonfigurasi. Visible QR/footer dan public verification belum dibuat,
-workflow hasil provisioning masih `draft` dengan step `pending`, serta vertical
-slice sign canonical belum dijalankan end-to-end. SPP LS sudah mempunyai direct
+workflow hasil provisioning tetap `draft` dengan step pertama `pending` sampai
+signer BP/BPP membuka signing session. Untuk vertical slice **LS SPP jalur BP/BPP**,
+lazy activation signer pertama, submit gate, assignment signer berikutnya saat
+handoff, dan penahanan step berikutnya setelah TTE sudah diimplementasikan.
+Vertical slice tersebut belum dijalankan sukses end-to-end sampai provider.
+SPP LS sudah mempunyai direct
 canonical source upload, canonical replacement dengan parent/current version
 chain, draft-workflow rebind/revision cycle, serta authenticated content/download
 route pada working tree. Formula `storage_path_sha256` pada persistence dan integrity service sudah
@@ -47,12 +53,12 @@ hanya karena class-nya tersedia di repository.
 | 1 | Minimum selesai | Invisible NIK+passphrase satu PDF dan verify minimum pernah dibuktikan; visible coordinate, limit, timeout matrix, encrypted PDF, dan multi-file belum final. |
 | 2 | Kode selesai untuk scope awal | `EsignGateway`, `BsreClient`, DTO, mapper, payload invisible satu file, error taxonomy, dan config tersedia. |
 | 3 | Schema aktif, provisioning runtime terbukti lokal | Sebanyak 13 tabel canonical, model, enum cast, transition/persistence, artifact storage, provider response, event, compatibility writer, dan job provisioning idempotent tersedia. Worker lokal dan satu upload terkontrol lulus; dua migration index mapping legacy, production process manager, mapping runner, dan reconciliation belum selesai. |
-| 4 | Sebagian besar kode selesai | Policy, authorization service, signer resolver, encrypted ephemeral session, context revalidation, private preview, serta definition registry workflow payment tersedia. Assignment yang belum pasti sengaja tetap unresolved dan workflow tetap draft. |
-| 5 | Kode vertical slice tersedia, belum lulus acceptance | Endpoint internal, encrypted secret TTL, `202 Accepted`, queue job, sign-verify-finalize, polling, dan legacy projection tersedia. Schema dan provisioning data sudah aktif; sign canonical belum dapat diuji karena workflow/step hasil upload belum diaktivasi dan visible placement masih fail-closed. |
+| 4 | Kode LS SPP tersedia, belum lulus acceptance | Policy, authorization service, signer resolver, encrypted ephemeral session, context revalidation, private preview, definition registry, lazy activation BP/BPP, dan assignment PPTK/PA/KPA saat handoff tersedia. Workflow upload sengaja tetap draft sampai signing session pertama. |
+| 5 | Kode vertical slice tersedia, belum lulus acceptance | Endpoint internal, encrypted secret TTL, `202 Accepted`, queue job, sign-verify-finalize, polling, legacy projection, submit gate, dan handoff canonical LS SPP tersedia. Sign canonical belum diuji end-to-end dan visible placement masih fail-closed. |
 | 6 | Sebagian kecil khusus LS SPP | Authenticated current-artifact content/download khusus LS SPP tersedia tanpa fallback public. Formula hash path sudah konsisten, tetapi acceptance runtime belum dilakukan. General delivery policy berbasis `pdf_watermark_required`, watermark/COPY-ID/cache/audit, public verify, guest delivery, visible placement, dan legacy QR resolver belum dibuat. |
-| 7 | Belum lulus | Backend Ready Gate masih terhalang production process manager/shared cache, aktivasi first signer setelah upload, binding assignment signer berikutnya saat submit/handoff, deployment index legacy, reconciliation, observability, performance proof, credential rotation, dan test yang diizinkan. |
+| 7 | Belum lulus | Backend Ready Gate masih terhalang production process manager/shared cache, visible placement, acceptance end-to-end LS SPP, deployment index legacy, reconciliation, observability, performance proof, credential rotation, dan test yang diizinkan. |
 | 8-10 | Belum | Dependency dan komponen Svelte/Vite eSign belum dipasang. |
-| 11 | Belum | Pilot payment belum dipilih/diaktifkan. |
+| 11 | Belum dijalankan | Target pilot backend dipilih: LS SPP jalur BP -> PPTK -> PA. Belum diaktifkan untuk layanan operasional. |
 | 12 | Belum | Rollout, mapping legacy resumable, reporting cutover, dan decommission belum berjalan. |
 
 Kesimpulan posisi: dari sisi source code pekerjaan sudah mencapai **Phase 5
@@ -199,8 +205,10 @@ Karakteristik persistence:
 - blocking attempt mencegah concurrent sign pada step yang sama;
 - provider response dan event disimpan append-only;
 - raw PDF/Base64, passphrase, Basic Auth, dan raw vendor body tidak disimpan;
-- success mempromosikan result artifact menjadi current, menyelesaikan step,
-  lalu mengaktifkan step berikutnya atau menyelesaikan workflow;
+- success mempromosikan result artifact menjadi current dan menyelesaikan step;
+- bila masih ada step berikutnya, step tersebut tetap `pending` dan workflow
+  tetap `active` sampai handoff legacy/canonical menetapkan signer serta
+  mengaktifkannya; hanya step terakhir yang menyelesaikan workflow;
 - failure deterministik mengembalikan step ke `active` sesuai transition;
 - outcome ambigu mengubah step ke `reconciliation_required`;
 - retry bisnis membuat attempt baru, bukan menghidupkan kembali attempt lama.
@@ -247,8 +255,8 @@ internal meskipun preview user berupa derivative watermark.
 Yang sudah tersedia untuk upload baru:
 
 - `Payment\LS\SPP::store()` menulis file utama SPP langsung sebagai source
-  artifact private sebelum hook provisioning; ia tidak membuat file baru di
-  `public/File_SPP`;
+  artifact private lalu memanggil `ProvisionCanonicalDocumentAction` di dalam
+  transaksi yang sama; ia tidak membuat file baru di `public/File_SPP`;
 - `Payment\LS\SPP::update()` membuat versi `before_sign` baru untuk replacement
   file utama, mempertahankan parent artifact, memindahkan current pointer,
   mengikat ulang workflow draft yang masih bersih, atau membuat revision cycle
@@ -281,10 +289,9 @@ Yang sudah tersedia untuk upload baru:
 
 Yang belum tersedia/dibuktikan:
 
-- aktivasi workflow dan step pertama segera setelah upload bila uploader adalah
-  signer pertama yang sah dan prasyarat lokal sudah lengkap;
-- binding ulang assignment canonical ketika TTE signer saat ini sudah sukses
-  lalu submit/handoff legacy memilih signer berikutnya;
+- acceptance runtime lengkap untuk lazy activation BP/BPP, TTE asynchronous,
+  submit gate, assignment PPTK, assignment PA/KPA, dan handoff terakhir;
+- sinkronisasi assignment/handoff canonical di luar vertical slice LS SPP;
 - sinkronisasi checkpoint preparer-only, verify, routing, dan SP2D yang tidak
   boleh dipaksa mengikuti pola generik;
 - historical file mapper/copy runner;
@@ -583,6 +590,72 @@ Parity report canonical-versus-legacy belum dibuat. Compatibility writer sudah
 ada, tetapi belum dibuktikan melalui vertical slice meskipun tabel link sudah
 aktif.
 
+## 13A. Vertical slice canonical LS SPP
+
+Scope implementasi saat ini hanya dokumen induk `payment_type=LS` dan
+`src_type=SPP`, dengan dua definisi urutan wajib:
+
+```text
+jalur BP  : BP  -> PPTK -> PA
+jalur BPP : BPP -> PPTK -> KPA
+```
+
+Lifecycle yang wajib dipertahankan:
+
+| Pemicu | Workflow | Step terkait | Dampak legacy/canonical |
+|---|---|---|---|
+| Upload SPP | `draft` | BP/BPP assigned, seluruh step `pending` | Artifact source dan workflow dibuat; dokumen masih dapat diedit. |
+| BP/BPP nyata membuka signing session | `active` | Step pertama `active` | Lazy activation; Admin Super acting tidak boleh mengaktifkan atau TTE. |
+| TTE BP/BPP sukses | `active` | BP/BPP `completed`, PPTK tetap `pending` | Result artifact menjadi current; tidak ada auto-activation step berikutnya. |
+| BP/BPP submit ke PPTK | `active` | PPTK di-assign dan menjadi `active` | Submit gate membuktikan TTE sukses, lalu canonical dan legacy diubah atomik. |
+| TTE PPTK sukses | `active` | PPTK `completed`, PA/KPA tetap `pending` | Menunggu handoff PPTK; signer kepala belum boleh TTE. |
+| PPTK submit | `active` | PA atau KPA di-assign dan menjadi `active` | Jalur BP memilih PA; jalur BPP memilih KPA. Harus ada tepat satu posisi aktif yang valid. |
+| TTE PA/KPA sukses | `completed` | Step terakhir `completed` | Workflow selesai dan current artifact adalah hasil signer terakhir. |
+| PA/KPA submit kembali ke BP/BPP | `completed` | Tidak membuat step canonical baru | Handoff administratif legacy, bukan tanda tangan kedua BP/BPP. |
+| BP/BPP submit final ke PPK-SKPD | `completed` | Semua step harus mempunyai proof sukses | Gate final memeriksa workflow lengkap sebelum `assigned_to` berubah. |
+
+Komponen implementasi:
+
+- `LsSppWorkflowHandoffService` menangani lazy activation, assignment, dan
+  aktivasi step pada handoff;
+- `LsSppSubmitGate` memblokir submit bila urutan, assignment, attempt,
+  artifact hasil, projection link, status legacy, atau current artifact tidak
+  konsisten;
+- `CreateSigningSession` menjalankan lazy activation sebelum authorization
+  final lalu tetap melakukan seluruh pemeriksaan signer identity;
+- `EsignAttemptPersistenceService` hanya menyelesaikan step yang berhasil dan
+  tidak lagi mengaktifkan step berikutnya;
+- `LsSppCompatibilityProjector` menulis status legacy serta event `TTE` secara
+  idempotent dan memakai urutan lock document terlebih dahulu;
+- `Payment\LS\SPP::submit_pptk()` dan `submit()` menjalankan gate, assignment,
+  perubahan `document.submit`/`assigned_to`/`users_to`, serta histori `SUBMIT`
+  di dalam transaksi yang sama.
+
+Aturan compatibility fallback:
+
+- dokumen murni legacy tanpa workflow **dan** tanpa artifact canonical tetap
+  mengikuti mekanisme lama;
+- bila artifact canonical sudah ada tetapi workflow hilang, operasi gagal
+  tertutup dengan HTTP `409`; tidak boleh diam-diam kembali ke legacy;
+- error gate memakai `LsSppSubmitGateException` dengan `reason_code` terstruktur;
+- kegagalan gate atau assignment me-roll back perubahan canonical, projection
+  `document`, dan `document_process` bersama-sama;
+- assignment PPTK divalidasi terhadap posisi canonical aktif, role, unit, dan
+  instansi. Assignment PA/KPA harus unik; nol atau lebih dari satu kandidat
+  menghasilkan `409`, bukan pemilihan acak;
+- event `step_assigned` menyimpan assignment lama/baru, source artifact, aktor
+  efektif, aktor nyata, dan konteks acting untuk audit.
+
+Kondisi data lokal saat snapshot: dua workflow LS SPP yang telah ada masih
+`draft`; keduanya akan diaktifkan secara lazy saat signer pertama yang tepat
+membuka session. Pemeriksaan read-only menemukan tepat satu kandidat PA pada
+unit masing-masing. Tidak ada aktivasi permanen atau TTE produksi yang dilakukan
+saat verifikasi implementasi ini.
+
+Tahap ini tidak menambah migration. Event `step_assigned` dapat disimpan karena
+kolom `document_signing_workflow_events.event_type` bertipe string; enum PHP
+hanya menambah nilai domain yang dikenali aplikasi.
+
 ## 14. Failure semantics saat ini
 
 | Kondisi | State/aksi |
@@ -647,7 +720,16 @@ nilai credential, passphrase, atau alamat internal deployment di file ini.
 - source artifact private tersedia, berukuran 102106 byte, dan SHA-256 file
   canonical sama dengan file upload legacy serta metadata database;
 - workflow NPD `PPTK -> PA`, dua step sequential, dan event
-  `workflow_created` benar-benar terbentuk.
+  `workflow_created` benar-benar terbentuk;
+- PHP lint, Laravel Pint, service-container resolution, route inspection, dan
+  `git diff --check` lulus setelah submit gate/handoff LS SPP ditambahkan;
+- query read-only menemukan dua workflow LS SPP berstatus `draft` dengan step
+  pertama BP assigned dan step berikutnya unresolved sebagaimana desain;
+- kedua unit workflow LS SPP tersebut masing-masing mempunyai tepat satu
+  kandidat PA aktif;
+- rollback proof untuk lazy activation mengubah workflow/step menjadi
+  `active` di dalam transaksi, lalu mengembalikannya ke `draft`/`pending`
+  setelah rollback. Bukti ini tidak meninggalkan mutasi database permanen.
 
 Yang **tidak** dilakukan pada implementasi terbaru:
 
@@ -655,6 +737,7 @@ Yang **tidak** dilakukan pada implementasi terbaru:
 - tidak menjalankan Pest/PHPUnit/test suite sesuai instruksi pengguna;
 - tidak memanggil sign/verify BSrE production;
 - tidak menjalankan signing session/TTE canonical end-to-end;
+- tidak menjalankan submit/handoff LS SPP secara permanen;
 - tidak menguji middleware/form melalui browser karena browser automation dan
   sesi login tidak tersedia; controlled upload memanggil controller asli dengan
   `Request`, `UploadedFile`, posisi PPTK aktif, transaksi, dan service asli;
@@ -687,17 +770,14 @@ keputusan eksplisit dan pemeriksaan dependency.
 
 ### Prioritas langsung
 
-1. implementasikan activation adapter setelah upload untuk workflow yang
-   uploader-nya merupakan signer pertama, dimulai dari proof NPD `GU_SKPD`;
-2. implementasikan assignment sync + aktivasi signer berikutnya saat TTE
-   sebelumnya sudah sukses lalu submit/handoff dilakukan;
+1. implementasikan backend visible placement QR/footer agar endpoint sign tidak
+   lagi fail-closed untuk workflow LS SPP;
+2. jalankan controlled vertical slice LS SPP jalur BP dari lazy activation,
+   TTE, submit ke PPTK, TTE PPTK, submit ke PA, TTE PA, sampai handoff final;
 3. konfigurasikan shared cache dan production process manager untuk worker
    `signatures`, termasuk graceful restart dan monitoring;
-4. jalankan controlled signing vertical slice setelah first step benar-benar
-   `active` dan backend visible placement tersedia atau scope pilot secara
-   eksplisit mengizinkan invisible;
-5. implementasikan reconciliation dan stuck recovery;
-6. jadwalkan dua migration index mapping legacy sebagai deployment wave
+4. implementasikan reconciliation, stuck recovery, cleanup, dan observability;
+5. jadwalkan dua migration index mapping legacy sebagai deployment wave
    terpisah setelah capacity/lock review.
 
 ### Backend lanjutan
@@ -750,22 +830,20 @@ dependency mendapat otorisasi.
 ## 18. Urutan implementasi berikutnya
 
 ```text
-1. First-signer activation setelah upload sesuai matrix
-2. Next-signer assignment/activation setelah TTE sukses + submit/handoff
+1. Visible QR/footer placement backend
+2. Controlled LS SPP BP -> PPTK -> PA vertical slice
 3. Shared cache + production process manager + operational preflight
-4. Controlled signing vertical slice
-5. Reconciliation/stuck/cleanup/observability
-6. Legacy mapping index deployment wave
-7. Visible QR/footer placement backend
-8. Policy delivery PDF + watermark/cache/audit + verify/public route + legacy resolver
-9. Backend Ready Gate
-10. Svelte/Vite foundation
-11. Signing modal
-12. Visible editor + validation modal
-13. Pilot payment
-14. Rollout per payment
-15. Resumable legacy mapping + reporting cutover
-16. Folder decommission setelah seluruh gate
+4. Reconciliation/stuck/cleanup/observability
+5. Legacy mapping index deployment wave
+6. Policy delivery PDF + watermark/cache/audit + verify/public route + legacy resolver
+7. Backend Ready Gate
+8. Svelte/Vite foundation
+9. Signing modal
+10. Visible editor + validation modal
+11. Pilot LS SPP operasional
+12. Perluasan LS SPM/SP2D lalu rollout per payment
+13. Resumable legacy mapping + reporting cutover
+14. Folder decommission setelah seluruh gate
 ```
 
 ## 19. Larangan untuk agent berikutnya
@@ -780,10 +858,17 @@ dependency mendapat otorisasi.
 - Jangan melewati `esign.visible_placement_not_ready` dengan koordinat tebakan.
 - Jangan menerima NIK, file path, workflow state, atau destination path dari
   frontend.
-- Jangan menganggap hook upload berarti submit/handoff telah mengikat seluruh
-  signer. Namun jangan pula menunggu submit untuk signer pertama bila matrix
-  menyatakan uploader adalah signer pertama; pada flow tersebut first step harus
-  diaktifkan setelah upload/provisioning dan submit baru dilakukan setelah TTE.
+- Jangan mengaktifkan seluruh step setelah upload atau setelah satu TTE sukses.
+  Pada LS SPP, first step aktif secara lazy ketika signer BP/BPP nyata membuka
+  session; setiap step berikutnya baru di-assign dan diaktifkan saat handoff.
+- Jangan mengembalikan auto-activation step berikutnya ke
+  `EsignAttemptPersistenceService`; batas tersebut sengaja berada pada
+  `LsSppWorkflowHandoffService`.
+- Jangan mengubah `document.submit`, `assigned_to`, atau `users_to` untuk
+  dokumen LS SPP canonical tanpa submit gate dan assignment service di transaksi
+  yang sama.
+- Jangan memakai fallback legacy bila artifact canonical sudah ada tetapi
+  workflow hilang atau rusak; kondisi tersebut harus gagal tertutup.
 - Jangan memasang dependency frontend sebelum Backend Ready Gate.
 - Jangan menghapus, truncate, rename, freeze, atau drop tabel compatibility.
 - Jangan menghapus/memindah source legacy dari mapping command.
@@ -805,5 +890,9 @@ dependency mendapat otorisasi.
 | Internal HTTP | `app/Http/Controllers/Esign`, `app/Http/Requests/Esign`, `routes/web.php` |
 | Artifact storage/integrity/path checksum | `app/Services/Esign/Persistence/DocumentArtifactPersistenceService.php`, `app/Services/Esign/DocumentArtifactIntegrityService.php`, `app/Support/Esign/DocumentArtifactStoragePath.php` |
 | Compatibility writer | `app/Services/Esign/Persistence/LegacyEsignLedgerWriter.php` |
+| LS SPP submit proof/gate | `app/Services/Esign/Authorization/LsSppSubmitGate.php` |
+| LS SPP activation/assignment | `app/Services/Esign/LsSppWorkflowHandoffService.php` |
+| LS SPP compatibility projection | `app/Services/Esign/Persistence/LsSppCompatibilityProjector.php` |
+| LS SPP controller handoff | `app/Http/Controllers/Payment/LS/SPP.php` |
 | Configuration | `config/services.php`, `config/esign.php`, `config/queue.php`, `.env.example` |
 | Schema | `database/migrations/2026_09_18_*esign*`, document artifact/signing migrations |

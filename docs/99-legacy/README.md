@@ -82,7 +82,7 @@ pengguna.
 ## Payment LS
 
 Pengguna memprioritaskan implementasi LS sebelum payment lain. Snapshot analisis
-8 September 2026 tetap menjadi baseline historis. Kondisi 22 September 2026
+8 September 2026 tetap menjadi baseline historis. Kondisi 23 September 2026
 sudah bergerak ke implementasi SPP: route/menu/model/request store/controller
 shared tersedia, upload SPP utama sudah menjadi canonical private artifact, dan
 delivery route khusus LS SPP sudah dibuat. Mulai dari
@@ -91,7 +91,11 @@ delivery route khusus LS SPP sudah dibuat. Mulai dari
 [rencana implementasi](PAYMENT_LS_IMPLEMENTATION_PLAN.md). Jangan menganggap
 SPP/LS siap produksi; create dan replacement file utama SPP sudah canonical,
 dan create/update sekarang memakai protokol lock serta pemeriksaan ulang pagu
-yang sama di dalam transaksi. Attachment SPJ/Billing/BMD masih menuju storage
-public dan validasi runtime belum dilakukan. `UpdateSppRequest`, replacement
-version chain, draft-workflow rebind/revision cycle, serta blocker formula
-integrity hash sudah diselesaikan.
+yang sama di dalam transaksi. Lazy activation BP/BPP, submit gate canonical,
+assignment PPTK/PA/KPA pada handoff, dan projector `TTE` legacy sudah tersedia,
+tetapi vertical slice belum dijalankan sukses end-to-end. TTE sukses sengaja
+tidak mengaktifkan step berikutnya; activation berikutnya terjadi saat handoff.
+Attachment SPJ/Billing/BMD masih menuju storage public dan validasi runtime
+belum dilakukan. `UpdateSppRequest`, replacement version chain,
+draft-workflow rebind/revision cycle, serta blocker formula integrity hash sudah
+diselesaikan.
