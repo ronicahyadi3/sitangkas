@@ -12,6 +12,17 @@ dengan asumsi lama dokumen ini. Statusnya adalah desain disetujui tetapi belum
 diimplementasikan. Lampiran rancangan UI hanya referensi; keputusan eksplisit
 pengguna dalam dokumentasi project adalah source of truth.
 
+Urutan kerja, hasil audit `esign.blade.php`/`signed.js`/`bundle.js`, pemetaan
+trigger `.sign`/`.signModal` ke bridge canonical, dan strategi cutover LS SPP
+berada di `ESIGN_FRONTEND_IMPLEMENTATION_AND_LEGACY_MIGRATION_PLAN.md`. Agent
+frontend wajib membaca dokumen tersebut sebelum mengubah source.
+
+Bentuk visual final, penggabungan prepared preview dengan konfirmasi/passphrase,
+penghapusan checkbox afirmasi, progress, result state, notifikasi, responsive
+behavior, dan accessibility berada di
+`ESIGN_FRONTEND_VISUAL_AND_INTERACTION_DESIGN.md` dan berlaku bila ada asumsi
+visual lama yang berbeda.
+
 Halaman publik `/verify/{public_id}` berada di luar Svelte island dokumen ini.
 Halaman tersebut server-rendered dengan Blade + Bootstrap 5/custom Argon,
 menampilkan metadata minimum. Guest hanya dapat menerima PDF bila public-access
@@ -310,7 +321,9 @@ loading -> editing -> confirming -> signing -> validating -> succeeded
 
 Jangan membuka modal passphrase di atas modal editor. Pada tahap confirming,
 konten modal yang sama berubah menjadi panel konfirmasi dan menyediakan tombol
-kembali ke editor.
+kembali ke editor. Backend membuat prepared rendition ketika user meninggalkan
+editor; prepared preview, informasi dokumen/signer, dan passphrase ditampilkan
+bersama pada tahap confirming. Tidak ada layar review prepared terpisah.
 
 ### Layout desktop
 
@@ -362,7 +375,13 @@ Tampilkan:
 - jumlah placement;
 - reason;
 - input passphrase;
-- pernyataan bahwa dokumen yang terlihat akan ditandatangani.
+- text informatif bahwa tombol final akan menandatangani seluruh QR yang
+  ditampilkan.
+
+Jangan menampilkan checkbox `Saya telah memeriksa dokumen` atau checkbox
+afirmasi lain. Klik tombol `Tandatangani Sekarang` adalah afirmasi eksplisit;
+handler final mengirim `affirmed=true` bersama revision/hash/idempotency key dan
+passphrase.
 
 Jangan meminta NIK dari user biasa maupun Admin Super. Backend menyelesaikan
 NIK dari real authenticated user/certificate owner dan memvalidasi posisi aktif

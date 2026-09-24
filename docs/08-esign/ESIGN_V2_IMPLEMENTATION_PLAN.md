@@ -609,10 +609,12 @@ Acceptance:
 - pada PDF unsigned, QR pertama membuat footer seluruh halaman dengan editor
   text, font, size, bold/italic/underline, posisi per halaman, apply-all, dan
   reset; pada PDF signed tidak tampilkan editor footer;
-- sebelum confirmation, tampilkan authorized rendition dari exact prepared
-  artifact backend. Setiap perubahan placement/footer harus meminta revision
-  baru;
-- confirmation menjelaskan jumlah operasi; progress menampilkan `i dari N`;
+- di dalam tahap confirmation, tampilkan authorized rendition dari exact
+  prepared artifact backend bersama informasi signer dan passphrase. Setiap
+  perubahan placement/footer harus meminta revision baru;
+- confirmation menjelaskan jumlah operasi, tidak menampilkan checkbox afirmasi,
+  dan klik tombol final mengirim `affirmed=true`; progress menampilkan
+  `i dari N`;
 - state `partially_signed` meminta passphrase baru untuk resume attempt yang
   sama, sedangkan `unknown` tidak menyediakan blind retry;
 - custom CSS harus ter-scope dan mengikuti Bootstrap 5/custom Argon, tanpa

@@ -1,6 +1,6 @@
 # Kondisi Implementasi eSign/TTE Saat Ini
 
-Tanggal snapshot: **23 September 2026**.
+Tanggal snapshot: **24 September 2026**.
 
 Status: **backend in progress**. Boundary provider, schema/model/state service,
 authorization, signing session, private artifact persistence, secret store,
@@ -14,8 +14,11 @@ Dedicated worker `signatures` sudah
 ditambahkan ke `composer run dev`, dijalankan pada environment lokal, dan satu
 upload NPD `GU_SKPD` terkontrol sudah membuktikan artifact, workflow, dua step,
 dan event benar-benar terbentuk. Ini belum berarti process manager production
-sudah dikonfigurasi. Visible QR/footer dan public verification belum dibuat,
-workflow hasil provisioning tetap `draft` dengan step pertama `pending` sampai
+sudah dikonfigurasi. Visible QR/footer, prepared rendition, operation
+persistence, worker serial, partial resume, dan aktivasi public ID setelah final
+verify tersedia di source; public verification route belum dibuat dan feature
+flag multi-operation masih default nonaktif. Workflow hasil provisioning tetap
+`draft` dengan step pertama `pending` sampai
 signer BP/BPP membuka signing session. Untuk vertical slice **LS SPP jalur BP/BPP**,
 lazy activation signer pertama, submit gate, assignment signer berikutnya saat
 handoff, dan penahanan step berikutnya setelah TTE sudah diimplementasikan.
@@ -29,12 +32,12 @@ Provisioning file legacy yang hanya mempunyai nama fisik UUID tidak lagi
 mengisi UUID tersebut sebagai `original_name`; nilainya disimpan sebagai
 `legacy_stored_name`, sedangkan upload runtime memakai nama client sebenarnya.
 
-Desain visible terbaru sudah disetujui tetapi **belum berada di source/schema**:
-editor membuka artifact backend melalui binary stream, footer editable hanya
-sebelum TTE pertama, dan satu signer dapat menempatkan beberapa QR yang
-dieksekusi serial dalam satu attempt. Target lengkap berada di
-`ESIGN_VISIBLE_EDITOR_AND_MULTI_QR_DESIGN.md`. Implementasi saat ini tetap
-invisible, satu property, satu provider call, dan fail-closed untuk placement.
+Desain visible terbaru sudah berada di source backend: editor membuka artifact
+melalui binary stream, footer editable hanya sebelum TTE pertama, prepared
+rendition exact, dan satu signer dapat mempunyai beberapa QR yang dieksekusi
+serial dalam satu attempt. Feature flag runtime masih default `false`, vertical
+slice operasional belum dijalankan, dan frontend belum dibuat. Target lengkap
+berada di `ESIGN_VISIBLE_EDITOR_AND_MULTI_QR_DESIGN.md`.
 
 Dokumen ini adalah handoff kondisi kode aktual. Untuk keputusan bisnis dan
 target final tetap baca:
@@ -62,8 +65,8 @@ hanya karena class-nya tersedia di repository.
 | 2 | Kode selesai untuk scope awal | `EsignGateway`, `BsreClient`, DTO, mapper, payload invisible satu file, error taxonomy, dan config tersedia. |
 | 3 | Schema aktif, provisioning runtime terbukti lokal | Sebanyak 13 tabel canonical, model, enum cast, transition/persistence, artifact storage, provider response, event, compatibility writer, dan job provisioning idempotent tersedia. Worker lokal dan satu upload terkontrol lulus; dua migration index mapping legacy, production process manager, mapping runner, dan reconciliation belum selesai. |
 | 4 | Kode LS SPP tersedia, belum lulus acceptance | Policy, authorization service, signer resolver, encrypted ephemeral session, context revalidation, private preview, definition registry, lazy activation BP/BPP, dan assignment PPTK/PA/KPA saat handoff tersedia. Workflow upload sengaja tetap draft sampai signing session pertama. |
-| 5 | Kode vertical slice tersedia, belum lulus acceptance | Endpoint internal, encrypted secret TTL, `202 Accepted`, queue job, sign-verify-finalize, polling, legacy projection, submit gate, dan handoff canonical LS SPP tersedia. Sign canonical belum diuji end-to-end dan visible placement masih fail-closed. |
-| 6 | Sebagian kecil khusus LS SPP | Authenticated current-artifact content/download khusus LS SPP tersedia tanpa fallback public. Formula hash path sudah konsisten, tetapi acceptance runtime belum dilakukan. General delivery policy berbasis `pdf_watermark_required`, watermark/COPY-ID/cache/audit, public verify, guest delivery, visible placement, dan legacy QR resolver belum dibuat. |
+| 5 | Kode vertical slice dan multi-operation tersedia, belum lulus acceptance | Endpoint internal, encrypted secret TTL, `202 Accepted`, operation persistence, queue worker serial, final verify/promotion, partial resume, polling, aggregate legacy projection, submit gate, dan handoff canonical LS SPP tersedia. Feature flag multi-operation masih default nonaktif dan sign canonical belum diuji end-to-end. |
+| 6 | Sebagian untuk LS SPP/visible backend | Authenticated current-artifact content/download, prepared rendition, QR authoritative, footer renderer, progress, dan resume tersedia. Formula hash path sudah konsisten, tetapi acceptance runtime belum dilakukan. General delivery policy watermark/COPY-ID/cache/audit, public verify route, guest delivery, legacy QR resolver, dan frontend belum dibuat. |
 | 7 | Belum lulus | Backend Ready Gate masih terhalang production process manager/shared cache, visible placement, acceptance end-to-end LS SPP, deployment index legacy, reconciliation, observability, performance proof, credential rotation, dan test yang diizinkan. |
 | 8-10 | Belum | Dependency dan komponen Svelte/Vite eSign belum dipasang. |
 | 11 | Belum dijalankan | Target pilot backend dipilih: LS SPP jalur BP -> PPTK -> PA. Belum diaktifkan untuk layanan operasional. |
@@ -367,32 +370,29 @@ Signing session:
 - dibuang jika context/artifact/role berubah;
 - DELETE session hanya membersihkan cache dan tidak membuat audit/history.
 
-`placement_required=true` boleh terlihat saat prepare, tetapi endpoint sign
-saat ini sengaja mengembalikan conflict
-`esign.visible_placement_not_ready`. Ini adalah fail-closed sampai Phase 6
-selesai.
+`placement_required=true` memakai kontrak visible. Sign visible hanya dapat
+berjalan bila ada prepared revision/hash yang valid dan feature flag
+`SIGNATURE_MULTI_OPERATION_ENABLED=true`. Default flag tetap `false`, sehingga
+deployment yang belum menjalankan preflight gagal tertutup dengan
+`esign.visible_worker_not_ready`.
 
-### Target session visible yang belum dibuat
+Session visible sudah menyediakan authorized binary preview URL, signature
+state server-side, ordered QR placements, footer capability/default/whitelist,
+prepared rendition revision/hash, QR image authoritative, serta batas
+placement. Browser tidak mengunggah atau mengirim Base64 PDF.
 
-Session target akan menyediakan authorized binary preview URL, signature state
-server-side, ordered QR placements, footer capability/default/whitelist,
-prepared rendition revision/hash, dan batas placement. Browser tidak akan
-mengunggah atau mengirim Base64 PDF.
-
-Schema yang sudah tersedia tetapi belum dipakai runtime:
+Runtime canonical sudah memakai:
 
 - `esign_signature_operations` dan progress counter attempt;
 - status `partially_signed` serta artifact type `intermediate_sign`;
 - snapshot footer `document_artifact_decorations` dan placement per halaman;
-- foreign key operation pada provider response dan attempt event.
+- foreign key operation pada provider response dan attempt event;
+- worker serial/checkpoint-aware, partial resume dengan passphrase baru, final
+  verify/promotion, dan aktivasi public ID setelah sukses.
 
-Belum tersedia pada snapshot ini:
-
-- server-side footer renderer dan persistence service decoration;
-- prepared preview/invalidation;
-- orchestration beberapa QR dalam satu attempt;
-- worker serial/checkpoint-aware dan resume dengan passphrase baru;
-- public ID per QR yang diaktifkan setelah final verify.
+Yang belum tersedia adalah resolver publik `/verify/{public_id}`, modal
+frontend, endpoint validasi canonical final, reconciliation/observability, dan
+acceptance vertical slice operasional.
 
 ## 9. Endpoint internal yang sudah terdaftar
 
@@ -416,9 +416,13 @@ Route aktual:
 | `POST` | `/esign/internal/signing-sessions` | `esign.internal.signing-sessions.store` | Membuat ephemeral session, HTTP 201. |
 | `GET` | `/esign/internal/signing-sessions/{uuid}` | `esign.internal.signing-sessions.show` | Membaca ulang context session aman. |
 | `GET` | `/esign/internal/signing-sessions/{uuid}/preview` | `esign.internal.signing-sessions.preview` | Stream exact source artifact. |
+| `POST` | `/esign/internal/signing-sessions/{uuid}/renditions` | `esign.internal.signing-sessions.renditions.store` | Validasi plan dan membuat prepared rendition, HTTP 201. |
+| `GET` | `/esign/internal/signing-sessions/{uuid}/renditions/{revision}/preview` | `esign.internal.signing-sessions.renditions.preview` | Stream exact prepared PDF private. |
+| `GET` | `/esign/internal/signing-sessions/{uuid}/renditions/{revision}/operations/{index}/qr` | `esign.internal.signing-sessions.renditions.qr` | Stream QR PNG authoritative per operasi. |
 | `POST` | `/esign/internal/signing-sessions/{uuid}/sign` | `esign.internal.signing-sessions.sign` | Membuat attempt dan queue job, HTTP 202. |
 | `DELETE` | `/esign/internal/signing-sessions/{uuid}` | `esign.internal.signing-sessions.destroy` | Menutup persiapan tanpa audit, HTTP 204. |
 | `GET` | `/esign/internal/attempts/{public_id}` | `esign.internal.attempts.show` | Polling status attempt aman. |
+| `POST` | `/esign/internal/attempts/{public_id}/resume` | `esign.internal.attempts.resume` | Menyimpan secret baru dan melanjutkan dari checkpoint, HTTP 202. |
 
 Rate limiter aktual:
 
@@ -612,9 +616,9 @@ Sebelum pilot, bandingkan dengan kontrak laporan lama yang pada sebagian data
 menyimpan filename output TTE. Perbedaan ini harus diputuskan sebagai adapter
 compatibility, bukan dengan mengubah artifact canonical.
 
-Model/tabel `esign_attempt_signature_properties` sudah tersedia, tetapi writer
-runtime untuk placement belum ada karena flow aktif masih invisible dan visible
-placement belum diimplementasikan.
+Model/tabel `esign_attempt_signature_properties` dan writer runtime placement
+sudah tersedia melalui persistence visible attempt. Flow produksi tetap belum
+aktif karena feature flag default `false` dan vertical slice belum diterima.
 
 Parity report canonical-versus-legacy belum dibuat. Compatibility writer sudah
 ada, tetapi belum dibuktikan melalui vertical slice meskipun tabel link sudah
@@ -816,8 +820,9 @@ run live `033474f4-287f-408b-9f54-88d963d1880d`. Implementasi saat ini:
   menambah tepat satu signature; pelanggaran invariant menghentikan rangkaian;
 - QR, setiap intermediate PDF, final PDF, dan report tersanitasi disimpan pada
   disk private di `esign-contract-proofs/YYYY/MM/{run_uuid}`;
-- runtime signing canonical tetap default invisible dan guard
-  `esign.visible_placement_not_ready` belum dibuka.
+- runtime signing visible tersedia di source, tetapi feature flag
+  `SIGNATURE_MULTI_OPERATION_ENABLED` tetap default `false` sampai preflight dan
+  acceptance operasional selesai.
 
 Kontrak payload internal sekarang mendukung `INVISIBLE` dan `VISIBLE`, tetapi
 menolak lebih dari satu `signatureProperties` dalam satu provider request.
@@ -905,7 +910,7 @@ Tahap 3 backend sudah diimplementasikan tanpa membuka guard final sign visible:
 - QR PNG authoritative dibuat backend untuk setiap operasi dan hanya dapat
   diambil dari endpoint private
   `GET .../renditions/{revision}/operations/{operation_index}/qr`; frontend
-  menampilkan PNG yang sama dan tahap 4 wajib mempromosikan byte yang sama
+  menampilkan PNG yang sama; persistence visible mempromosikan byte yang sama
   sebagai visual input provider, bukan membuat ulang QR di browser;
 - setiap prepare menghasilkan ordered placement, opaque
   `verification_public_id`, URL verify HTTPS, configuration hash footer,
@@ -929,33 +934,53 @@ Tahap 3 backend sudah diimplementasikan tanpa membuka guard final sign visible:
 Environment server wajib menyediakan binary `pdfinfo` (Poppler) dan `qpdf`,
 atau mengatur `SIGNATURE_PDFINFO_BINARY`/`SIGNATURE_QPDF_BINARY` ke path absolut.
 Ketiadaan binary menghentikan prepare rendition; tidak ada fallback browser.
-Snapshot immutable `document_artifact_decorations` baru ditulis pada tahap 4
-saat prepared rendition dipromosikan menjadi artifact canonical. Sampai itu,
-`SignDocument` tetap menghasilkan `esign.visible_placement_not_ready`.
+Snapshot immutable `document_artifact_decorations` ditulis saat prepared
+rendition dipromosikan menjadi artifact canonical. `SignDocument` menerima
+kontrak visible hanya ketika prepared revision/hash valid dan feature flag
+multi-operation aktif; selain itu proses gagal tertutup.
+
+## 16D. Persistence, worker serial, dan resume per 24 September 2026
+
+Tahap backend visible lanjutan sudah tersedia pada source:
+
+- `VisibleEsignAttemptPersistenceService` mempromosikan prepared rendition,
+  snapshot property/operation/footer, dan menulis before ledger satu kali;
+- `PerformEsignAttemptAction` memproses operation secara serial, menyimpan
+  intermediate artifact/checkpoint, berhenti pada outcome ambigu, melakukan
+  final verification/promotion, dan mengaktifkan public ID hanya setelah sukses;
+- `EsignAttemptPersistenceService` menjaga counter, status operasi, immutable
+  checkpoint, finalisasi, dan aggregate compatibility semantics;
+- `ResumeEsignAttempt` serta endpoint resume meminta passphrase baru dan
+  melanjutkan dari completed prefix tanpa mengulang operasi sukses;
+- status endpoint mengirim planned/completed/current index, status per operasi,
+  `requires_passphrase`, `resume_url`, dan `requires_reconciliation`;
+- QR authoritative dapat memakai profile berlogo Malang dan byte visual yang
+  dipersistensikan dipakai sebagai input provider.
+
+Keberadaan source bukan bukti deployment. Feature flag masih default `false`,
+public verification resolver belum ada, dan controlled vertical slice belum
+dijalankan.
 
 ## 17. Blocker operasional dan pekerjaan yang belum ada
 
 ### Prioritas langsung
 
-1. implementasikan persistence operation/checkpoint dan worker serial
-   checkpoint-aware agar endpoint LS SPP tidak lagi fail-closed;
-2. implementasikan partial resume, final verify, serta aktivasi public ID
-   atomik;
-3. implementasikan compatibility projection aggregate multi-QR;
-4. jalankan controlled vertical slice LS SPP jalur BP dari lazy activation,
-   TTE, submit ke PPTK, TTE PPTK, submit ke PA, TTE PA, sampai handoff final;
-5. konfigurasikan shared cache dan production process manager untuk worker
+1. selesaikan bridge canonical LS SPP yang mengekspos `step_public_id` dan
+   capability frontend tanpa path file legacy;
+2. konfigurasikan shared cache dan production process manager untuk worker
    `signatures`, termasuk graceful restart dan monitoring;
-6. implementasikan reconciliation, stuck recovery, cleanup, dan observability;
-7. jadwalkan dua migration index mapping legacy sebagai deployment wave
+3. jalankan controlled vertical slice LS SPP jalur BP dari lazy activation,
+   TTE, submit ke PPTK, TTE PPTK, submit ke PA, TTE PA, sampai handoff final;
+4. implementasikan reconciliation, stuck recovery, cleanup, dan observability;
+5. implementasikan endpoint validasi canonical, `/verify/{public_id}`, serta
+   policy result delivery;
+6. jadwalkan dua migration index mapping legacy sebagai deployment wave
    terpisah setelah capacity/lock review.
 
 ### Backend lanjutan
 
 - parity proof definition workflow untuk seluruh cabang payment;
 - assignment sync/activation adapter pada submit/verify controller payment;
-- persistence `esign_attempt_signature_properties` dari placement nyata;
-- persistence operation/checkpoint/intermediate dan partial resume;
 - endpoint verification berbasis artifact;
 - `/verify/{public_id}`;
 - authenticated/guest authorized PDF delivery, enforcement satu flag
@@ -993,8 +1018,18 @@ saat prepared rendition dipromosikan menjadi artifact canonical. Sampai itu,
 - validation modal belum dibuat;
 - adapter tombol payment belum dibuat.
 
-Frontend tidak boleh dimulai sebelum Backend Ready Gate lulus dan perubahan
-dependency mendapat otorisasi.
+Rancangan visual final berada di
+`ESIGN_FRONTEND_VISUAL_AND_INTERACTION_DESIGN.md`: empat tahap UI, prepared
+preview dan passphrase digabung pada Konfirmasi, serta tidak ada checkbox
+afirmasi.
+
+Frontend Tahap F0 sudah selesai. Endpoint aktif, typed request/response, binary
+media, status attempt/operation, klasifikasi error, dan gap register dikunci di
+`ESIGN_FRONTEND_BACKEND_CONTRACT_V1.md`; type TypeScript canonical berada di
+`resources/js/esign/types.ts`. Tahap berikutnya adalah F1 bridge action LS SPP.
+Pilot real, aktivasi feature flag operasional, public verification, dan rollout
+tetap menunggu gate backend terkait. Urutan rinci berada di
+`ESIGN_FRONTEND_IMPLEMENTATION_AND_LEGACY_MIGRATION_PLAN.md`.
 
 ## 18. Urutan implementasi berikutnya
 
@@ -1002,20 +1037,22 @@ dependency mendapat otorisasi.
 1. [SELESAI] Contract proof visible coordinate + serial multi-QR satu PDF
 2. [SELESAI] Migration additive operation/counter/partial/intermediate/decoration
 3. [SELESAI] Placement/footer domain + exact prepared rendition
-4. Persistence operation + worker serial checkpoint-aware + partial resume + final verify
-5. Public ID activation + compatibility projection satu aggregate
-6. Controlled LS SPP BP -> PPTK -> PA vertical slice
-7. Shared cache + production process manager + operational preflight
-8. Reconciliation/stuck/cleanup/observability
-9. Legacy mapping index deployment wave
-10. Policy delivery PDF + watermark/cache/audit + verify/public route + legacy resolver
-11. Backend Ready Gate
-12. Svelte/Vite foundation
-13. Signing modal/editor visible + validation modal
-14. Pilot LS SPP operasional
-15. Perluasan LS SPM/SP2D lalu rollout per payment
-16. Resumable legacy mapping + reporting cutover
-17. Folder decommission setelah seluruh gate
+4. [SELESAI DI SOURCE] Persistence operation + worker serial checkpoint-aware + partial resume + final verify
+5. [SELESAI DI SOURCE] Public ID activation setelah sukses + compatibility projection satu aggregate
+6. [SELESAI] Audit dan penguncian kontrak frontend-backend F0
+7. Bridge action LS SPP canonical untuk frontend
+8. Shared cache + production process manager + operational preflight
+9. Controlled LS SPP BP -> PPTK -> PA vertical slice
+10. Reconciliation/stuck/cleanup/observability
+11. Legacy mapping index deployment wave
+12. Policy delivery PDF + watermark/cache/audit + verify/public route + legacy resolver
+13. Backend Ready Gate operasional
+14. Svelte/Vite foundation dan bridge Blade
+15. Signing modal/editor visible + validation modal
+16. Pilot LS SPP operasional
+17. Perluasan LS SPM/SP2D lalu rollout per payment
+18. Resumable legacy mapping + reporting cutover
+19. Folder decommission setelah seluruh gate
 ```
 
 ## 19. Larangan untuk agent berikutnya
@@ -1027,7 +1064,8 @@ dependency mendapat otorisasi.
 - Jangan menyimpan/mengirim passphrase di queue payload atau database.
 - Jangan mengubah `tries=1` menjadi blind retry.
 - Jangan mengubah attempt `unknown` menjadi failed tanpa reconciliation.
-- Jangan melewati `esign.visible_placement_not_ready` dengan koordinat tebakan.
+- Jangan melewati validator prepared rendition atau mengaktifkan feature flag
+  visible dengan koordinat tebakan.
 - Jangan menganggap beberapa `signatureProperties` pada collection berarti
   multi-QR satu PDF dapat dipanggil sekali; gunakan serial setelah proof.
 - Jangan menjalankan beberapa sign QR terhadap source yang sama secara paralel
