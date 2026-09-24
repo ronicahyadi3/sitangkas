@@ -1,6 +1,6 @@
 # Kondisi Implementasi eSign/TTE Saat Ini
 
-Tanggal snapshot: **24 September 2026**.
+Tanggal snapshot: **25 September 2026**.
 
 Status: **backend in progress**. Boundary provider, schema/model/state service,
 authorization, signing session, private artifact persistence, secret store,
@@ -1036,8 +1036,14 @@ listener menerbitkan `sitangkas:esign:open`. Action masih tersembunyi karena
 layout authenticated mempunyai satu root global, loader hanya mengimpor Svelte
 dan CSS eSign saat event open pertama, dan shell modal mengikuti Bootstrap 5 /
 Argon tanpa Tailwind. `pdfjs-dist` tersedia sebagai dependency tetapi belum
-masuk initial bundle. Tahap berikutnya adalah F3 penguncian event lifecycle,
-kemudian F4 shell modal lengkap dan F5 API client/session state.
+masuk initial bundle. F3 juga selesai di source: empat lifecycle event mempunyai
+typed contract dan runtime validator, loader membedakan state signing/validation,
+serta completion adapter me-reload hanya DataTable yang opt-in tanpa mengenal
+global `mainTable` atau `tteDocumentTable`. Event completion memakai UUID
+`step_public_id`, `attempt_id`, dan `result_artifact_id`; raw integer dokumen dan
+secret tidak pernah masuk event. LS SPP main table dan modal detail adalah
+adapter opt-in pertama. Tahap berikutnya adalah F4 shell modal lengkap dan F5
+API client/session state.
 
 Audit lintas payment menegaskan bahwa editor/session contract bersifat generik,
 tetapi action resolver, activation/handoff, submit gate, dan compatibility

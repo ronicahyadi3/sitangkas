@@ -1,16 +1,22 @@
-import { mount } from 'svelte';
+import { mount, unmount } from 'svelte';
 import EsignApp from './components/EsignApp.svelte';
-import type { EsignOpenEventDetail } from './types';
+import type { EsignUiAction } from './types';
 import '../../css/esign/esign.css';
 
 export interface EsignAppApi {
-    open(action: EsignOpenEventDetail): void;
+    destroy(): Promise<void>;
+    open(action: EsignUiAction): void;
 }
 
 export function mountEsignApp(
     target: HTMLElement,
 ): EsignAppApi {
-    return mount(EsignApp, {
+    const component = mount(EsignApp, {
         target,
-    }) as EsignAppApi;
+    });
+
+    return {
+        destroy: () => unmount(component),
+        open: (action) => component.open(action),
+    };
 }

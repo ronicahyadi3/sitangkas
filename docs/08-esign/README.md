@@ -1,6 +1,6 @@
 # eSign Client 2.2.0 / TTE
 
-Tanggal snapshot: **24 September 2026**.
+Tanggal snapshot: **25 September 2026**.
 
 Status: **backend in progress; kontrak visible multi-QR tersedia di source tetapi
 belum diaktifkan untuk layanan operasional**. Boundary provider, migration,
@@ -33,9 +33,10 @@ binary media, error class, serta typed contract dikunci di
 Bridge action LS SPP F1 juga tersedia di source dengan capability fail-closed,
 tanpa path file dan tanpa handler legacy. Fondasi F2 Svelte/Vite island, root
 layout global, lazy loader, dan shell modal Bootstrap/Argon juga sudah tersedia
-di source. Signing-session, viewer PDF, editor, dan progress UI belum
-disambungkan; `SIGNATURE_FRONTEND_ENABLED` tetap default `false` sampai gate
-berikutnya lulus.
+di source. F3 event lifecycle dan adapter DataTable juga sudah tersedia tanpa
+ketergantungan pada global tabel halaman; LS SPP menjadi opt-in pertama.
+Signing-session, viewer PDF, editor, dan progress UI belum disambungkan;
+`SIGNATURE_FRONTEND_ENABLED` tetap default `false` sampai gate berikutnya lulus.
 Visible placement/multi-operation tersedia di source tetapi default
 feature flag masih nonaktif dan belum lulus vertical slice operasional. Baca
 `CURRENT_ESIGN_IMPLEMENTATION.md` untuk kondisi kode aktual dan batas

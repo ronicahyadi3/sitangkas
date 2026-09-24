@@ -1,13 +1,20 @@
-import { ESIGN_OPEN_EVENT, isEsignOpenEventDetail } from './events';
-import type { EsignOpenEventDetail } from './types';
+import {
+    ESIGN_OPEN_EVENT,
+    ESIGN_VALIDATION_OPEN_EVENT,
+    isEsignOpenEventDetail,
+    isEsignValidationOpenEventDetail,
+} from './events';
+import type { EsignUiAction } from './types';
 
 interface EsignAppApi {
-    open(action: EsignOpenEventDetail): void;
+    destroy(): Promise<void>;
+    open(action: EsignUiAction): void;
 }
 
 type NotificationFunction = (payload: { status: number; message: string }) => void;
 
 let appPromise: Promise<EsignAppApi> | null = null;
+let appInstance: EsignAppApi | null = null;
 let removeListener: (() => void) | null = null;
 
 async function resolveApp(): Promise<EsignAppApi> {
@@ -22,7 +29,11 @@ async function resolveApp(): Promise<EsignAppApi> {
     }
 
     appPromise = import('./mount')
-        .then(({ mountEsignApp }) => mountEsignApp(root))
+        .then(({ mountEsignApp }) => {
+            appInstance = mountEsignApp(root);
+
+            return appInstance;
+        })
         .catch((error: unknown) => {
             appPromise = null;
             throw error;
@@ -42,16 +53,58 @@ function reportLoadFailure(): void {
     }
 }
 
-function handleOpenEvent(event: Event): void {
+function openIsland(action: EsignUiAction): void {
+    void resolveApp()
+        .then((app) => app.open(action))
+        .catch(() => reportLoadFailure());
+}
+
+function handleSigningOpenEvent(event: Event): void {
     if (!(event instanceof CustomEvent) || !isEsignOpenEventDetail(event.detail)) {
         return;
     }
 
-    const action = Object.freeze({ ...event.detail });
+    openIsland({
+        kind: 'signing',
+        detail: Object.freeze({ ...event.detail }),
+    });
+}
 
-    void resolveApp()
-        .then((app) => app.open(action))
-        .catch(() => reportLoadFailure());
+function handleValidationOpenEvent(event: Event): void {
+    if (!(event instanceof CustomEvent) || !isEsignValidationOpenEventDetail(event.detail)) {
+        return;
+    }
+
+    openIsland({
+        kind: 'validation',
+        detail: Object.freeze({ ...event.detail }),
+    });
+}
+
+function destroyIsland(): void {
+    const mountedApp = appInstance;
+    const pendingApp = appPromise;
+
+    appInstance = null;
+    appPromise = null;
+
+    if (mountedApp !== null) {
+        void mountedApp.destroy();
+
+        return;
+    }
+
+    if (pendingApp !== null) {
+        void pendingApp
+            .then(async (app) => {
+                await app.destroy();
+
+                if (appInstance === app) {
+                    appInstance = null;
+                }
+            })
+            .catch(() => undefined);
+    }
 }
 
 export function installEsignIslandLoader(): () => void {
@@ -59,9 +112,12 @@ export function installEsignIslandLoader(): () => void {
         return removeListener;
     }
 
-    window.addEventListener(ESIGN_OPEN_EVENT, handleOpenEvent);
+    window.addEventListener(ESIGN_OPEN_EVENT, handleSigningOpenEvent);
+    window.addEventListener(ESIGN_VALIDATION_OPEN_EVENT, handleValidationOpenEvent);
     removeListener = () => {
-        window.removeEventListener(ESIGN_OPEN_EVENT, handleOpenEvent);
+        window.removeEventListener(ESIGN_OPEN_EVENT, handleSigningOpenEvent);
+        window.removeEventListener(ESIGN_VALIDATION_OPEN_EVENT, handleValidationOpenEvent);
+        destroyIsland();
         removeListener = null;
     };
 

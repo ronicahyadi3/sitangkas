@@ -18,7 +18,8 @@
                 </div>
                 <div class="card-body pt-0">
                     <div class="table-responsive">
-                        <table class="table table-flush table-striped" id="{{ $nameTable }}-table">
+                        <table class="table table-flush table-striped" id="{{ $nameTable }}-table"
+                            @if (!empty($esignRefreshOnComplete)) data-esign-refresh-on-complete @endif>
                             <thead></thead>
                             <tbody></tbody>
                         </table>
@@ -27,7 +28,8 @@
             </div>
         @else
             <div class="table-responsive">
-                <table class="table table-flush table-striped" id="{{ $nameTable }}-table">
+                <table class="table table-flush table-striped" id="{{ $nameTable }}-table"
+                    @if (!empty($esignRefreshOnComplete)) data-esign-refresh-on-complete @endif>
                     <thead></thead>
                     <tbody></tbody>
                 </table>

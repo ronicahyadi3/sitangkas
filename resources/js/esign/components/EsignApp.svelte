@@ -1,7 +1,7 @@
 <script lang="ts">
     import { onMount, tick } from 'svelte';
-    import { ESIGN_CLOSED_EVENT } from '../events';
-    import type { EsignOpenEventDetail } from '../types';
+    import { dispatchEsignClosed } from '../events';
+    import type { EsignUiAction } from '../types';
 
     interface BootstrapModal {
         dispose(): void;
@@ -20,11 +20,12 @@
         Modal?: BootstrapModalConstructor;
     }
 
-    let activeAction = $state<EsignOpenEventDetail | null>(null);
+    let activeAction = $state<EsignUiAction | null>(null);
     let modalElement: HTMLDivElement;
     let modal: BootstrapModal | null = null;
+    let isValidation = $derived(activeAction?.kind === 'validation');
 
-    export async function open(action: EsignOpenEventDetail): Promise<void> {
+    export async function open(action: EsignUiAction): Promise<void> {
         activeAction = action;
         await tick();
         modal?.show();
@@ -47,11 +48,19 @@
             const closedAction = activeAction;
             activeAction = null;
 
-            window.dispatchEvent(new CustomEvent(ESIGN_CLOSED_EVENT, {
-                detail: closedAction === null
-                    ? null
-                    : Object.freeze({ step_public_id: closedAction.step_public_id }),
-            }));
+            if (closedAction?.kind === 'signing') {
+                dispatchEsignClosed({
+                    action: 'sign',
+                    step_public_id: closedAction.detail.step_public_id,
+                });
+            }
+
+            if (closedAction?.kind === 'validation') {
+                dispatchEsignClosed({
+                    action: 'verify',
+                    artifact_public_id: closedAction.detail.artifact_public_id,
+                });
+            }
         };
 
         modalElement.addEventListener('hidden.bs.modal', handleHidden);
@@ -80,9 +89,11 @@
         <div class="modal-content esign-shell">
             <div class="modal-header esign-shell__header">
                 <div>
-                    <p class="esign-shell__eyebrow mb-1">Tanda Tangan Elektronik</p>
+                    <p class="esign-shell__eyebrow mb-1">
+                        {isValidation ? 'Validasi Dokumen' : 'Tanda Tangan Elektronik'}
+                    </p>
                     <h2 class="modal-title h5 mb-0" id="esignSigningModalTitle">
-                        Menyiapkan dokumen
+                        {isValidation ? 'Menyiapkan validasi' : 'Menyiapkan dokumen'}
                     </h2>
                 </div>
                 <button
@@ -97,9 +108,13 @@
                 <div class="esign-shell__loading" role="status">
                     <span class="spinner-border text-primary" aria-hidden="true"></span>
                     <div>
-                        <p class="fw-semibold mb-1">Fondasi editor TTE siap digunakan</p>
+                        <p class="fw-semibold mb-1">
+                            {isValidation ? 'Fondasi validasi siap digunakan' : 'Fondasi editor TTE siap digunakan'}
+                        </p>
                         <p class="text-sm text-secondary mb-0">
-                            Sesi dokumen dan editor PDF akan disambungkan pada tahap berikutnya.
+                            {isValidation
+                                ? 'Artifact dan hasil validasi akan disambungkan setelah endpoint canonical tersedia.'
+                                : 'Sesi dokumen dan editor PDF akan disambungkan pada tahap berikutnya.'}
                         </p>
                     </div>
                 </div>

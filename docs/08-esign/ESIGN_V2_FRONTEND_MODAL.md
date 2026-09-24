@@ -261,20 +261,25 @@ Svelte boleh merender shell markup Bootstrap, kemudian membuka/menutupnya lewat
 - selama request sign atau outcome belum pasti, cegah event hide dan gunakan
   backdrop statis agar modal tidak tertutup tanpa sengaja.
 
-Tombol Blade hanya membawa encrypted document ID dan action non-sensitif:
+Tombol Blade signing hanya membawa canonical step public ID dan capability
+non-sensitif:
 
 ```html
 <button
     type="button"
-    data-esign-document="<encrypted-id>"
     data-esign-action="sign"
+    data-esign-step="<step-public-uuid>"
+    data-esign-can-sign="true"
+    data-esign-can-verify="false"
 >
     Tanda Tangani
 </button>
 ```
 
-Jangan taruh NIK lengkap, path storage, credential, passphrase, raw capability,
-atau base64 PDF dalam `data-*`.
+Jangan taruh NIK lengkap, path storage, credential, passphrase, raw policy/
+authorization context, atau base64 PDF dalam `data-*`. Boolean capability yang
+sudah disanitasi hanya bersifat petunjuk UI; endpoint tetap mengulang
+authorization authoritative.
 
 ## 7. Event boundary dengan halaman payment
 
@@ -283,31 +288,37 @@ Halaman/adapter membuka Svelte melalui browser event:
 ```javascript
 window.dispatchEvent(new CustomEvent('sitangkas:esign:open', {
     detail: {
-        documentId: encryptedDocumentId,
-        action: 'sign',
+        step_public_id: stepPublicId,
+        can_sign: true,
+        can_verify: false,
     },
 }));
 ```
 
-Action yang didukung:
+Event action yang didukung:
 
-- `sign`;
-- `verify`.
+- `sitangkas:esign:open` untuk signing berdasarkan `step_public_id`;
+- `sitangkas:esign:validation-open` untuk validasi berdasarkan
+  `artifact_public_id`. Event validasi belum mempunyai producer aktif sampai
+  endpoint validasi canonical tersedia.
 
 Setelah selesai, Svelte mengirim event, bukan memanggil DataTable global:
 
 ```javascript
 window.dispatchEvent(new CustomEvent('sitangkas:esign:completed', {
     detail: {
-        documentId,
-        attemptId,
+        step_public_id: stepPublicId,
+        attempt_id: attemptId,
+        result_artifact_id: resultArtifactId,
         result: 'succeeded',
     },
 }));
 ```
 
 Adapter halaman memutuskan apakah perlu reload DataTable, update badge, refresh
-detail, atau menampilkan notifikasi. Event detail tidak boleh memuat secret.
+detail, atau menampilkan notifikasi. Seluruh identity pada completion adalah
+UUID publik; raw integer `document.id` tidak diekspos ke frontend. Event detail
+tidak boleh memuat secret.
 
 ## 8. Modal signing
 

@@ -1,9 +1,12 @@
-import { ESIGN_OPEN_EVENT } from './events';
+import {
+    ESIGN_OPEN_EVENT,
+    dispatchEsignOpen,
+    dispatchEsignValidationOpen,
+} from './events';
 
 export { ESIGN_OPEN_EVENT };
 
-const ACTION_SELECTOR = '[data-esign-action="sign"][data-esign-step]';
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const ACTION_SELECTOR = '[data-esign-action="sign"], [data-esign-action="verify"]';
 
 let removeListener = null;
 
@@ -18,20 +21,22 @@ function handleEsignAction(event) {
 
     event.preventDefault();
 
-    const stepPublicId = target.dataset.esignStep ?? '';
-    const canSign = target.dataset.esignCanSign === 'true';
+    const action = target.dataset.esignAction;
 
-    if (!canSign || !UUID_PATTERN.test(stepPublicId)) {
-        return;
+    if (action === 'sign') {
+        dispatchEsignOpen({
+            step_public_id: target.dataset.esignStep ?? '',
+            can_sign: target.dataset.esignCanSign === 'true',
+            can_verify: target.dataset.esignCanVerify === 'true',
+        });
     }
 
-    window.dispatchEvent(new CustomEvent(ESIGN_OPEN_EVENT, {
-        detail: Object.freeze({
-            step_public_id: stepPublicId,
-            can_sign: true,
+    if (action === 'verify') {
+        dispatchEsignValidationOpen({
+            artifact_public_id: target.dataset.esignArtifact ?? '',
             can_verify: target.dataset.esignCanVerify === 'true',
-        }),
-    }));
+        });
+    }
 }
 
 export function installEsignActionBridge() {

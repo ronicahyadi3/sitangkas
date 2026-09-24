@@ -10,6 +10,8 @@ import './echo';
 import './realtime-presence';
 import { installEsignActionBridge } from './esign/action-bridge';
 import { installEsignIslandLoader } from './esign/island-loader';
+import { installEsignPageAdapter } from './esign/page-adapter';
 
 installEsignIslandLoader();
 installEsignActionBridge();
+installEsignPageAdapter();

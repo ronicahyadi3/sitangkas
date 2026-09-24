@@ -572,7 +572,7 @@ Realisasi source 24 September 2026:
 Build produksi Vite adalah verifikasi F2 yang diizinkan. Tidak ada test suite
 yang dibuat atau dijalankan.
 
-### Tahap F3 - Event bridge Blade/DataTable/Svelte
+### Tahap F3 - Event bridge Blade/DataTable/Svelte — SELESAI DI SOURCE
 
 Tujuan: menghilangkan coupling global UI.
 
@@ -590,12 +590,43 @@ Pekerjaan:
 1. event open hanya membawa `step_public_id` serta boolean capability, tanpa
    path file atau data sensitif;
 2. Svelte menangani session/modal state;
-3. event completed membawa `documentId`/`attemptId` yang aman, bukan passphrase;
+3. event completed membawa identity canonical publik yang aman, bukan
+   passphrase atau integer primary key;
 4. adapter halaman memutuskan tabel mana yang direload;
 5. bila DataTable tidak ada, completion tetap tidak error;
 6. listener dibersihkan saat unmount/HMR.
 
 Hasil: Svelte tidak mengenal global `mainTable` atau `tteDocumentTable`.
+
+Realisasi source 25 September 2026:
+
+- kontrak dan validator runtime tersedia untuk `open`, `validation-open`,
+  `completed`, dan `closed`;
+- event signing hanya menerima `step_public_id` serta capability boolean;
+- event validation hanya menerima `artifact_public_id` dan `can_verify=true`;
+- event completion dikunci ke hasil `succeeded` dan membawa
+  `step_public_id`, `attempt_id`, serta `result_artifact_id`, semuanya UUID;
+- raw `document.id` tidak dimasukkan karena client signing-session sengaja
+  tidak mengekspos integer tersebut. Adapter tidak membutuhkan document ID
+  untuk me-refresh read model halaman;
+- action bridge dapat menerbitkan sign/verify event tanpa path, nama file,
+  NIK, passphrase, atau response provider;
+- island loader mengubah event menjadi discriminated state `signing` atau
+  `validation`, dan melepaskan listener serta instance Svelte ketika HMR;
+- page adapter hanya me-reload DataTable yang secara eksplisit mempunyai
+  `data-esign-refresh-on-complete`. LS SPP main table dan modal detail menjadi
+  opt-in pertama;
+- adapter menggunakan API DataTable dari elemen DOM, bukan global
+  `mainTable`/`tteDocumentTable`. Bila DataTable belum dibuat atau library tidak
+  tersedia, event completion berakhir tanpa error;
+- `validation-open` baru merupakan boundary event. Belum ada tombol canonical
+  yang mengaktifkannya karena endpoint validasi artifact adalah pekerjaan F13;
+- helper dispatch completion sudah tersedia untuk F11/F12, tetapi F3 tidak
+  membuat completion palsu sebelum attempt benar-benar sukses.
+
+Build Vite dan pemeriksaan TypeScript adalah verifikasi source F3 yang
+diizinkan. Tidak ada test suite yang dibuat atau dijalankan. Feature flag tetap
+`false` sampai F4/F5 siap dan acceptance manual dilakukan.
 
 ### Tahap F4 - Shell modal Bootstrap 5/Argon
 
@@ -1025,12 +1056,14 @@ baru. Urutannya:
    path file melalui event bridge;
 3. [SELESAI DI SOURCE] Tahap F2: fondasi Svelte/Vite island, root global, lazy
    loader, dan shell Bootstrap/Argon;
-4. lanjutkan Tahap F3-F5: lifecycle event, shell modal lengkap, API client, dan
+4. [SELESAI DI SOURCE] Tahap F3: lifecycle event dan adapter refresh DataTable
+   tanpa ketergantungan pada global halaman;
+5. lanjutkan Tahap F4-F5: shell modal lengkap, typed API client, dan
    signing-session state; feature flag tetap `false` sampai rangkaian ini siap;
-5. bangun viewer/geometry/editor secara berurutan pada Tahap F6-F10;
-6. sambungkan final sign/progress pada Tahap F11-F12;
-7. tutup gap backend validasi/public delivery sebelum Tahap F13-F15;
-8. lakukan pilot manual sebelum rollout payment lain.
+6. bangun viewer/geometry/editor secara berurutan pada Tahap F6-F10;
+7. sambungkan final sign/progress pada Tahap F11-F12;
+8. tutup gap backend validasi/public delivery sebelum Tahap F13-F15;
+9. lakukan pilot manual sebelum rollout payment lain.
 
 Dengan urutan ini, komponen frontend dibangun langsung di atas boundary
 canonical dan tidak perlu dirombak kedua kali untuk membuang path, upload PDF,

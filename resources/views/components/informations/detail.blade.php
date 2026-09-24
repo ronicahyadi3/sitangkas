@@ -17,7 +17,8 @@
                     </div>
                     <div class="card-body">
                         <div class="table-responsive">
-                            <table class="table table-flush" id="tteDocumentTable">
+                            <table class="table table-flush" id="tteDocumentTable"
+                                data-esign-refresh-on-complete>
                                 <thead class="thead-light">
                                     <tr>
                                         <th class="align-middle text-center">#</th>

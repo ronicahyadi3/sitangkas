@@ -112,6 +112,7 @@
         'title' => 'Dokumen SPP',
         'url' => route('ls.spp.json'),
         'nameTable' => 'mainTable',
+        'esignRefreshOnComplete' => true,
         'jabatanAccessAdd' => [9, 10],
         'columns' => [
             [

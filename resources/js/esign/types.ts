@@ -25,6 +25,38 @@ export interface EsignActionCapabilities {
 
 export type EsignOpenEventDetail = EsignActionCapabilities;
 
+export interface EsignValidationOpenEventDetail {
+    artifact_public_id: Uuid;
+    can_verify: true;
+}
+
+export interface EsignCompletedEventDetail {
+    step_public_id: Uuid;
+    attempt_id: Uuid;
+    result_artifact_id: Uuid;
+    result: 'succeeded';
+}
+
+export type EsignClosedEventDetail =
+    | {
+        action: 'sign';
+        step_public_id: Uuid;
+    }
+    | {
+        action: 'verify';
+        artifact_public_id: Uuid;
+    };
+
+export type EsignUiAction =
+    | {
+        kind: 'signing';
+        detail: EsignOpenEventDetail;
+    }
+    | {
+        kind: 'validation';
+        detail: EsignValidationOpenEventDetail;
+    };
+
 export interface PdfPageGeometry {
     page: number;
     width: number;
