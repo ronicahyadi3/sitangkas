@@ -117,6 +117,12 @@ class DocumentArtifact extends Model
         return $this->hasMany(DocumentArtifactSignature::class);
     }
 
+    public function decorations(): HasMany
+    {
+        return $this->hasMany(DocumentArtifactDecoration::class)
+            ->orderBy('decoration_index');
+    }
+
     public function workflowsUsingAsCurrentArtifact(): HasMany
     {
         return $this->hasMany(DocumentSigningWorkflow::class, 'current_artifact_id');
@@ -140,6 +146,16 @@ class DocumentArtifact extends Model
     public function resultAttempts(): HasMany
     {
         return $this->hasMany(EsignAttempt::class, 'result_artifact_id');
+    }
+
+    public function signatureOperationsAsInput(): HasMany
+    {
+        return $this->hasMany(EsignSignatureOperation::class, 'input_artifact_id');
+    }
+
+    public function signatureOperationsAsOutput(): HasMany
+    {
+        return $this->hasMany(EsignSignatureOperation::class, 'output_artifact_id');
     }
 
     public function providerResponsesAsInput(): HasMany

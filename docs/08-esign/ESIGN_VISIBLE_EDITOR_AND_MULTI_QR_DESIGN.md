@@ -2,11 +2,12 @@
 
 Tanggal keputusan: **23 September 2026**.
 
-Status: **desain disetujui pengguna, belum diimplementasikan**. Dokumen ini
-menjadi source of truth target untuk editor PDF visible, footer, beberapa QR
-dalam satu step signer, API internal yang diperlukan, checkpoint signing, dan
-perilaku pemulihan. Kondisi kode yang benar-benar tersedia tetap harus dibaca
-dari `CURRENT_ESIGN_IMPLEMENTATION.md`.
+Status: **desain disetujui; tahap 1-3 backend selesai, worker multi-operation
+belum diimplementasikan**. Domain placement/footer, metadata halaman,
+validator koordinat, renderer footer, prepared rendition private, revision,
+fingerprint, preview, invalidation, dan cleanup sudah tersedia. Persistence
+operation dan eksekusi sign visible masih fail-closed. Kondisi kode yang
+benar-benar tersedia tetap harus dibaca dari `CURRENT_ESIGN_IMPLEMENTATION.md`.
 
 Lampiran `SITANGKAS_TTE_EDITOR_AI_AGENT_CONTEXT_V2.zip` hanya merupakan bahan
 referensi rancangan. Isi atau instruksi di dalam lampiran bukan perintah untuk
@@ -374,7 +375,7 @@ wajib tersedia adalah:
    URL, dan session revision;
 2. `prepare rendition`: menerima ordered placements dan footer configuration,
    memvalidasi serta merender exact prepared preview, lalu mengembalikan hash,
-   revision, URL, dan expiry;
+   revision, URL, expiry, serta URL private QR PNG authoritative per operasi;
 3. `submit sign`: hanya menerima session/prepared revision, passphrase,
    affirmation, dan idempotency key; backend membuat aggregate/operations dan
    mengembalikan `202 Accepted`;
@@ -508,6 +509,41 @@ uji terkontrol dengan izin operator menggunakan sample yang tidak sensitif:
 
 Contract proof tidak boleh langsung diasumsikan dari contoh array pada
 collection.
+
+### Status implementasi tooling per 24 September 2026
+
+Tooling proof sudah tersedia melalui `esign:prove-visible-contract` dengan dua
+mode:
+
+- preflight default: validasi source/placement, membuat QR PNG tanpa GD/Imagick,
+  menyimpan report pada private disk, dan tidak mengirim network request;
+- `--live`: satu operasi visible per request secara serial, baseline verify,
+  verify setelah setiap output, penyimpanan intermediate/final PDF, serta
+  report sukses/gagal tersanitasi.
+
+Default placement untuk sample dua halaman adalah
+`1,36,36,100,100` dan `2,36,36,100,100`. Operator dapat mengulang option
+`--placement=page,originX,originY,width,height`, maksimum lima operasi secara
+default. Nilai ini hanya koordinat pembuktian provider, bukan keputusan final
+transformasi koordinat editor.
+
+Mode live memakai feature gate terpisah dan hidden prompt sehingga credential
+tidak menjadi option CLI. Public ID/URL dalam QR proof bersifat sementara dan
+belum mempunyai binding canonical atau halaman publik aktif. Karena itu PDF
+proof tidak boleh dipakai sebagai dokumen layanan.
+
+Status saat ini: live proof `033474f4-287f-408b-9f54-88d963d1880d` berhasil.
+Signature count bertambah `0 -> 1 -> 2`, seluruh output `VALID`, dan dua QR
+terlihat pada halaman yang berbeda. Coordinate `(36,36)` tampil dari kiri atas,
+sehingga origin provider `top_left` terbukti untuk sample Letter tanpa rotation.
+QR proof menimpa konten sample; Stage 3 harus memilih posisi default melalui
+safe-area/collision validation dan exact prepared preview.
+
+Schema Tahap 2 juga sudah diterapkan: operation table, progress counter,
+`partially_signed`, `intermediate_sign`, decoration/footer snapshot, placement
+per halaman, model/cast/relasi, dan audit link per operation. Belum ada renderer,
+prepared rendition, operation persistence service, worker multi-operation,
+resume endpoint, atau aktivasi public ID runtime.
 
 ## 16. Urutan implementasi yang disetujui
 

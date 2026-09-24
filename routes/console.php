@@ -12,3 +12,8 @@ Schedule::command('realtime:presence:prune')
     ->everyMinute()
     ->withoutOverlapping(5)
     ->onOneServer();
+
+Schedule::command('esign:cleanup-prepared-renditions --delete')
+    ->hourly()
+    ->withoutOverlapping(10)
+    ->onOneServer();

@@ -24,6 +24,7 @@ class EsignProviderResponse extends Model
     protected $fillable = [
         'public_id',
         'esign_attempt_id',
+        'esign_signature_operation_id',
         'response_sequence',
         'provider',
         'operation',
@@ -64,6 +65,11 @@ class EsignProviderResponse extends Model
     public function attempt(): BelongsTo
     {
         return $this->belongsTo(EsignAttempt::class, 'esign_attempt_id');
+    }
+
+    public function signatureOperation(): BelongsTo
+    {
+        return $this->belongsTo(EsignSignatureOperation::class, 'esign_signature_operation_id');
     }
 
     public function inputArtifact(): BelongsTo

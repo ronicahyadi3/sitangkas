@@ -429,12 +429,18 @@ publik, atau kontrak request lama dari file-file tersebut.
       job dibuat.
 - [ ] Reconciliation runner untuk attempt `unknown`, stuck recovery, staging
       cleanup, health/metric/alert, dan parity report dibuat.
-- [ ] Visible QR/footer placement, coordinate validation, dan payload visible
-      diimplementasikan; sign saat ini fail-closed untuk
-      `placement_required=true`.
+- [x] Domain placement QR/footer, metadata halaman, coordinate validation,
+      safe area/collision, exact prepared rendition private, revision/hash,
+      preview, invalidation, dan cleanup diimplementasikan. Sign visible tetap
+      fail-closed sampai persistence operation dan worker serial tahap 4 siap.
 - [x] Desain source PDF backend, binary browser delivery, editable footer,
       exact prepared preview, dan multi-QR serial satu signer didokumentasikan.
-- [ ] Contract proof visible serial, operation/checkpoint schema,
-      `partially_signed`, `intermediate_sign`, decoration persistence, worker
-      multi-operation, dan resume partial diimplementasikan.
+- [x] Contract proof visible serial serta schema/model operation, progress,
+      `partially_signed`, `intermediate_sign`, dan decoration/footer snapshot
+      telah diterapkan secara additive.
+- [x] Renderer footer dan prepared rendition exact diimplementasikan memakai
+      `pdfinfo` + `qpdf`, private encrypted session metadata, binary preview,
+      dan QR PNG authoritative private per operasi.
+- [ ] Operation persistence, worker checkpoint-aware, aktivasi public ID, dan
+      resume partial diimplementasikan.
 - [ ] Uji penerapan BSrE dan cutover production selesai.

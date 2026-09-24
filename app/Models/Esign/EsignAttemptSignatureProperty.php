@@ -2,8 +2,10 @@
 
 namespace App\Models\Esign;
 
+use App\Enums\Esign\SignatureDisplayMode;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class EsignAttemptSignatureProperty extends Model
 {
@@ -51,10 +53,19 @@ class EsignAttemptSignatureProperty extends Model
         return $this->belongsTo(EsignAttempt::class, 'esign_attempt_id');
     }
 
+    public function signatureOperation(): HasOne
+    {
+        return $this->hasOne(
+            EsignSignatureOperation::class,
+            'esign_attempt_signature_property_id',
+        );
+    }
+
     protected function casts(): array
     {
         return [
             'height' => 'decimal:4',
+            'display_mode' => SignatureDisplayMode::class,
             'origin_x' => 'decimal:4',
             'origin_y' => 'decimal:4',
             'page_number' => 'integer',

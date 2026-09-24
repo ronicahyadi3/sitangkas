@@ -24,6 +24,7 @@ class EsignAttemptEvent extends Model
         'event_uuid',
         'esign_attempt_id',
         'esign_provider_response_id',
+        'esign_signature_operation_id',
         'event_type',
         'from_status',
         'to_status',
@@ -61,6 +62,11 @@ class EsignAttemptEvent extends Model
     public function providerResponse(): BelongsTo
     {
         return $this->belongsTo(EsignProviderResponse::class, 'esign_provider_response_id');
+    }
+
+    public function signatureOperation(): BelongsTo
+    {
+        return $this->belongsTo(EsignSignatureOperation::class, 'esign_signature_operation_id');
     }
 
     public function actor(): BelongsTo

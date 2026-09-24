@@ -21,6 +21,9 @@ class EsignAttempt extends Model
     /** @var array<string, mixed> */
     protected $attributes = [
         'is_acting' => false,
+        'completed_signature_count' => 0,
+        'current_signature_index' => 0,
+        'planned_signature_count' => 1,
         'provider' => 'bsre',
         'retryable' => false,
         'status' => 'prepared',
@@ -34,6 +37,9 @@ class EsignAttempt extends Model
         'document_id',
         'document_signing_step_id',
         'attempt_number',
+        'planned_signature_count',
+        'completed_signature_count',
+        'current_signature_index',
         'source_artifact_id',
         'result_artifact_id',
         'actor_user_id',
@@ -134,6 +140,12 @@ class EsignAttempt extends Model
         return $this->hasMany(EsignAttemptSignatureProperty::class)->orderBy('property_index');
     }
 
+    public function signatureOperations(): HasMany
+    {
+        return $this->hasMany(EsignSignatureOperation::class)
+            ->orderBy('operation_index');
+    }
+
     public function providerResponses(): HasMany
     {
         return $this->hasMany(EsignProviderResponse::class)->orderBy('response_sequence');
@@ -160,8 +172,11 @@ class EsignAttempt extends Model
             'actor_context_snapshot' => 'array',
             'attempt_number' => 'integer',
             'completed_at' => 'datetime',
+            'completed_signature_count' => 'integer',
+            'current_signature_index' => 'integer',
             'document_id' => 'integer',
             'is_acting' => 'boolean',
+            'planned_signature_count' => 'integer',
             'request_sent_at' => 'datetime',
             'response_received_at' => 'datetime',
             'retryable' => 'boolean',

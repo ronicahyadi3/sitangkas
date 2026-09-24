@@ -16,5 +16,6 @@ final readonly class EsignTransitionContext
         public ?int $providerResponseId = null,
         public ?string $applicationErrorCode = null,
         public bool $retryable = false,
+        public ?int $signatureOperationId = null,
     ) {}
 }

@@ -311,7 +311,33 @@ signing tersedia sehingga fondasi Phase 2 boleh mengimplementasikan scope
 tersebut. Phase 2 tidak boleh mengaktifkan visible signing, encrypted verify,
 metode identitas/credential lain, atau multi-file berdasarkan asumsi.
 
-## 10. Referensi resmi
+## 10. Tooling proof visible lanjutan
+
+Pada 24 September 2026 ditambahkan command internal
+`esign:prove-visible-contract`. Tooling ini tidak mengubah kesimpulan Phase 1
+yang lama sampai mode live selesai, tetapi menyediakan prosedur aman untuk
+membuktikan bagian kontrak yang masih terbuka:
+
+- satu PDF dan satu visible property untuk setiap request;
+- beberapa QR pada satu dokumen diproses serial terhadap output sebelumnya;
+- verify dilakukan sebelum proses dan setelah setiap operasi;
+- jumlah signature harus bertambah tepat satu per operasi;
+- evidence binary berada di private storage dan report tidak memuat NIK,
+  passphrase, raw PDF, atau Base64;
+- tidak ada auto-retry untuk request sign.
+
+Preflight lokal dua placement telah lulus tanpa network request. Live proof
+`033474f4-287f-408b-9f54-88d963d1880d` kemudian lulus dengan baseline 0
+signature, output operasi pertama 1 signature `VALID`, dan output operasi kedua
+2 signature `VALID`. Kedua QR terlihat pada halaman berbeda dan coordinate
+`(36,36)` membuktikan origin provider `top_left` pada sample Letter rotation 0.
+
+Latency yang tercatat: baseline verify 388 ms, sign/verify operasi pertama
+869/605 ms, dan sign/verify operasi kedua 703/879 ms. Report tidak memuat NIK,
+passphrase, Base64, atau raw PDF. Strategi production tetap satu request visible
+per QR secara serial; multi-property satu PDF dalam satu request tidak digunakan.
+
+## 11. Referensi resmi
 
 - [Integrasi eSign BSrE](https://bsre.bssn.go.id/product/integrasi-esign-bsre/)
 - [Pedoman Kriteria Integrasi Sistem](https://bsre.bssn.go.id/doc/juknis/PEDOMAN-KRITERIA-INTEGRASI-SISTEM.pdf)

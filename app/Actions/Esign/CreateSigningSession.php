@@ -3,6 +3,7 @@
 namespace App\Actions\Esign;
 
 use App\Data\Esign\SigningSessionData;
+use App\Enums\Esign\DocumentArtifactType;
 use App\Exceptions\Esign\EsignInvariantViolationException;
 use App\Models\Esign\DocumentArtifact;
 use App\Models\Esign\DocumentSigningStep;
@@ -14,6 +15,7 @@ use App\Services\Esign\Authorization\EsignAuthorizationService;
 use App\Services\Esign\DocumentArtifactIntegrityService;
 use App\Services\Esign\EphemeralSigningSessionStore;
 use App\Services\Esign\LsSppWorkflowHandoffService;
+use App\Services\Esign\PdfPageGeometryInspector;
 use App\Services\Esign\SignerIdentityResolver;
 use App\Services\User\YearAccessService;
 use Carbon\CarbonImmutable;
@@ -27,6 +29,7 @@ final class CreateSigningSession
         private EsignAuthorizationService $authorization,
         private SignerIdentityResolver $signerIdentityResolver,
         private DocumentArtifactIntegrityService $artifactIntegrity,
+        private PdfPageGeometryInspector $pageGeometryInspector,
         private EphemeralSigningSessionStore $sessions,
         private LsSppWorkflowHandoffService $lsSppWorkflowHandoff,
         private CurrentUserContext $currentUserContext,
@@ -75,7 +78,26 @@ final class CreateSigningSession
             throw new EsignInvariantViolationException('signing_session_role_missing');
         }
 
-        $this->artifactIntegrity->assertReadablePdf($artifact);
+        $pdfContents = $this->artifactIntegrity->readVerifiedPdfContents($artifact);
+        $pageGeometries = array_map(
+            static fn ($page): array => $page->toArray(),
+            $this->pageGeometryInspector->inspect($pdfContents),
+        );
+        unset($pdfContents);
+
+        $verifiedSignatureCount = $artifact->signatures()
+            ->where('integrity_valid', true)
+            ->where('certificate_trusted', true)
+            ->count();
+        $signatureState = match ($artifact->artifact_type) {
+            DocumentArtifactType::BeforeSign => $verifiedSignatureCount === 0 ? 'unsigned' : null,
+            DocumentArtifactType::IntermediateSign, DocumentArtifactType::AfterSign => $verifiedSignatureCount > 0 ? 'signed' : null,
+            default => null,
+        };
+
+        if ($signatureState === null) {
+            throw new EsignInvariantViolationException('artifact_signature_state_ambiguous');
+        }
 
         $createdAt = CarbonImmutable::now();
         $expiresAt = $createdAt->addMinutes($this->ttlMinutes());
@@ -99,6 +121,9 @@ final class CreateSigningSession
             signerName: $signer->name,
             maskedNik: $signer->maskedNik,
             placementRequired: (bool) $step->placement_required,
+            signatureState: $signatureState,
+            verifiedSignatureCount: $verifiedSignatureCount,
+            pageGeometries: $pageGeometries,
             createdAt: $createdAt,
             expiresAt: $expiresAt,
         );

@@ -364,6 +364,7 @@ final class EsignAuthorizationService
             ->whereIn('status', [
                 EsignAttemptStatus::Prepared->value,
                 EsignAttemptStatus::Signing->value,
+                EsignAttemptStatus::PartiallySigned->value,
                 EsignAttemptStatus::Validating->value,
                 EsignAttemptStatus::Succeeded->value,
                 EsignAttemptStatus::Unknown->value,

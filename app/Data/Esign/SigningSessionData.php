@@ -27,11 +27,15 @@ final readonly class SigningSessionData
         public string $signerName,
         public string $maskedNik,
         public bool $placementRequired,
+        public string $signatureState,
+        public int $verifiedSignatureCount,
+        /** @var list<array{page: int, width: float, height: float, rotation: int}> */
+        public array $pageGeometries,
         public CarbonImmutable $createdAt,
         public CarbonImmutable $expiresAt,
     ) {}
 
-    /** @return array<string, bool|int|string> */
+    /** @return array<string, mixed> */
     public function toArray(): array
     {
         return [
@@ -54,12 +58,15 @@ final readonly class SigningSessionData
             'signer_name' => $this->signerName,
             'masked_nik' => $this->maskedNik,
             'placement_required' => $this->placementRequired,
+            'signature_state' => $this->signatureState,
+            'verified_signature_count' => $this->verifiedSignatureCount,
+            'page_geometries' => $this->pageGeometries,
             'created_at' => $this->createdAt->toIso8601String(),
             'expires_at' => $this->expiresAt->toIso8601String(),
         ];
     }
 
-    /** @return array<string, bool|int|string> */
+    /** @return array<string, mixed> */
     public function toClientArray(): array
     {
         return [
@@ -69,6 +76,9 @@ final readonly class SigningSessionData
             'placement_required' => $this->placementRequired,
             'artifact_version' => $this->sourceArtifactVersion,
             'artifact_sha256' => $this->sourceArtifactSha256,
+            'signature_state' => $this->signatureState,
+            'verified_signature_count' => $this->verifiedSignatureCount,
+            'pages' => $this->pageGeometries,
             'expires_at' => $this->expiresAt->toIso8601String(),
         ];
     }
@@ -97,11 +107,17 @@ final readonly class SigningSessionData
                 signerName: self::string($payload, 'signer_name'),
                 maskedNik: self::string($payload, 'masked_nik'),
                 placementRequired: self::boolean($payload, 'placement_required'),
+                signatureState: self::string($payload, 'signature_state'),
+                verifiedSignatureCount: self::integer($payload, 'verified_signature_count'),
+                pageGeometries: self::pageGeometries($payload),
                 createdAt: CarbonImmutable::parse(self::string($payload, 'created_at')),
                 expiresAt: CarbonImmutable::parse(self::string($payload, 'expires_at')),
             );
 
             if (preg_match('/\A[a-f0-9]{64}\z/i', $session->sourceArtifactSha256) !== 1
+                || ! in_array($session->signatureState, ['unsigned', 'signed'], true)
+                || $session->verifiedSignatureCount < 0
+                || $session->pageGeometries === []
                 || $session->createdAt->isAfter($session->expiresAt)) {
                 throw new EsignInvariantViolationException('signing_session_payload_invalid');
             }
@@ -140,5 +156,22 @@ final readonly class SigningSessionData
         }
 
         return $payload[$key];
+    }
+
+    /** @param array<string, mixed> $payload */
+    private static function pageGeometries(array $payload): array
+    {
+        $pages = $payload['page_geometries'] ?? null;
+
+        if (! is_array($pages) || $pages === []) {
+            throw new EsignInvariantViolationException('signing_session_payload_invalid');
+        }
+
+        return array_map(
+            static fn (mixed $page): array => PdfPageGeometryData::fromArray(
+                is_array($page) ? $page : [],
+            )->toArray(),
+            array_values($pages),
+        );
     }
 }

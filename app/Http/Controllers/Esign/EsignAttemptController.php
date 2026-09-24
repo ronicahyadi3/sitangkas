@@ -26,6 +26,12 @@ final class EsignAttemptController extends Controller
                 'attempt_number' => $esignAttempt->attempt_number,
                 'status' => $esignAttempt->status->value,
                 'retryable' => $esignAttempt->retryable,
+                'progress' => [
+                    'planned' => $esignAttempt->planned_signature_count,
+                    'completed' => $esignAttempt->completed_signature_count,
+                    'current_index' => $esignAttempt->current_signature_index,
+                ],
+                'requires_passphrase' => $esignAttempt->status->requiresUserAction(),
                 'requires_reconciliation' => $esignAttempt->status === EsignAttemptStatus::Unknown,
                 'error_code' => $esignAttempt->application_error_code,
                 'result_artifact_id' => $esignAttempt->resultArtifact?->public_id,

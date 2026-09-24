@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Models\UserPosition;
 use App\Services\Auth\CurrentUserContext;
 use App\Services\Esign\Authorization\EsignAuthorizationService;
+use App\Services\Esign\EphemeralPreparedRenditionStore;
 use App\Services\Esign\EphemeralSigningSessionStore;
 use App\Services\User\YearAccessService;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -22,6 +23,7 @@ final class ResolveSigningSession
 {
     public function __construct(
         private EphemeralSigningSessionStore $sessions,
+        private EphemeralPreparedRenditionStore $preparedRenditions,
         private EsignAuthorizationService $authorization,
         private CurrentUserContext $currentUserContext,
         private YearAccessService $yearAccess,
@@ -60,6 +62,7 @@ final class ResolveSigningSession
             || (int) $effectivePosition->unit_kerja_id !== $session->effectiveUnitKerjaId
             || (int) $effectivePosition->instansi_id !== $session->effectiveInstansiId
             || $this->yearAccess->selectedYear() !== $session->selectedYear) {
+            $this->preparedRenditions->forget($sessionId, (int) $user->getKey());
             $this->sessions->forget($sessionId);
 
             throw new SigningSessionConflictException('esign.signing_session_context_changed');
@@ -73,6 +76,7 @@ final class ResolveSigningSession
             ->toString();
 
         if (! hash_equals($session->effectiveRoleCode, $roleCode)) {
+            $this->preparedRenditions->forget($sessionId, (int) $user->getKey());
             $this->sessions->forget($sessionId);
 
             throw new SigningSessionConflictException('esign.signing_session_role_changed');

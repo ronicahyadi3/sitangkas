@@ -19,6 +19,9 @@ use App\Http\Controllers\Document\LsSppDocumentDeliveryController;
 use App\Http\Controllers\Esign\EsignAttemptController;
 use App\Http\Controllers\Esign\SigningSessionController;
 use App\Http\Controllers\Esign\SigningSessionPreviewController;
+use App\Http\Controllers\Esign\SigningSessionRenditionController;
+use App\Http\Controllers\Esign\SigningSessionRenditionPreviewController;
+use App\Http\Controllers\Esign\SigningSessionRenditionQrController;
 use App\Http\Controllers\Esign\SigningSessionSignController;
 use App\Http\Controllers\Payment\LS\SP2D as LsSp2dController;
 use App\Http\Controllers\Payment\LS\SPM as LsSpmController;
@@ -144,6 +147,21 @@ Route::middleware(['auth', 'account.accessible', 'single.device.session'])->grou
                 ->whereUuid('signingSession')
                 ->middleware('throttle:esign-preview')
                 ->name('signing-sessions.preview');
+            Route::post('/signing-sessions/{signingSession}/renditions', SigningSessionRenditionController::class)
+                ->whereUuid('signingSession')
+                ->middleware('throttle:esign-prepare')
+                ->name('signing-sessions.renditions.store');
+            Route::get('/signing-sessions/{signingSession}/renditions/{revision}/preview', SigningSessionRenditionPreviewController::class)
+                ->whereUuid('signingSession')
+                ->whereUuid('revision')
+                ->middleware('throttle:esign-preview')
+                ->name('signing-sessions.renditions.preview');
+            Route::get('/signing-sessions/{signingSession}/renditions/{revision}/operations/{operationIndex}/qr', SigningSessionRenditionQrController::class)
+                ->whereUuid('signingSession')
+                ->whereUuid('revision')
+                ->whereNumber('operationIndex')
+                ->middleware('throttle:esign-preview')
+                ->name('signing-sessions.renditions.qr');
             Route::post('/signing-sessions/{signingSession}/sign', SigningSessionSignController::class)
                 ->whereUuid('signingSession')
                 ->middleware('throttle:esign-sign')

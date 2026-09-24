@@ -82,6 +82,7 @@ final class EsignAttemptPersistenceService
                 ->whereIn('status', [
                     EsignAttemptStatus::Prepared->value,
                     EsignAttemptStatus::Signing->value,
+                    EsignAttemptStatus::PartiallySigned->value,
                     EsignAttemptStatus::Validating->value,
                     EsignAttemptStatus::Unknown->value,
                 ])
@@ -241,7 +242,11 @@ final class EsignAttemptPersistenceService
                 throw new EsignStateTransitionException('esign_attempt', $from->value, $target->value);
             }
 
-            if (in_array($target, [EsignAttemptStatus::Failed, EsignAttemptStatus::Unknown], true)
+            if (in_array($target, [
+                EsignAttemptStatus::Failed,
+                EsignAttemptStatus::PartiallySigned,
+                EsignAttemptStatus::Unknown,
+            ], true)
                 && trim((string) $context->applicationErrorCode) === '') {
                 throw new EsignInvariantViolationException('attempt_error_code_required');
             }
@@ -275,6 +280,11 @@ final class EsignAttemptPersistenceService
 
             if ($target === EsignAttemptStatus::Succeeded) {
                 $this->assertSucceededInvariant($lockedAttempt);
+
+                if (! $lockedAttempt->signatureOperations()->exists()) {
+                    $lockedAttempt->completed_signature_count = $lockedAttempt->planned_signature_count;
+                    $lockedAttempt->current_signature_index = $lockedAttempt->planned_signature_count;
+                }
             }
 
             $lockedAttempt->status = $target;
@@ -282,15 +292,28 @@ final class EsignAttemptPersistenceService
             if ($target === EsignAttemptStatus::Signing) {
                 $lockedAttempt->started_at ??= now();
                 $lockedAttempt->request_sent_at ??= now();
+
+                if ($from === EsignAttemptStatus::PartiallySigned) {
+                    $lockedAttempt->application_error_code = null;
+                    $lockedAttempt->retryable = false;
+                    $lockedAttempt->safe_error_context = null;
+                }
             }
 
             if ($target === EsignAttemptStatus::Validating) {
                 $lockedAttempt->response_received_at ??= now();
             }
 
-            if (in_array($target, [EsignAttemptStatus::Failed, EsignAttemptStatus::Unknown], true)) {
+            if (in_array($target, [
+                EsignAttemptStatus::Failed,
+                EsignAttemptStatus::PartiallySigned,
+                EsignAttemptStatus::Unknown,
+            ], true)) {
                 $lockedAttempt->application_error_code = $context->applicationErrorCode;
-                $lockedAttempt->retryable = $target === EsignAttemptStatus::Failed && $context->retryable;
+                $lockedAttempt->retryable = in_array($target, [
+                    EsignAttemptStatus::Failed,
+                    EsignAttemptStatus::PartiallySigned,
+                ], true) && $context->retryable;
                 $lockedAttempt->safe_error_context = $context->metadata;
             }
 
@@ -439,6 +462,21 @@ final class EsignAttemptPersistenceService
         EsignAttemptStatus $target,
         EsignTransitionContext $context,
     ): void {
+        if ($target === EsignAttemptStatus::PartiallySigned) {
+            if ($step->status === DocumentSigningStepStatus::ReconciliationRequired) {
+                $this->stepTransitions->transition($step, DocumentSigningStepStatus::Active, $context);
+            }
+
+            return;
+        }
+
+        if ($target === EsignAttemptStatus::Signing
+            && $step->status === DocumentSigningStepStatus::Active) {
+            $this->stepTransitions->transition($step, DocumentSigningStepStatus::Signing, $context);
+
+            return;
+        }
+
         if ($target === EsignAttemptStatus::Failed) {
             $this->stepTransitions->transition($step, DocumentSigningStepStatus::Active, $context);
 
@@ -537,8 +575,14 @@ final class EsignAttemptPersistenceService
             return EsignAttemptEventType::ReconciliationResolved;
         }
 
+        if ($from === EsignAttemptStatus::PartiallySigned
+            && $target === EsignAttemptStatus::Signing) {
+            return EsignAttemptEventType::AttemptResumed;
+        }
+
         return match ($target) {
             EsignAttemptStatus::Signing => EsignAttemptEventType::RequestStarted,
+            EsignAttemptStatus::PartiallySigned => EsignAttemptEventType::AttemptPartiallySigned,
             EsignAttemptStatus::Validating => EsignAttemptEventType::ValidationStarted,
             EsignAttemptStatus::Succeeded => EsignAttemptEventType::AttemptSucceeded,
             EsignAttemptStatus::Failed => EsignAttemptEventType::AttemptFailed,
@@ -561,11 +605,13 @@ final class EsignAttemptPersistenceService
             'event_uuid' => (string) Str::uuid(),
             'esign_attempt_id' => $attempt->getKey(),
             'esign_provider_response_id' => $context->providerResponseId,
+            'esign_signature_operation_id' => $context->signatureOperationId,
             'event_type' => $eventType,
             'from_status' => $from,
             'to_status' => $to,
             'result' => match ($to) {
                 EsignAttemptStatus::Failed => 'failed',
+                EsignAttemptStatus::PartiallySigned => 'partial',
                 EsignAttemptStatus::Unknown => 'unknown',
                 default => 'success',
             },

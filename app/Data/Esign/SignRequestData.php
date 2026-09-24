@@ -18,7 +18,15 @@ final readonly class SignRequestData
         #[SensitiveParameter]
         private string $pdfContents,
         public ?string $correlationId = null,
+        /** @var list<SignaturePropertyData> */
+        private array $signatureProperties = [],
     ) {
+        foreach ($signatureProperties as $signatureProperty) {
+            if (! $signatureProperty instanceof SignaturePropertyData) {
+                throw new \InvalidArgumentException('Signature properties must contain SignaturePropertyData instances.');
+            }
+        }
+
         $this->pdfSize = strlen($pdfContents);
         $this->pdfSha256 = hash('sha256', $pdfContents);
     }
@@ -38,6 +46,14 @@ final readonly class SignRequestData
         return $this->pdfContents;
     }
 
+    /** @return list<SignaturePropertyData> */
+    public function signatureProperties(): array
+    {
+        return $this->signatureProperties === []
+            ? [SignaturePropertyData::invisible()]
+            : $this->signatureProperties;
+    }
+
     /** @return array<string, mixed> */
     public function __debugInfo(): array
     {
@@ -48,6 +64,10 @@ final readonly class SignRequestData
             'pdfSize' => $this->pdfSize,
             'pdfSha256' => $this->pdfSha256,
             'correlationId' => $this->correlationId,
+            'signatureProperties' => array_map(
+                static fn (SignaturePropertyData $property): array => $property->toSafeArray(),
+                $this->signatureProperties(),
+            ),
         ];
     }
 }

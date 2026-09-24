@@ -379,13 +379,18 @@ server-side, ordered QR placements, footer capability/default/whitelist,
 prepared rendition revision/hash, dan batas placement. Browser tidak akan
 mengunggah atau mengirim Base64 PDF.
 
+Schema yang sudah tersedia tetapi belum dipakai runtime:
+
+- `esign_signature_operations` dan progress counter attempt;
+- status `partially_signed` serta artifact type `intermediate_sign`;
+- snapshot footer `document_artifact_decorations` dan placement per halaman;
+- foreign key operation pada provider response dan attempt event.
+
 Belum tersedia pada snapshot ini:
 
-- server-side footer renderer dan decoration persistence;
+- server-side footer renderer dan persistence service decoration;
 - prepared preview/invalidation;
-- beberapa QR dalam satu attempt;
-- `esign_signature_operations` dan progress counter;
-- status `partially_signed` serta artifact `intermediate_sign`;
+- orchestration beberapa QR dalam satu attempt;
 - worker serial/checkpoint-aware dan resume dengan passphrase baru;
 - public ID per QR yang diaktifkan setelah final verify.
 
@@ -791,17 +796,152 @@ pada `document.src_name`. File canonical adalah copy immutable pada private
 storage. Jangan menghapus salah satunya hanya untuk membersihkan proof tanpa
 keputusan eksplisit dan pemeriksaan dependency.
 
+## 16A. Implementasi contract proof visible per 24 September 2026
+
+Tahap pertama backend visible contract sudah **lulus terhadap provider** melalui
+run live `033474f4-287f-408b-9f54-88d963d1880d`. Implementasi saat ini:
+
+- command `esign:prove-visible-contract` memakai sample default
+  `public/sample belum tte.pdf` atau path PDF eksplisit;
+- tanpa `--live`, command hanya menjalankan preflight lokal, membuat dua QR
+  default pada halaman 1 dan 2, dan tidak menghubungi BSrE;
+- mode live dikunci oleh `SIGNATURE_CONTRACT_PROOF_ENABLED=false`, wajib dari
+  terminal interaktif, meminta NIK/passphrase melalui hidden prompt, dan
+  meminta confirmation phrase sesuai jumlah operasi;
+- NIK/passphrase tidak tersedia sebagai CLI option dan tidak ditulis ke report,
+  log, database, cache, maupun queue;
+- setiap QR diproses sebagai **satu request sign visible + satu PDF** secara
+  serial; output operasi ke-i menjadi input operasi ke-i+1;
+- baseline diverifikasi sebelum sign, lalu setiap output diverifikasi dan wajib
+  menambah tepat satu signature; pelanggaran invariant menghentikan rangkaian;
+- QR, setiap intermediate PDF, final PDF, dan report tersanitasi disimpan pada
+  disk private di `esign-contract-proofs/YYYY/MM/{run_uuid}`;
+- runtime signing canonical tetap default invisible dan guard
+  `esign.visible_placement_not_ready` belum dibuka.
+
+Kontrak payload internal sekarang mendukung `INVISIBLE` dan `VISIBLE`, tetapi
+menolak lebih dari satu `signatureProperties` dalam satu provider request.
+Pembatasan ini dipertahankan karena strategi satu request per QR sudah terbukti
+berhasil dan memberi checkpoint yang deterministik.
+
+Hasil tersanitasi run live:
+
+| Pemeriksaan | Hasil |
+|---|---|
+| Baseline source | `NO_SIGNATURE`, 0 signature, verify 388 ms |
+| Operasi 1 | HTTP 200, sign 869 ms, verify 605 ms, menjadi 1 signature `VALID` |
+| Operasi 2 | HTTP 200, sign 703 ms, verify 879 ms, menjadi 2 signature `VALID` |
+| Final PDF | 243.583 byte, SHA-256 `234b96617bfc375e246fc7aa971f414e387c98a5dcc6f1eb571c8252d9073866` |
+| Visual | QR terlihat pada halaman 1 dan 2; origin provider terbukti `top_left` |
+
+Koordinat proof `(36,36,100,100)` menimpa konten sample pada kiri atas. Itu
+bukan default UI final; Stage 3 wajib menerapkan safe area, collision rule, dan
+preview exact sebelum submit.
+
+Perintah operator:
+
+```text
+php artisan esign:prove-visible-contract --no-interaction
+php artisan esign:prove-visible-contract --live
+```
+
+Mode live baru boleh dijalankan setelah environment operator menetapkan
+`SIGNATURE_CONTRACT_PROOF_ENABLED=true` dan config cache direfresh. Credential
+harus diketik saat prompt; jangan menaruhnya dalam command history.
+
+## 16B. Implementasi schema multi-operation per 24 September 2026
+
+Tahap 2 sudah diterapkan secara additive pada batch migration 22 sampai 26:
+
+- `esign_signature_operations` menyimpan satu operasi provider per QR,
+  placement property, input/output artifact dan hash, status, correlation,
+  error aman, timestamp checkpoint, serta waktu aktivasi public ID;
+- `esign_attempts` mempunyai `planned_signature_count`,
+  `completed_signature_count`, dan `current_signature_index`;
+- `document_artifact_decorations` menyimpan snapshot immutable teks/footer,
+  font whitelist key, ukuran/style, renderer version, dan configuration hash;
+- `document_artifact_decoration_placements` menyimpan geometry per halaman,
+  dimensi halaman, rotation, dan coordinate origin;
+- `esign_provider_responses` dan `esign_attempt_events` dapat menunjuk langsung
+  ke operasi signature untuk audit per QR;
+- enum/model/cast/relasi untuk operasi, decoration, `partially_signed`, dan
+  `intermediate_sign` sudah tersedia;
+- status endpoint attempt mengembalikan progress dan flag
+  `requires_passphrase` untuk state partial;
+- jalur invisible lama tetap kompatibel: attempt tanpa operation row memakai
+  default satu signature dan counter diselesaikan saat sukses.
+
+Semantik counter adalah 0-based: `current_signature_index` menunjuk operasi
+pertama yang belum selesai dan boleh sama dengan `planned_signature_count`
+setelah seluruh operasi selesai. Operation `completed` immutable; hanya waktu
+aktivasi public ID yang boleh diisi sekali setelah final verify.
+
+Migration dijalankan memakai `--path` satu per satu. Dua migration indeks
+legacy `2026_09_18_034231` dan `2026_09_18_034233` tetap pending dan tidak ikut
+dijalankan.
+
+## 16C. Placement/footer dan prepared rendition per 24 September 2026
+
+Tahap 3 backend sudah diimplementasikan tanpa membuka guard final sign visible:
+
+- signing session sekarang menyimpan snapshot geometri tiap halaman,
+  `signature_state`, dan jumlah signature canonical terverifikasi;
+- geometri authoritative dibaca server-side memakai `pdfinfo`, bukan ukuran DOM
+  atau klaim frontend;
+- kontrak editor mengembalikan unit point, origin `top_left`, safe margin,
+  batas ukuran QR, maksimal lima operasi, font whitelist, style footer, dan
+  default placement footer untuk setiap halaman;
+- validator rendition menegakkan operation index kontinu 0-based, kecocokan
+  page width/height/rotation, bounds, margin, ukuran QR, footer seluruh halaman,
+  font/size/style, text fit, serta collision QR-vs-QR dan QR-vs-footer;
+- halaman dengan rotation selain 0 derajat ditolak fail-closed karena proof
+  provider saat ini baru membuktikan rotation 0;
+- source `before_sign` yang konsisten belum mempunyai signature wajib menerima
+  footer, sedangkan source `after_sign`/`intermediate_sign` terverifikasi tidak
+  boleh menerima footer baru;
+- `POST /esign/internal/signing-sessions/{session}/renditions` merender exact
+  prepared PDF; `GET .../renditions/{revision}/preview` men-stream binary PDF
+  private setelah session, actor, source artifact, hash, dan revision diperiksa;
+- QR PNG authoritative dibuat backend untuk setiap operasi dan hanya dapat
+  diambil dari endpoint private
+  `GET .../renditions/{revision}/operations/{operation_index}/qr`; frontend
+  menampilkan PNG yang sama dan tahap 4 wajib mempromosikan byte yang sama
+  sebagai visual input provider, bukan membuat ulang QR di browser;
+- setiap prepare menghasilkan ordered placement, opaque
+  `verification_public_id`, URL verify HTTPS, configuration hash footer,
+  request fingerprint, UUID revision, SHA-256 PDF, dan expiry yang tidak
+  melampaui signing session;
+- hanya satu prepared revision aktif per session. Prepare baru menghapus file
+  revision lama setelah revision baru durable; tutup session menghapusnya
+  tanpa attempt/event/audit bisnis;
+- cleanup langsung memverifikasi ownership actor; UUID session milik actor lain
+  tidak dapat dipakai untuk menghapus cache atau file prepared rendition;
+- prepared file disimpan privat di struktur tanggal/session/revision dan
+  dilindungi metadata cache terenkripsi serta atomic cache lock;
+- command `esign:cleanup-prepared-renditions` default dry-run; opsi `--delete`
+  dijadwalkan hourly untuk membersihkan file expired berdasarkan retention;
+- renderer memakai core PDF font `Helvetica`, `Times`, atau `Courier`, style
+  bold/italic/underline, overlay `qpdf`, dan validasi output `qpdf --check`;
+- smoke render lokal terhadap `public/sample belum tte.pdf` menghasilkan PDF
+  valid dua halaman, SHA source dan prepared berbeda, serta ukuran prepared
+  102.296 byte. Tidak ada panggilan sign provider atau record database dibuat.
+
+Environment server wajib menyediakan binary `pdfinfo` (Poppler) dan `qpdf`,
+atau mengatur `SIGNATURE_PDFINFO_BINARY`/`SIGNATURE_QPDF_BINARY` ke path absolut.
+Ketiadaan binary menghentikan prepare rendition; tidak ada fallback browser.
+Snapshot immutable `document_artifact_decorations` baru ditulis pada tahap 4
+saat prepared rendition dipromosikan menjadi artifact canonical. Sampai itu,
+`SignDocument` tetap menghasilkan `esign.visible_placement_not_ready`.
+
 ## 17. Blocker operasional dan pekerjaan yang belum ada
 
 ### Prioritas langsung
 
-1. buktikan kontrak provider untuk visible coordinate dan beberapa sign serial
-   pada satu PDF; contoh array Postman bukan bukti multi-placement;
-2. buat migration additive/model/enum untuk operation, counter,
-   `partially_signed`, `intermediate_sign`, dan decoration/footer snapshot;
-3. implementasikan backend visible placement, prepared footer rendition, dan
-   multi-QR worker checkpoint-aware agar endpoint LS SPP tidak lagi
-   fail-closed;
+1. implementasikan persistence operation/checkpoint dan worker serial
+   checkpoint-aware agar endpoint LS SPP tidak lagi fail-closed;
+2. implementasikan partial resume, final verify, serta aktivasi public ID
+   atomik;
+3. implementasikan compatibility projection aggregate multi-QR;
 4. jalankan controlled vertical slice LS SPP jalur BP dari lazy activation,
    TTE, submit ke PPTK, TTE PPTK, submit ke PA, TTE PA, sampai handoff final;
 5. konfigurasikan shared cache dan production process manager untuk worker
@@ -814,10 +954,6 @@ keputusan eksplisit dan pemeriksaan dependency.
 
 - parity proof definition workflow untuk seluruh cabang payment;
 - assignment sync/activation adapter pada submit/verify controller payment;
-- visible placement DTO/validation/coordinate transform;
-- QR dan editable footer server-side, allowed font/style, safe area, serta
-  decoration snapshot;
-- prepared rendition hash/revision dan temporary cleanup;
 - persistence `esign_attempt_signature_properties` dari placement nyata;
 - persistence operation/checkpoint/intermediate dan partial resume;
 - endpoint verification berbasis artifact;
@@ -863,10 +999,10 @@ dependency mendapat otorisasi.
 ## 18. Urutan implementasi berikutnya
 
 ```text
-1. Contract proof visible coordinate + serial multi-QR satu PDF
-2. Migration additive operation/counter/partial/intermediate/decoration
-3. Placement/footer domain + exact prepared rendition
-4. Worker serial checkpoint-aware + partial resume + final verify
+1. [SELESAI] Contract proof visible coordinate + serial multi-QR satu PDF
+2. [SELESAI] Migration additive operation/counter/partial/intermediate/decoration
+3. [SELESAI] Placement/footer domain + exact prepared rendition
+4. Persistence operation + worker serial checkpoint-aware + partial resume + final verify
 5. Public ID activation + compatibility projection satu aggregate
 6. Controlled LS SPP BP -> PPTK -> PA vertical slice
 7. Shared cache + production process manager + operational preflight
@@ -922,11 +1058,13 @@ dependency mendapat otorisasi.
 | Concern | Lokasi utama |
 |---|---|
 | Provider boundary | `app/Contracts/Esign`, `app/Services/Esign/BsreClient.php` |
+| Visible contract proof | `app/Console/Commands/Esign/ProveVisibleSigningContractCommand.php`, `app/Actions/Esign/RunVisibleSigningContractProof.php`, `app/Services/Esign/ContractProof` |
 | DTO dan enum | `app/Data/Esign`, `app/Enums/Esign` |
 | Canonical models | `app/Models/Esign` |
 | Persistence/state | `app/Services/Esign/Persistence` |
 | Authorization | `app/Services/Esign/Authorization`, `app/Policies/Esign` |
 | Signing session/action | `app/Actions/Esign`, `app/Services/Esign/EphemeralSigningSessionStore.php` |
+| Visible placement/prepared rendition | `app/Services/Esign/VisibleSigningPlanValidator.php`, `app/Services/Esign/PreparedPdfRenderer.php`, `app/Services/Esign/EphemeralPreparedRenditionStore.php` |
 | Secret store | `app/Services/Esign/EphemeralSigningSecretStore.php` |
 | Worker | `app/Jobs/Esign/PerformEsignAttempt.php` |
 | Internal HTTP | `app/Http/Controllers/Esign`, `app/Http/Requests/Esign`, `routes/web.php` |
