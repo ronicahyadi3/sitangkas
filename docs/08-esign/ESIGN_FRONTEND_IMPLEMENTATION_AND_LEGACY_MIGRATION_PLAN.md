@@ -431,7 +431,7 @@ Gate selesai pada 24 September 2026: setiap endpoint aktif sudah dipetakan tanpa
 array positional dan tanpa `any` untuk field utama. Perbedaan response create
 dan show session dipertahankan sebagai dua type berbeda.
 
-### Tahap F1 - Bridge backend LS SPP ke action frontend
+### Tahap F1 - Bridge backend LS SPP ke action frontend — SELESAI DI SOURCE
 
 Tujuan: tombol payment membawa identity canonical minimum.
 
@@ -441,14 +441,24 @@ Pekerjaan:
    `data-esign-step="{step_public_id}"` dan jenis action;
 2. backend tidak merender tombol TTE bila policy/capability tidak lulus;
 3. klik didelegasikan pada document karena row DataTable bersifat dinamis;
-4. adapter mengirim event `sitangkas:esign:open` dengan `stepPublicId`;
+4. adapter mengirim event `sitangkas:esign:open` dengan `step_public_id`,
+   `can_sign`, dan `can_verify`;
 5. pertahankan `.signModal` hanya sementara pada row yang belum dicutover;
 6. jangan memasang handler baru dan legacy pada tombol yang sama.
 
-Hasil: LS SPP dapat membuka shell Svelte tanpa mengetahui path PDF.
+Hasil: LS SPP sekarang mempunyai capability `esign` fail-closed dan button
+`data-esign-action="sign"` yang menerbitkan event `sitangkas:esign:open` tanpa
+mengetahui path PDF. Resolver memakai correlated subquery agar tidak membuat
+N+1, sedangkan create session tetap mengulang authorization authoritative.
 
-Gate selesai: satu klik menghasilkan tepat satu event dan tidak memanggil
-`resetPdfFromUrl()` atau modal legacy.
+Rollout guard: `SIGNATURE_FRONTEND_ENABLED` default `false` dan action juga
+mensyaratkan `SIGNATURE_MULTI_OPERATION_ENABLED=true`. Flag frontend baru boleh
+diaktifkan setelah shell Svelte F2 terpasang.
+
+Gate source selesai pada 24 September 2026: delegated listener hanya menangkap
+button canonical, menghasilkan tepat satu event, dan tidak memanggil
+`resetPdfFromUrl()` atau modal legacy. Build Vite production berhasil. Acceptance
+klik di browser menunggu shell modal F2 dan aktivasi flag.
 
 ### Tahap F2 - Fondasi Svelte/Vite island
 
@@ -486,7 +496,8 @@ sitangkas:esign:closed
 
 Pekerjaan:
 
-1. event open hanya membawa public identifier;
+1. event open hanya membawa `step_public_id` serta boolean capability, tanpa
+   path file atau data sensitif;
 2. Svelte menangani session/modal state;
 3. event completed membawa `documentId`/`attemptId` yang aman, bukan passphrase;
 4. adapter halaman memutuskan tabel mana yang direload;
@@ -919,9 +930,10 @@ baru. Urutannya:
 
 1. [SELESAI] Tahap F0: typed contract dan gap register dikunci terhadap source
    backend aktual;
-2. implementasikan Tahap F1 pada LS SPP agar action mengirim
-   `step_public_id` tanpa path file;
-3. setelah bridge tersedia, pasang fondasi Svelte/Vite Tahap F2-F5;
+2. [SELESAI DI SOURCE] Tahap F1: action LS SPP mengirim `step_public_id` tanpa
+   path file melalui event bridge;
+3. pasang fondasi Svelte/Vite Tahap F2-F5, lalu aktifkan feature flag frontend
+   setelah shell modal siap;
 4. bangun viewer/geometry/editor secara berurutan pada Tahap F6-F10;
 5. sambungkan final sign/progress pada Tahap F11-F12;
 6. tutup gap backend validasi/public delivery sebelum Tahap F13-F15;

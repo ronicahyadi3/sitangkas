@@ -30,6 +30,9 @@ Reconciliation, public verification, mapping runner, dan frontend Svelte belum
 dibuat. Audit frontend-backend F0 sudah selesai: endpoint aktif, response,
 binary media, error class, serta typed contract dikunci di
 `ESIGN_FRONTEND_BACKEND_CONTRACT_V1.md` dan `resources/js/esign/types.ts`.
+Bridge action LS SPP F1 juga tersedia di source dengan capability fail-closed,
+tanpa path file dan tanpa handler legacy; `SIGNATURE_FRONTEND_ENABLED` tetap
+default `false` sampai shell Svelte F2 tersedia.
 Visible placement/multi-operation tersedia di source tetapi default
 feature flag masih nonaktif dan belum lulus vertical slice operasional. Baca
 `CURRENT_ESIGN_IMPLEMENTATION.md` untuk kondisi kode aktual dan batas

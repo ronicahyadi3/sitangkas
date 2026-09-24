@@ -12,6 +12,10 @@ return [
         'ttl_minutes' => (int) env('ESIGN_SIGNING_SESSION_TTL_MINUTES', 15),
     ],
 
+    'frontend' => [
+        'enabled' => (bool) env('SIGNATURE_FRONTEND_ENABLED', false),
+    ],
+
     'visible_editor' => [
         'prepared_disk' => env('SIGNATURE_PREPARED_DISK', 'private'),
         'prepared_root' => env('SIGNATURE_PREPARED_ROOT', 'esign-prepared'),

@@ -8,3 +8,4 @@
 
 import './echo';
 import './realtime-presence';
+import './esign/action-bridge';

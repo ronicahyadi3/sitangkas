@@ -83,7 +83,8 @@ Route `{attempt}` menggunakan `public_id`, bukan primary key database.
 
 ## 4. Kontrak action payment
 
-Action canonical LS SPP pada F1 harus memberikan object berikut:
+Action canonical LS SPP F1 telah memberikan object berikut pada field `esign`
+row DataTable ketika signer memenuhi seluruh prasyarat:
 
 ```ts
 interface EsignActionCapabilities {
@@ -101,6 +102,25 @@ Aturan:
 - tidak ada `file`, `path`, `src_name`, NIK, atau URL storage pada data action;
 - DataTable/Blade meneruskan data melalui custom event, bukan pemanggilan global
   legacy `.sign`/`.signModal`.
+
+Implementasi berada di `LsSppSigningActionResolver`. Resolver menambahkan
+correlated subquery terindeks pada query DataTable, sehingga capability tidak
+menjalankan query policy per row. Hasil ini merupakan read-model fail-closed;
+endpoint create session tetap mengulang authorization authoritative dan lazy
+activation step pertama dalam transaksi.
+
+Button memakai `data-esign-action="sign"` dan `data-esign-step`, kemudian
+`resources/js/esign/action-bridge.js` menerbitkan event
+`sitangkas:esign:open` dengan detail `step_public_id`, `can_sign`, dan
+`can_verify`. Button tidak memakai `.sign` atau `.signModal`.
+
+Action baru dikendalikan oleh dua gate konfigurasi:
+
+- `SIGNATURE_FRONTEND_ENABLED=true`;
+- `SIGNATURE_MULTI_OPERATION_ENABLED=true`.
+
+Default frontend tetap `false` sampai shell Svelte F2 siap, sehingga deployment
+F1 tidak menghasilkan tombol yang belum mempunyai modal penerima event.
 
 ## 5. Create dan show signing session
 
@@ -278,23 +298,21 @@ harus mempunyai fallback untuk code baru yang belum dikenal.
 F0 tidak menutup gap dengan asumsi. Item berikut menjadi pekerjaan tahap
 berikutnya:
 
-1. Bridge action canonical LS SPP belum mengirim `step_public_id`, `can_sign`,
-   dan `can_verify`. Ini target F1.
-2. Session belum membawa informasi dokumen aman untuk panel Konfirmasi seperti
+1. Session belum membawa informasi dokumen aman untuk panel Konfirmasi seperti
    nomor, jenis, atau label paket. Metadata tersebut harus ditambah dari backend
    canonical atau action bridge yang terauthorisasi; frontend tidak boleh
    menyimpulkannya dari nama file/path.
-3. Endpoint validasi canonical beserta summary signer/signature dan authorized
+2. Endpoint validasi canonical beserta summary signer/signature dan authorized
    preview belum tersedia. `can_verify` harus tetap false sampai gap ini ditutup.
-4. Delivery final berdasarkan `result_artifact_id` belum mempunyai URL pada
+3. Delivery final berdasarkan `result_artifact_id` belum mempunyai URL pada
    response attempt. Frontend tidak boleh membangun URL download sendiri.
-5. Belum ada endpoint recovery attempt aktif berdasarkan step/session bila
+4. Belum ada endpoint recovery attempt aktif berdasarkan step/session bila
    browser kehilangan `status_url` setelah refresh penuh. F12 memerlukan
    keputusan backend untuk active-attempt discovery.
-6. Error envelope selain konflik 409 belum mempunyai application code seragam.
+5. Error envelope selain konflik 409 belum mempunyai application code seragam.
    F5 harus menormalisasi berdasarkan HTTP status dan tidak bergantung pada
    kalimat message.
-7. Backend belum mengirim versi schema kontrak. Perubahan field di endpoint ini
+6. Backend belum mengirim versi schema kontrak. Perubahan field di endpoint ini
    wajib disertai update file type dan dokumen kontrak pada perubahan yang sama.
 
 Gap tersebut tidak menghalangi F1-F10, tetapi item 2 perlu selesai sebelum panel
@@ -316,6 +334,6 @@ F0 dinyatakan selesai karena:
   disamarkan sebagai fitur yang sudah tersedia;
 - tidak ada test suite yang dibuat atau dijalankan.
 
-Langkah berikutnya adalah F1: membuat bridge backend LS SPP ke action frontend
-canonical dengan `step_public_id` dan capability yang dihitung backend.
-
+Langkah berikutnya adalah F2: memasang fondasi Svelte/Vite island dan shell
+modal yang menerima event bridge F1. Feature flag frontend baru diaktifkan
+setelah listener/modal tersebut siap.

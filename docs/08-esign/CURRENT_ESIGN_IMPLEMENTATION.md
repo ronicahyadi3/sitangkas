@@ -1026,7 +1026,12 @@ afirmasi.
 Frontend Tahap F0 sudah selesai. Endpoint aktif, typed request/response, binary
 media, status attempt/operation, klasifikasi error, dan gap register dikunci di
 `ESIGN_FRONTEND_BACKEND_CONTRACT_V1.md`; type TypeScript canonical berada di
-`resources/js/esign/types.ts`. Tahap berikutnya adalah F1 bridge action LS SPP.
+`resources/js/esign/types.ts`. F1 bridge action LS SPP juga selesai di source:
+capability signer dihitung tanpa N+1 oleh `LsSppSigningActionResolver`, row
+DataTable hanya membawa `step_public_id` dan boolean capability, serta delegated
+listener menerbitkan `sitangkas:esign:open`. Action masih tersembunyi karena
+`SIGNATURE_FRONTEND_ENABLED` default `false` sampai shell Svelte F2 siap.
+Tahap berikutnya adalah F2 fondasi Svelte/Vite island.
 Pilot real, aktivasi feature flag operasional, public verification, dan rollout
 tetap menunggu gate backend terkait. Urutan rinci berada di
 `ESIGN_FRONTEND_IMPLEMENTATION_AND_LEGACY_MIGRATION_PLAN.md`.
@@ -1040,7 +1045,7 @@ tetap menunggu gate backend terkait. Urutan rinci berada di
 4. [SELESAI DI SOURCE] Persistence operation + worker serial checkpoint-aware + partial resume + final verify
 5. [SELESAI DI SOURCE] Public ID activation setelah sukses + compatibility projection satu aggregate
 6. [SELESAI] Audit dan penguncian kontrak frontend-backend F0
-7. Bridge action LS SPP canonical untuk frontend
+7. [SELESAI DI SOURCE] Bridge action LS SPP canonical untuk frontend
 8. Shared cache + production process manager + operational preflight
 9. Controlled LS SPP BP -> PPTK -> PA vertical slice
 10. Reconciliation/stuck/cleanup/observability

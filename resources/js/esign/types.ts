@@ -23,6 +23,8 @@ export interface EsignActionCapabilities {
     can_verify: boolean;
 }
 
+export type EsignOpenEventDetail = EsignActionCapabilities;
+
 export interface PdfPageGeometry {
     page: number;
     width: number;
