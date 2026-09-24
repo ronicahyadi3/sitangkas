@@ -29,6 +29,11 @@ final class EsignAttemptPolicy
             : $this->authorization->viewStep($user, $step);
     }
 
+    public function resume(User $user, EsignAttempt $esignAttempt): Response
+    {
+        return $this->authorization->resumeAttempt($user, $esignAttempt);
+    }
+
     /**
      * Determine whether the user can create models.
      */

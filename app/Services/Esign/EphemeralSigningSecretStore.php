@@ -54,6 +54,26 @@ final class EphemeralSigningSecretStore
 
         $encryptedPayload = $this->store()->pull($this->key($reference));
 
+        return $this->decode($reference, $actorUserId, $encryptedPayload);
+    }
+
+    public function get(string $reference, int $actorUserId): ?SigningSecretData
+    {
+        if (! Str::isUuid($reference)) {
+            return null;
+        }
+
+        $encryptedPayload = $this->store()->get($this->key($reference));
+
+        return $this->decode($reference, $actorUserId, $encryptedPayload);
+    }
+
+    private function decode(
+        string $reference,
+        int $actorUserId,
+        mixed $encryptedPayload,
+    ): ?SigningSecretData {
+
         if (! is_string($encryptedPayload) || $encryptedPayload === '') {
             return null;
         }

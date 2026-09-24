@@ -8,6 +8,7 @@ use App\Enums\Esign\DocumentArtifactType;
 use App\Enums\Esign\DocumentSigningStepStatus;
 use App\Enums\Esign\DocumentSigningWorkflowEventType;
 use App\Enums\Esign\DocumentSigningWorkflowStatus;
+use App\Enums\Esign\EsignAttemptStatus;
 use App\Exceptions\Esign\EsignArtifactStorageException;
 use App\Exceptions\Esign\EsignInvariantViolationException;
 use App\Models\Document;
@@ -16,6 +17,7 @@ use App\Models\Esign\DocumentSigningStep;
 use App\Models\Esign\DocumentSigningWorkflow;
 use App\Models\Esign\DocumentSigningWorkflowEvent;
 use App\Models\Esign\EsignAttempt;
+use App\Models\Esign\EsignSignatureOperation;
 use App\Support\Esign\DocumentArtifactStoragePath;
 use Carbon\CarbonImmutable;
 use DateTimeInterface;
@@ -181,6 +183,56 @@ final class DocumentArtifactPersistenceService
     }
 
     /** @param array<string, mixed>|null $metadata */
+    public function finalizePreparedSourceArtifact(
+        StagedDocumentArtifact $stagedArtifact,
+        DocumentSigningWorkflow|int $workflow,
+        DocumentSigningStep|int $step,
+        DocumentArtifact|int $parentArtifact,
+        ?string $originalName = null,
+        ?int $createdByUserId = null,
+        ?array $metadata = null,
+    ): DocumentArtifact {
+        if (! $stagedArtifact->hasPdfHeader || $stagedArtifact->sizeBytes === 0) {
+            throw new EsignArtifactStorageException(
+                'prepared_source_artifact_pdf_invalid',
+                $stagedArtifact->publicId,
+            );
+        }
+
+        $workflowId = $workflow instanceof DocumentSigningWorkflow
+            ? (int) $workflow->getKey()
+            : $workflow;
+        $stepId = $step instanceof DocumentSigningStep
+            ? (int) $step->getKey()
+            : $step;
+        $parentArtifactId = $parentArtifact instanceof DocumentArtifact
+            ? (int) $parentArtifact->getKey()
+            : $parentArtifact;
+        $documentId = $parentArtifact instanceof DocumentArtifact
+            ? (int) $parentArtifact->document_id
+            : (int) DocumentArtifact::query()->whereKey($parentArtifactId)->valueOrFail('document_id');
+
+        return $this->finalizeArtifact(
+            stagedArtifact: $stagedArtifact,
+            documentId: $documentId,
+            artifactType: DocumentArtifactType::BeforeSign,
+            parentArtifactId: $parentArtifactId,
+            makeCurrent: true,
+            originalName: $originalName,
+            createdByUserId: $createdByUserId,
+            sourceSystem: 'application',
+            sourceReferenceType: 'prepared_signing_rendition',
+            sourceReferenceId: is_array($metadata)
+                && is_string($metadata['prepared_revision'] ?? null)
+                    ? $metadata['prepared_revision']
+                    : null,
+            metadata: $metadata,
+            replaceableActiveWorkflowId: $workflowId,
+            replaceableActiveStepId: $stepId,
+        );
+    }
+
+    /** @param array<string, mixed>|null $metadata */
     public function finalizeAttemptOutputArtifact(
         StagedDocumentArtifact $stagedArtifact,
         EsignAttempt|int $attempt,
@@ -203,6 +255,17 @@ final class DocumentArtifactPersistenceService
             throw new EsignInvariantViolationException('attempt_output_document_id_required');
         }
 
+        /** @var EsignSignatureOperation|null $lastCompletedOperation */
+        $lastCompletedOperation = EsignSignatureOperation::query()
+            ->where('esign_attempt_id', $attemptId)
+            ->where('status', 'completed')
+            ->whereNotNull('output_artifact_id')
+            ->orderByDesc('operation_index')
+            ->first();
+        $parentArtifactId = $lastCompletedOperation instanceof EsignSignatureOperation
+            ? (int) $lastCompletedOperation->output_artifact_id
+            : (int) $attemptSnapshot->source_artifact_id;
+
         if ($verificationPassed
             && (! $stagedArtifact->hasPdfHeader || $stagedArtifact->sizeBytes === 0)) {
             throw new EsignArtifactStorageException(
@@ -217,7 +280,7 @@ final class DocumentArtifactPersistenceService
             artifactType: $verificationPassed
                 ? DocumentArtifactType::AfterSign
                 : DocumentArtifactType::FailedOutput,
-            parentArtifactId: (int) $attemptSnapshot->source_artifact_id,
+            parentArtifactId: $parentArtifactId,
             makeCurrent: false,
             originalName: null,
             createdByUserId: $context->actorUserId,
@@ -228,6 +291,7 @@ final class DocumentArtifactPersistenceService
                 'verification_passed' => $verificationPassed,
                 'pdf_header_valid' => $stagedArtifact->hasPdfHeader,
             ] + ($metadata ?? []),
+            allowNonCurrentParent: $lastCompletedOperation instanceof EsignSignatureOperation,
         );
 
         $this->attemptPersistence->attachResultArtifact(
@@ -237,6 +301,68 @@ final class DocumentArtifactPersistenceService
         );
 
         return $artifact;
+    }
+
+    /** @param array<string, mixed>|null $metadata */
+    public function finalizeSignatureOperationCheckpoint(
+        StagedDocumentArtifact $stagedArtifact,
+        EsignAttempt|int $attempt,
+        EsignSignatureOperation|int $operation,
+        ?int $createdByUserId = null,
+        ?array $metadata = null,
+    ): DocumentArtifact {
+        $attemptId = $attempt instanceof EsignAttempt ? (int) $attempt->getKey() : $attempt;
+        $operationId = $operation instanceof EsignSignatureOperation
+            ? (int) $operation->getKey()
+            : $operation;
+        /** @var EsignAttempt $attemptSnapshot */
+        $attemptSnapshot = EsignAttempt::query()
+            ->select(['id', 'document_id'])
+            ->findOrFail($attemptId);
+        /** @var EsignSignatureOperation $operationSnapshot */
+        $operationSnapshot = EsignSignatureOperation::query()
+            ->select([
+                'id',
+                'public_id',
+                'esign_attempt_id',
+                'operation_index',
+                'input_artifact_id',
+                'input_sha256',
+            ])
+            ->findOrFail($operationId);
+
+        if ($attemptSnapshot->document_id === null
+            || (int) $operationSnapshot->esign_attempt_id !== $attemptId
+            || $operationSnapshot->input_artifact_id === null) {
+            throw new EsignInvariantViolationException('signature_checkpoint_context_invalid');
+        }
+
+        /** @var DocumentArtifact $inputArtifact */
+        $inputArtifact = DocumentArtifact::query()->findOrFail($operationSnapshot->input_artifact_id);
+
+        if ($inputArtifact->document_id !== $attemptSnapshot->document_id
+            || ! hash_equals((string) $operationSnapshot->input_sha256, (string) $inputArtifact->file_sha256)) {
+            throw new EsignInvariantViolationException('signature_checkpoint_input_mismatch');
+        }
+
+        return $this->finalizeArtifact(
+            stagedArtifact: $stagedArtifact,
+            documentId: (int) $attemptSnapshot->document_id,
+            artifactType: DocumentArtifactType::IntermediateSign,
+            parentArtifactId: (int) $inputArtifact->getKey(),
+            makeCurrent: false,
+            originalName: null,
+            createdByUserId: $createdByUserId,
+            sourceSystem: 'bsre',
+            sourceReferenceType: 'esign_signature_operation',
+            sourceReferenceId: $operationSnapshot->public_id,
+            metadata: [
+                'esign_attempt_id' => $attemptId,
+                'esign_signature_operation_id' => $operationId,
+                'operation_index' => $operationSnapshot->operation_index,
+            ] + ($metadata ?? []),
+            allowNonCurrentParent: true,
+        );
     }
 
     /** @param resource|string $contents */
@@ -288,9 +414,17 @@ final class DocumentArtifactPersistenceService
         ?int $replaceableDraftWorkflowId = null,
         ?int $actorUserPositionId = null,
         bool $actorIsActing = false,
+        ?int $replaceableActiveWorkflowId = null,
+        ?int $replaceableActiveStepId = null,
+        bool $allowNonCurrentParent = false,
     ): DocumentArtifact {
         $this->assertStagedArtifact($stagedArtifact);
         $this->assertMetadataLengths($sourceSystem, $sourceReferenceType, $sourceReferenceId);
+
+        if ($replaceableDraftWorkflowId !== null
+            && ($replaceableActiveWorkflowId !== null || $replaceableActiveStepId !== null)) {
+            throw new EsignInvariantViolationException('artifact_workflow_replacement_mode_conflict');
+        }
 
         $existingArtifact = DocumentArtifact::query()
             ->where('public_id', $stagedArtifact->publicId)
@@ -315,6 +449,9 @@ final class DocumentArtifactPersistenceService
             $parentArtifactId,
             $makeCurrent,
             $replaceableDraftWorkflowId,
+            $replaceableActiveWorkflowId,
+            $replaceableActiveStepId,
+            $allowNonCurrentParent,
         );
 
         $finalPath = $this->finalPath($stagedArtifact, $artifactType);
@@ -336,6 +473,9 @@ final class DocumentArtifactPersistenceService
             replaceableDraftWorkflowId: $replaceableDraftWorkflowId,
             actorUserPositionId: $actorUserPositionId,
             actorIsActing: $actorIsActing,
+            replaceableActiveWorkflowId: $replaceableActiveWorkflowId,
+            replaceableActiveStepId: $replaceableActiveStepId,
+            allowNonCurrentParent: $allowNonCurrentParent,
         );
     }
 
@@ -345,6 +485,9 @@ final class DocumentArtifactPersistenceService
         ?int $parentArtifactId,
         bool $makeCurrent,
         ?int $replaceableDraftWorkflowId,
+        ?int $replaceableActiveWorkflowId,
+        ?int $replaceableActiveStepId,
+        bool $allowNonCurrentParent,
     ): void {
         Document::withTrashed()->findOrFail($documentId);
 
@@ -374,8 +517,32 @@ final class DocumentArtifactPersistenceService
                 );
             }
 
+            if ($replaceableActiveWorkflowId !== null || $replaceableActiveStepId !== null) {
+                if ($replaceableActiveWorkflowId === null || $replaceableActiveStepId === null) {
+                    throw new EsignInvariantViolationException('prepared_source_active_binding_incomplete');
+                }
+
+                /** @var DocumentSigningWorkflow|null $replaceableWorkflow */
+                $replaceableWorkflow = $inProgressWorkflows->firstWhere('id', $replaceableActiveWorkflowId);
+
+                if (! $replaceableWorkflow instanceof DocumentSigningWorkflow) {
+                    throw new EsignInvariantViolationException('prepared_source_active_workflow_not_found');
+                }
+
+                $this->assertReplaceableActiveStep(
+                    $replaceableWorkflow,
+                    $replaceableActiveStepId,
+                    $documentId,
+                    $parentArtifactId,
+                );
+            }
+
             if ($inProgressWorkflows
-                ->reject(static fn (DocumentSigningWorkflow $workflow): bool => (int) $workflow->getKey() === $replaceableDraftWorkflowId)
+                ->reject(static fn (DocumentSigningWorkflow $workflow): bool => in_array(
+                    (int) $workflow->getKey(),
+                    array_filter([$replaceableDraftWorkflowId, $replaceableActiveWorkflowId]),
+                    true,
+                ))
                 ->isNotEmpty()) {
                 throw new EsignInvariantViolationException('source_artifact_has_in_progress_workflow');
             }
@@ -403,6 +570,7 @@ final class DocumentArtifactPersistenceService
             $parentArtifact,
             $currentArtifacts,
             $makeCurrent,
+            $allowNonCurrentParent,
         );
     }
 
@@ -423,6 +591,9 @@ final class DocumentArtifactPersistenceService
         ?int $replaceableDraftWorkflowId,
         ?int $actorUserPositionId,
         bool $actorIsActing,
+        ?int $replaceableActiveWorkflowId,
+        ?int $replaceableActiveStepId,
+        bool $allowNonCurrentParent,
     ): DocumentArtifact {
         return DB::transaction(function () use (
             $stagedArtifact,
@@ -440,6 +611,9 @@ final class DocumentArtifactPersistenceService
             $replaceableDraftWorkflowId,
             $actorUserPositionId,
             $actorIsActing,
+            $replaceableActiveWorkflowId,
+            $replaceableActiveStepId,
+            $allowNonCurrentParent,
         ): DocumentArtifact {
             Document::withTrashed()
                 ->lockForUpdate()
@@ -465,6 +639,8 @@ final class DocumentArtifactPersistenceService
 
             $replaceableWorkflow = null;
             $replaceableWorkflowSteps = collect();
+            $replaceableActiveWorkflow = null;
+            $replaceableActiveStep = null;
 
             if ($makeCurrent) {
                 $inProgressWorkflows = DocumentSigningWorkflow::query()
@@ -494,8 +670,33 @@ final class DocumentArtifactPersistenceService
                     );
                 }
 
+                if ($replaceableActiveWorkflowId !== null || $replaceableActiveStepId !== null) {
+                    if ($replaceableActiveWorkflowId === null || $replaceableActiveStepId === null) {
+                        throw new EsignInvariantViolationException('prepared_source_active_binding_incomplete');
+                    }
+
+                    /** @var DocumentSigningWorkflow|null $replaceableActiveWorkflow */
+                    $replaceableActiveWorkflow = $inProgressWorkflows->firstWhere('id', $replaceableActiveWorkflowId);
+
+                    if (! $replaceableActiveWorkflow instanceof DocumentSigningWorkflow) {
+                        throw new EsignInvariantViolationException('prepared_source_active_workflow_not_found');
+                    }
+
+                    $replaceableActiveStep = $this->assertReplaceableActiveStep(
+                        $replaceableActiveWorkflow,
+                        $replaceableActiveStepId,
+                        $documentId,
+                        $parentArtifactId,
+                        lockForUpdate: true,
+                    );
+                }
+
                 if ($inProgressWorkflows
-                    ->reject(static fn (DocumentSigningWorkflow $workflow): bool => (int) $workflow->getKey() === $replaceableDraftWorkflowId)
+                    ->reject(static fn (DocumentSigningWorkflow $workflow): bool => in_array(
+                        (int) $workflow->getKey(),
+                        array_filter([$replaceableDraftWorkflowId, $replaceableActiveWorkflowId]),
+                        true,
+                    ))
                     ->isNotEmpty()) {
                     throw new EsignInvariantViolationException('source_artifact_has_in_progress_workflow');
                 }
@@ -514,6 +715,7 @@ final class DocumentArtifactPersistenceService
                 $parentArtifact,
                 $currentArtifacts,
                 $makeCurrent,
+                $allowNonCurrentParent,
             );
 
             $version = ((int) DocumentArtifact::query()
@@ -559,6 +761,19 @@ final class DocumentArtifactPersistenceService
                 $this->rebindDraftWorkflowToArtifact(
                     $replaceableWorkflow,
                     $replaceableWorkflowSteps,
+                    $artifact,
+                    $parentArtifactId,
+                    $createdByUserId,
+                    $actorUserPositionId,
+                    $actorIsActing,
+                );
+            }
+
+            if ($replaceableActiveWorkflow instanceof DocumentSigningWorkflow
+                && $replaceableActiveStep instanceof DocumentSigningStep) {
+                $this->rebindActiveStepToArtifact(
+                    $replaceableActiveWorkflow,
+                    $replaceableActiveStep,
                     $artifact,
                     $parentArtifactId,
                     $createdByUserId,
@@ -631,6 +846,57 @@ final class DocumentArtifactPersistenceService
         return $steps;
     }
 
+    private function assertReplaceableActiveStep(
+        DocumentSigningWorkflow $workflow,
+        int $stepId,
+        int $documentId,
+        ?int $parentArtifactId,
+        bool $lockForUpdate = false,
+    ): DocumentSigningStep {
+        if ($parentArtifactId === null
+            || $workflow->document_id !== $documentId
+            || $workflow->status !== DocumentSigningWorkflowStatus::Active
+            || (int) $workflow->current_artifact_id !== $parentArtifactId
+            || $workflow->current_sequence === null) {
+            throw new EsignInvariantViolationException('prepared_source_active_workflow_not_replaceable');
+        }
+
+        $stepQuery = DocumentSigningStep::query()
+            ->whereKey($stepId)
+            ->where('document_signing_workflow_id', $workflow->getKey());
+
+        if ($lockForUpdate) {
+            $stepQuery->lockForUpdate();
+        }
+
+        /** @var DocumentSigningStep|null $step */
+        $step = $stepQuery->first();
+
+        if (! $step instanceof DocumentSigningStep
+            || $step->status !== DocumentSigningStepStatus::Active
+            || (int) $step->sequence !== (int) $workflow->current_sequence
+            || (int) $step->source_artifact_id !== $parentArtifactId
+            || $step->result_artifact_id !== null) {
+            throw new EsignInvariantViolationException('prepared_source_active_step_not_replaceable');
+        }
+
+        $hasBlockingAttempt = $step->attempts()
+            ->whereIn('status', [
+                EsignAttemptStatus::Prepared->value,
+                EsignAttemptStatus::Signing->value,
+                EsignAttemptStatus::PartiallySigned->value,
+                EsignAttemptStatus::Validating->value,
+                EsignAttemptStatus::Unknown->value,
+            ])
+            ->exists();
+
+        if ($hasBlockingAttempt) {
+            throw new EsignInvariantViolationException('prepared_source_active_step_has_blocking_attempt');
+        }
+
+        return $step;
+    }
+
     /** @param Collection<int, DocumentSigningStep> $steps */
     private function rebindDraftWorkflowToArtifact(
         DocumentSigningWorkflow $workflow,
@@ -677,6 +943,48 @@ final class DocumentArtifactPersistenceService
         ]);
     }
 
+    private function rebindActiveStepToArtifact(
+        DocumentSigningWorkflow $workflow,
+        DocumentSigningStep $step,
+        DocumentArtifact $artifact,
+        ?int $parentArtifactId,
+        ?int $actorUserId,
+        ?int $actorUserPositionId,
+        bool $actorIsActing,
+    ): void {
+        if ($parentArtifactId === null) {
+            throw new EsignInvariantViolationException('prepared_source_active_rebind_invalid');
+        }
+
+        $step->source_artifact_id = $artifact->getKey();
+        $step->save();
+
+        $workflow->current_artifact_id = $artifact->getKey();
+        $workflow->lock_version = (int) $workflow->lock_version + 1;
+        $workflow->save();
+
+        DocumentSigningWorkflowEvent::query()->create([
+            'public_id' => (string) Str::uuid(),
+            'document_signing_workflow_id' => $workflow->getKey(),
+            'document_signing_step_id' => $step->getKey(),
+            'event_type' => DocumentSigningWorkflowEventType::SourceArtifactReplaced,
+            'from_workflow_status' => DocumentSigningWorkflowStatus::Active,
+            'to_workflow_status' => DocumentSigningWorkflowStatus::Active,
+            'actor_user_id' => $actorUserId,
+            'actor_user_position_id' => $actorUserPositionId,
+            'actor_is_acting' => $actorIsActing,
+            'reason_code' => 'prepared_rendition_materialized',
+            'message' => 'Prepared rendition dipromosikan menjadi source artifact canonical.',
+            'metadata' => [
+                'previous_artifact_id' => $parentArtifactId,
+                'prepared_artifact_id' => $artifact->getKey(),
+                'prepared_artifact_public_id' => $artifact->public_id,
+                'prepared_artifact_version' => $artifact->version,
+            ],
+            'occurred_at' => now(),
+        ]);
+    }
+
     /** @return Collection<int, DocumentArtifact> */
     private function lockCurrentAndParentArtifacts(int $documentId, ?int $parentArtifactId): Collection
     {
@@ -701,6 +1009,7 @@ final class DocumentArtifactPersistenceService
         ?DocumentArtifact $parentArtifact,
         Collection $currentArtifacts,
         bool $makeCurrent,
+        bool $allowNonCurrentParent = false,
     ): void {
         if ($currentArtifacts->count() > 1) {
             throw new EsignInvariantViolationException('document_has_multiple_current_artifacts');
@@ -729,6 +1038,19 @@ final class DocumentArtifactPersistenceService
 
         if ($parentArtifactId === null || ! $parentArtifact instanceof DocumentArtifact) {
             throw new EsignInvariantViolationException('output_artifact_parent_required');
+        }
+
+        if ($allowNonCurrentParent) {
+            if (! in_array($artifactType, [
+                DocumentArtifactType::IntermediateSign,
+                DocumentArtifactType::AfterSign,
+                DocumentArtifactType::FailedOutput,
+            ], true)
+                || $currentArtifacts->count() !== 1) {
+                throw new EsignInvariantViolationException('checkpoint_artifact_chain_invalid');
+            }
+
+            return;
         }
 
         if ($currentArtifacts->count() !== 1
@@ -928,6 +1250,7 @@ final class DocumentArtifactPersistenceService
     ): string {
         $directory = match ($artifactType) {
             DocumentArtifactType::BeforeSign => 'source',
+            DocumentArtifactType::IntermediateSign => 'intermediate',
             DocumentArtifactType::AfterSign => 'signed',
             DocumentArtifactType::FailedOutput => 'failed-output',
         };

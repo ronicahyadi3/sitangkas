@@ -74,8 +74,30 @@ class EsignAttempt extends Model
     protected static function booted(): void
     {
         static::updating(function (self $attempt): void {
-            if ($attempt->isDirty('document_id')) {
-                throw new EsignInvariantViolationException('attempt_document_id_immutable');
+            if ($attempt->isDirty([
+                'public_id',
+                'idempotency_key',
+                'request_correlation_id',
+                'document_id',
+                'document_signing_step_id',
+                'attempt_number',
+                'planned_signature_count',
+                'source_artifact_id',
+                'actor_user_id',
+                'actor_user_position_id',
+                'signer_user_id',
+                'signer_user_position_id',
+                'is_acting',
+                'effective_role_code',
+                'effective_unit_kerja_id',
+                'effective_instansi_id',
+                'actor_context_snapshot',
+                'provider',
+                'request_fingerprint',
+                'source_artifact_sha256',
+                'preview_artifact_sha256',
+            ])) {
+                throw new EsignInvariantViolationException('attempt_identity_immutable');
             }
         });
     }

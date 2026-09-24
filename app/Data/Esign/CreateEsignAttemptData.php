@@ -12,6 +12,7 @@ final readonly class CreateEsignAttemptData
         public string $requestCorrelationId,
         public string $requestFingerprint,
         public ?string $previewArtifactSha256 = null,
+        public int $plannedSignatureCount = 1,
         public ?int $actorUserId = null,
         public ?int $actorUserPositionId = null,
         public ?int $signerUserId = null,

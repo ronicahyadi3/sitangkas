@@ -1,3 +1,10 @@
+## Explicit User Constraint: No Test Suite
+
+- Do not create, generate, edit, or extend automated test-suite files for any implementation task in this project.
+- Do not run Pest, PHPUnit, `php artisan test`, or any full/targeted automated test suite.
+- Verification must use non-test-suite checks such as PHP syntax checks, Laravel route/config inspection, migration dry-run/status, static inspection, or formatter checks when relevant.
+- This constraint overrides the testing recommendations below. Only create or run tests if the user explicitly revokes this constraint in a later request.
+
 <laravel-boost-guidelines>
 === foundation rules ===
 

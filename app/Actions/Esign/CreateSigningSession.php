@@ -99,6 +99,13 @@ final class CreateSigningSession
             throw new EsignInvariantViolationException('artifact_signature_state_ambiguous');
         }
 
+        $artifactMetadata = $artifact->metadata;
+        $footerApplied = (is_array($artifactMetadata)
+                && ($artifactMetadata['footer_applied'] ?? false) === true)
+            || $artifact->decorations()
+                ->where('decoration_type', 'footer')
+                ->exists();
+
         $createdAt = CarbonImmutable::now();
         $expiresAt = $createdAt->addMinutes($this->ttlMinutes());
         $session = new SigningSessionData(
@@ -123,6 +130,7 @@ final class CreateSigningSession
             placementRequired: (bool) $step->placement_required,
             signatureState: $signatureState,
             verifiedSignatureCount: $verifiedSignatureCount,
+            footerApplied: $footerApplied,
             pageGeometries: $pageGeometries,
             createdAt: $createdAt,
             expiresAt: $expiresAt,

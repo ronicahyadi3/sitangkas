@@ -5,9 +5,12 @@ namespace App\Services\Esign\Authorization;
 use App\Enums\Esign\DocumentSigningStepStatus;
 use App\Enums\Esign\DocumentSigningWorkflowStatus;
 use App\Enums\Esign\EsignAttemptStatus;
+use App\Enums\Esign\EsignSignatureOperationStatus;
 use App\Models\Esign\DocumentArtifact;
 use App\Models\Esign\DocumentSigningStep;
 use App\Models\Esign\DocumentSigningWorkflow;
+use App\Models\Esign\EsignAttempt;
+use App\Models\Esign\EsignSignatureOperation;
 use App\Models\User;
 use App\Models\UserPosition;
 use App\Services\Auth\CurrentUserContext;
@@ -132,6 +135,77 @@ final class EsignAuthorizationService
             return Response::deny(
                 'Percobaan TTE terakhir tidak dapat diulang secara langsung.',
                 'esign_attempt_not_retryable',
+            );
+        }
+
+        return Response::allow();
+    }
+
+    public function resumeAttempt(User $user, EsignAttempt $attempt): Response
+    {
+        $step = $attempt->step()->first();
+
+        if (! $step instanceof DocumentSigningStep) {
+            return $this->notFound();
+        }
+
+        $assignment = $this->assignedActorPrerequisites($user, $step);
+
+        if ($assignment->denied()) {
+            return $assignment;
+        }
+
+        $workflow = $this->workflowForStep($step);
+
+        if (! $workflow instanceof DocumentSigningWorkflow
+            || $workflow->status !== DocumentSigningWorkflowStatus::Active
+            || $step->status !== DocumentSigningStepStatus::Signing
+            || (int) $workflow->current_sequence !== (int) $step->sequence
+            || $attempt->status !== EsignAttemptStatus::PartiallySigned
+            || ! $attempt->retryable
+            || (int) $attempt->actor_user_id !== (int) $user->getKey()
+            || (int) $attempt->signer_user_id !== (int) $user->getKey()
+            || (int) $attempt->actor_user_position_id !== (int) $step->assigned_user_position_id
+            || (int) $attempt->signer_user_position_id !== (int) $step->assigned_user_position_id
+            || $attempt->is_acting
+            || (int) $workflow->current_artifact_id !== (int) $attempt->source_artifact_id
+            || (int) $step->source_artifact_id !== (int) $attempt->source_artifact_id) {
+            return Response::deny(
+                'Percobaan TTE parsial tidak berada pada state yang dapat dilanjutkan.',
+                'esign_attempt_not_resumable',
+            );
+        }
+
+        $sourceArtifact = $attempt->sourceArtifact()->first();
+
+        if (! $sourceArtifact instanceof DocumentArtifact
+            || ! $sourceArtifact->is_current
+            || ! $this->yearAccess->canWrite(
+                $this->currentUserContext->realActivePosition($this->request),
+                (int) $sourceArtifact->document_year,
+            )) {
+            return Response::deny(
+                'Artifact atau izin tahun dokumen tidak lagi memenuhi prasyarat resume.',
+                'esign_resume_artifact_not_authorized',
+            );
+        }
+
+        /** @var EsignSignatureOperation|null $nextOperation */
+        $nextOperation = $attempt->signatureOperations()
+            ->where('operation_index', $attempt->completed_signature_count)
+            ->first();
+        $completedPrefixCount = $attempt->signatureOperations()
+            ->where('operation_index', '<', $attempt->completed_signature_count)
+            ->where('status', EsignSignatureOperationStatus::Completed->value)
+            ->count();
+
+        if (! $nextOperation instanceof EsignSignatureOperation
+            || $nextOperation->status !== EsignSignatureOperationStatus::Failed
+            || ! $nextOperation->retryable
+            || $completedPrefixCount !== (int) $attempt->completed_signature_count) {
+            return Response::deny(
+                'Checkpoint operasi TTE tidak memenuhi syarat resume otomatis.',
+                'esign_attempt_checkpoint_not_resumable',
             );
         }
 

@@ -3,6 +3,7 @@
 namespace App\Models\Esign;
 
 use App\Enums\Esign\SignatureDisplayMode;
+use App\Exceptions\Esign\EsignInvariantViolationException;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
@@ -47,6 +48,17 @@ class EsignAttemptSignatureProperty extends Model
         'visual_file_path',
         'visual_sha256',
     ];
+
+    protected static function booted(): void
+    {
+        static::updating(function (): never {
+            throw new EsignInvariantViolationException('attempt_signature_property_is_append_only');
+        });
+
+        static::deleting(function (): never {
+            throw new EsignInvariantViolationException('attempt_signature_property_is_append_only');
+        });
+    }
 
     public function attempt(): BelongsTo
     {

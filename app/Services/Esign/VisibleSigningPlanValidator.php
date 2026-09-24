@@ -100,6 +100,14 @@ final class VisibleSigningPlanValidator
             return null;
         }
 
+        if ($session->footerApplied) {
+            if ($input !== null) {
+                $this->invalid('footer', 'esign.footer_already_applied');
+            }
+
+            return null;
+        }
+
         if (! is_array($input)) {
             $this->invalid('footer', 'esign.footer_required_for_unsigned_pdf');
         }

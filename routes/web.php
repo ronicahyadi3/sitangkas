@@ -17,6 +17,7 @@ use App\Http\Controllers\Data\Rekening as DocumentRekeningController;
 use App\Http\Controllers\Data\Verify as DocumentVerifyController;
 use App\Http\Controllers\Document\LsSppDocumentDeliveryController;
 use App\Http\Controllers\Esign\EsignAttemptController;
+use App\Http\Controllers\Esign\EsignAttemptResumeController;
 use App\Http\Controllers\Esign\SigningSessionController;
 use App\Http\Controllers\Esign\SigningSessionPreviewController;
 use App\Http\Controllers\Esign\SigningSessionRenditionController;
@@ -171,8 +172,13 @@ Route::middleware(['auth', 'account.accessible', 'single.device.session'])->grou
                 ->middleware('throttle:esign-prepare')
                 ->name('signing-sessions.destroy');
             Route::get('/attempts/{esignAttempt}', EsignAttemptController::class)
+                ->whereUuid('esignAttempt')
                 ->middleware('throttle:esign-status')
                 ->name('attempts.show');
+            Route::post('/attempts/{esignAttempt}/resume', EsignAttemptResumeController::class)
+                ->whereUuid('esignAttempt')
+                ->middleware('throttle:esign-sign')
+                ->name('attempts.resume');
         });
 
         Route::prefix('document')->name('document.')->group(function (): void {

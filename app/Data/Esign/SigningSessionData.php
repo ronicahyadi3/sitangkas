@@ -29,6 +29,7 @@ final readonly class SigningSessionData
         public bool $placementRequired,
         public string $signatureState,
         public int $verifiedSignatureCount,
+        public bool $footerApplied,
         /** @var list<array{page: int, width: float, height: float, rotation: int}> */
         public array $pageGeometries,
         public CarbonImmutable $createdAt,
@@ -60,6 +61,7 @@ final readonly class SigningSessionData
             'placement_required' => $this->placementRequired,
             'signature_state' => $this->signatureState,
             'verified_signature_count' => $this->verifiedSignatureCount,
+            'footer_applied' => $this->footerApplied,
             'page_geometries' => $this->pageGeometries,
             'created_at' => $this->createdAt->toIso8601String(),
             'expires_at' => $this->expiresAt->toIso8601String(),
@@ -78,6 +80,7 @@ final readonly class SigningSessionData
             'artifact_sha256' => $this->sourceArtifactSha256,
             'signature_state' => $this->signatureState,
             'verified_signature_count' => $this->verifiedSignatureCount,
+            'footer_applied' => $this->footerApplied,
             'pages' => $this->pageGeometries,
             'expires_at' => $this->expiresAt->toIso8601String(),
         ];
@@ -109,6 +112,7 @@ final readonly class SigningSessionData
                 placementRequired: self::boolean($payload, 'placement_required'),
                 signatureState: self::string($payload, 'signature_state'),
                 verifiedSignatureCount: self::integer($payload, 'verified_signature_count'),
+                footerApplied: self::optionalBoolean($payload, 'footer_applied', false),
                 pageGeometries: self::pageGeometries($payload),
                 createdAt: CarbonImmutable::parse(self::string($payload, 'created_at')),
                 expiresAt: CarbonImmutable::parse(self::string($payload, 'expires_at')),
@@ -156,6 +160,16 @@ final readonly class SigningSessionData
         }
 
         return $payload[$key];
+    }
+
+    /** @param array<string, mixed> $payload */
+    private static function optionalBoolean(array $payload, string $key, bool $default): bool
+    {
+        if (! array_key_exists($key, $payload)) {
+            return $default;
+        }
+
+        return self::boolean($payload, $key);
     }
 
     /** @param array<string, mixed> $payload */

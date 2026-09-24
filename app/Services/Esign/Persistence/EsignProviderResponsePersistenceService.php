@@ -10,14 +10,21 @@ use App\Enums\Esign\EsignProviderOutcome;
 use App\Exceptions\Esign\EsignOperationException;
 use App\Models\Esign\EsignAttempt;
 use App\Models\Esign\EsignProviderResponse;
+use App\Models\Esign\EsignSignatureOperation;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 final class EsignProviderResponsePersistenceService
 {
-    public function recordSignSuccess(EsignAttempt $attempt, SignResultData $result): EsignProviderResponse
-    {
+    public function recordSignSuccess(
+        EsignAttempt $attempt,
+        SignResultData $result,
+        ?EsignSignatureOperation $signatureOperation = null,
+        ?int $inputArtifactId = null,
+        ?int $outputArtifactId = null,
+    ): EsignProviderResponse {
         return $this->record($attempt, [
+            'esign_signature_operation_id' => $signatureOperation?->getKey(),
             'operation' => EsignProviderOperation::Sign,
             'outcome' => EsignProviderOutcome::Success,
             'http_status' => $result->httpStatus,
@@ -29,7 +36,8 @@ final class EsignProviderResponsePersistenceService
             'response_size' => $result->pdfSize,
             'response_sha256' => $result->pdfSha256,
             'safe_payload' => $result->toArray(),
-            'input_artifact_id' => $attempt->source_artifact_id,
+            'input_artifact_id' => $inputArtifactId ?? $attempt->source_artifact_id,
+            'output_artifact_id' => $outputArtifactId,
         ]);
     }
 
@@ -37,6 +45,9 @@ final class EsignProviderResponsePersistenceService
         EsignAttempt $attempt,
         VerificationResultData $result,
         ?int $outputArtifactId = null,
+        ?int $inputArtifactId = null,
+        ?int $expectedSignatureCount = null,
+        ?bool $applicationAccepted = null,
     ): EsignProviderResponse {
         return $this->record($attempt, [
             'operation' => EsignProviderOperation::Verify,
@@ -54,8 +65,10 @@ final class EsignProviderResponsePersistenceService
                 'description' => $result->description,
                 'conclusion' => $result->conclusion,
                 'valid' => $result->isValid(),
+                'expected_signature_count' => $expectedSignatureCount,
+                'application_accepted' => $applicationAccepted ?? $result->isValid(),
             ],
-            'input_artifact_id' => $attempt->source_artifact_id,
+            'input_artifact_id' => $inputArtifactId ?? $attempt->source_artifact_id,
             'output_artifact_id' => $outputArtifactId,
         ]);
     }
@@ -64,8 +77,11 @@ final class EsignProviderResponsePersistenceService
         EsignAttempt $attempt,
         EsignProviderOperation $operation,
         EsignOperationException $exception,
+        ?EsignSignatureOperation $signatureOperation = null,
+        ?int $inputArtifactId = null,
     ): EsignProviderResponse {
         return $this->record($attempt, [
+            'esign_signature_operation_id' => $signatureOperation?->getKey(),
             'operation' => $operation,
             'outcome' => $this->failureOutcome($exception->errorCode),
             'http_status' => $exception->httpStatus,
@@ -76,7 +92,7 @@ final class EsignProviderResponsePersistenceService
                 'application_error_code' => $exception->errorCode->value,
                 'retryable' => $exception->retryable,
             ],
-            'input_artifact_id' => $attempt->source_artifact_id,
+            'input_artifact_id' => $inputArtifactId ?? $attempt->source_artifact_id,
         ]);
     }
 

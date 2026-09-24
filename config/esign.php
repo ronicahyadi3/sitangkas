@@ -55,6 +55,7 @@ return [
     ],
 
     'processing' => [
+        'multi_operation_enabled' => (bool) env('SIGNATURE_MULTI_OPERATION_ENABLED', false),
         'queue_connection' => env('SIGNATURE_QUEUE_CONNECTION', 'signatures'),
         'queue' => env('SIGNATURE_QUEUE', 'signatures'),
         'job_timeout_seconds' => (int) env('SIGNATURE_JOB_TIMEOUT_SECONDS', 900),

@@ -164,6 +164,55 @@ final class EphemeralPreparedRenditionStore
         );
     }
 
+    public function readVerifiedPdfContents(PreparedSigningRenditionData $rendition): string
+    {
+        return $this->verifiedPdfContents($rendition);
+    }
+
+    /** @return array<int, string> */
+    public function readVerifiedQrContents(PreparedSigningRenditionData $rendition): array
+    {
+        $this->assertConfiguredStorage($rendition);
+        $contentsByOperation = [];
+
+        foreach ($rendition->signatureOperations as $operation) {
+            $operationIndex = $operation['operation_index'] ?? null;
+            $path = $operation['visual_file_path'] ?? null;
+            $expectedSize = $operation['qr_size_bytes'] ?? null;
+            $expectedSha256 = $operation['qr_sha256'] ?? null;
+
+            if (! is_int($operationIndex)
+                || ! is_string($path)
+                || ! is_int($expectedSize)
+                || ! is_string($expectedSha256)) {
+                throw new EsignInvariantViolationException('prepared_rendition_qr_metadata_invalid');
+            }
+
+            try {
+                $contents = $this->filesystems->disk($rendition->storageDisk)->get($path);
+            } catch (\Throwable) {
+                throw new EsignInvariantViolationException('prepared_rendition_qr_missing');
+            }
+
+            if (! is_string($contents)
+                || ! str_starts_with($contents, "\x89PNG\r\n\x1a\n")
+                || strlen($contents) !== $expectedSize
+                || ! hash_equals($expectedSha256, hash('sha256', $contents))) {
+                throw new EsignInvariantViolationException('prepared_rendition_qr_integrity_mismatch');
+            }
+
+            $contentsByOperation[$operationIndex] = $contents;
+        }
+
+        ksort($contentsByOperation);
+
+        if (array_keys($contentsByOperation) !== range(0, count($contentsByOperation) - 1)) {
+            throw new EsignInvariantViolationException('prepared_rendition_qr_order_invalid');
+        }
+
+        return $contentsByOperation;
+    }
+
     public function qrResponse(
         PreparedSigningRenditionData $rendition,
         int $operationIndex,
@@ -230,6 +279,13 @@ final class EphemeralPreparedRenditionStore
 
     private function assertStoredIntegrity(PreparedSigningRenditionData $rendition): void
     {
+        $this->verifiedPdfContents($rendition);
+    }
+
+    private function verifiedPdfContents(PreparedSigningRenditionData $rendition): string
+    {
+        $this->assertConfiguredStorage($rendition);
+
         try {
             $contents = $this->filesystems->disk($rendition->storageDisk)->get($rendition->filePath);
         } catch (\Throwable $exception) {
@@ -242,6 +298,8 @@ final class EphemeralPreparedRenditionStore
             || ! hash_equals($rendition->sha256, hash('sha256', $contents))) {
             throw new EsignInvariantViolationException('prepared_rendition_integrity_mismatch');
         }
+
+        return $contents;
     }
 
     private function assertConfiguredStorage(PreparedSigningRenditionData $rendition): void

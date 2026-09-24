@@ -18,6 +18,7 @@ final class SigningSessionSignController extends Controller
     ): JsonResponse {
         $user = $request->user();
         abort_unless($user instanceof User, Response::HTTP_UNAUTHORIZED);
+        $preparedRevision = $request->validated('prepared_revision');
 
         $attempt = $signDocument->handle(
             user: $user,
@@ -25,6 +26,7 @@ final class SigningSessionSignController extends Controller
             idempotencyKey: (string) $request->validated('idempotency_key'),
             previewSha256: (string) $request->validated('preview_sha256'),
             passphrase: $request->passphrase(),
+            preparedRevision: is_string($preparedRevision) ? $preparedRevision : null,
         );
 
         return response()->json([

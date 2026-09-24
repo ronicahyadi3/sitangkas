@@ -4,7 +4,7 @@ namespace App\Http\Requests\Esign;
 
 use Illuminate\Foundation\Http\FormRequest;
 
-class SignDocumentRequest extends FormRequest
+class ResumeEsignAttemptRequest extends FormRequest
 {
     public function authorize(): bool
     {
@@ -16,10 +16,7 @@ class SignDocumentRequest extends FormRequest
     {
         return [
             'affirmed' => ['required', 'accepted'],
-            'idempotency_key' => ['required', 'uuid'],
             'passphrase' => ['required', 'string', 'max:255'],
-            'prepared_revision' => ['nullable', 'uuid'],
-            'preview_sha256' => ['required', 'string', 'size:64', 'regex:/\A[a-fA-F0-9]{64}\z/'],
         ];
     }
 

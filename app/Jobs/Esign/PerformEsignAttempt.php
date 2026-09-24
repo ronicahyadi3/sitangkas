@@ -15,6 +15,8 @@ class PerformEsignAttempt implements ShouldBeUnique, ShouldQueue
 {
     use Queueable;
 
+    public const SUPPORTS_VISIBLE_MULTI_OPERATION = true;
+
     public int $tries = 1;
 
     public int $timeout;

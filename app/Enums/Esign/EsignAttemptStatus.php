@@ -18,7 +18,7 @@ enum EsignAttemptStatus: string
             self::Prepared => in_array($target, [self::Signing, self::Failed], true),
             self::Signing => in_array($target, [self::PartiallySigned, self::Validating, self::Failed, self::Unknown], true),
             self::PartiallySigned => in_array($target, [self::Signing, self::Failed], true),
-            self::Validating => in_array($target, [self::Succeeded, self::Failed], true),
+            self::Validating => in_array($target, [self::Succeeded, self::Failed, self::Unknown], true),
             self::Unknown => in_array($target, [self::Succeeded, self::PartiallySigned, self::Failed], true),
             self::Succeeded, self::Failed => false,
         };

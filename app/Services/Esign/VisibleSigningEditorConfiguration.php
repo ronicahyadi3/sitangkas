@@ -14,7 +14,7 @@ final class VisibleSigningEditorConfiguration
     /** @return array<string, mixed> */
     public function forClient(SigningSessionData $session): array
     {
-        $footerAllowed = $session->signatureState === 'unsigned';
+        $footerAllowed = $session->signatureState === 'unsigned' && ! $session->footerApplied;
 
         return [
             'coordinate_origin' => 'top_left',

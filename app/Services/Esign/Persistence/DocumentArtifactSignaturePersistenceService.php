@@ -23,7 +23,19 @@ final class DocumentArtifactSignaturePersistenceService
         VerificationResultData $verification,
     ): void {
         DB::transaction(function () use ($artifact, $attempt, $providerResponse, $verification): void {
+            $hasVisibleOperations = $attempt->signatureOperations()->exists();
+            $sourceArtifact = $hasVisibleOperations ? $attempt->sourceArtifact()->first() : null;
+            $sourceMetadata = $sourceArtifact?->metadata;
+            $baselineSignatureCount = is_array($sourceMetadata)
+                ? (int) ($sourceMetadata['baseline_verified_signature_count'] ?? 0)
+                : 0;
+
             foreach ($verification->signatures as $index => $signatureData) {
+                $operationIndex = ($hasVisibleOperations
+                    && $index >= $baselineSignatureCount
+                    && $index < $baselineSignatureCount + (int) $attempt->planned_signature_count)
+                        ? $index - $baselineSignatureCount
+                        : null;
                 $signature = $this->persistSignature(
                     artifact: $artifact,
                     attempt: $attempt,
@@ -31,6 +43,8 @@ final class DocumentArtifactSignaturePersistenceService
                     verification: $verification,
                     data: $signatureData,
                     index: $index,
+                    belongsToAttempt: $operationIndex !== null,
+                    operationIndex: $operationIndex,
                 );
 
                 foreach ($signatureData->certificateDetails as $certificateIndex => $certificate) {
@@ -47,6 +61,8 @@ final class DocumentArtifactSignaturePersistenceService
         VerificationResultData $verification,
         SignatureInformationData $data,
         int $index,
+        bool $belongsToAttempt,
+        ?int $operationIndex,
     ): DocumentArtifactSignature {
         $isLastSignature = $data->lastSignature
             ?? ($index === count($verification->signatures) - 1);
@@ -60,7 +76,9 @@ final class DocumentArtifactSignaturePersistenceService
                 'esign_provider_response_id' => $providerResponse->getKey(),
                 'provider_signature_id' => $this->limit($data->id, 255),
                 'field_name' => $this->limit($data->fieldName, 255),
-                'signer_user_id' => $isLastSignature ? $attempt->signer_user_id : null,
+                'signer_user_id' => $belongsToAttempt || $isLastSignature
+                    ? $attempt->signer_user_id
+                    : null,
                 'signer_name' => $this->limit($data->signerName, 255),
                 'signed_at' => $this->date($data->signatureDate),
                 'location' => $this->limit($data->location, 255),
@@ -80,6 +98,7 @@ final class DocumentArtifactSignaturePersistenceService
                 'verified_at' => now(),
                 'safe_metadata' => [
                     'provider_signature_count' => $verification->signatureCount,
+                    'esign_signature_operation_index' => $operationIndex,
                 ],
             ],
         );
