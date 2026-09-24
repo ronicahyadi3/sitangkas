@@ -1,4 +1,6 @@
-export const ESIGN_OPEN_EVENT = 'sitangkas:esign:open';
+import { ESIGN_OPEN_EVENT } from './events';
+
+export { ESIGN_OPEN_EVENT };
 
 const ACTION_SELECTOR = '[data-esign-action="sign"][data-esign-step]';
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -46,9 +48,6 @@ export function installEsignActionBridge() {
     return removeListener;
 }
 
-installEsignActionBridge();
-
 if (import.meta.hot) {
     import.meta.hot.dispose(() => removeListener?.());
 }
-

@@ -1,0 +1,54 @@
+.esign-ui .esign-shell {
+    border: 0;
+    border-radius: 1rem;
+    box-shadow: 0 1.5rem 4rem rgba(17, 24, 39, 0.2);
+    overflow: hidden;
+}
+
+.esign-ui .esign-shell__header,
+.esign-ui .esign-shell__footer {
+    border-color: rgba(148, 163, 184, 0.22);
+    padding: 1.25rem 1.5rem;
+}
+
+.esign-ui .esign-shell__eyebrow {
+    color: var(--bs-primary, #5e72e4);
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.esign-ui .esign-shell__body {
+    min-height: 12rem;
+    padding: 1.5rem;
+}
+
+.esign-ui .esign-shell__loading {
+    align-items: center;
+    display: flex;
+    gap: 1rem;
+    min-height: 9rem;
+}
+
+.dark-version .esign-ui .esign-shell {
+    background: #202940;
+    color: #f8fafc;
+}
+
+.dark-version .esign-ui .esign-shell__header,
+.dark-version .esign-ui .esign-shell__footer {
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+@media (max-width: 575.98px) {
+    .esign-ui .esign-shell__header,
+    .esign-ui .esign-shell__body,
+    .esign-ui .esign-shell__footer {
+        padding: 1rem;
+    }
+
+    .esign-ui .esign-shell__loading {
+        align-items: flex-start;
+    }
+}

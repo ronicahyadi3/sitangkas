@@ -1011,7 +1011,9 @@ dijalankan.
 
 ### Frontend
 
-- Svelte/plugin Vite belum dipasang;
+- fondasi Svelte 5/plugin Vite/TypeScript dan root island global sudah dipasang;
+- shell modal Bootstrap/Argon dimuat lazy dari event canonical dan sudah dapat
+  dibuka/ditutup, tetapi belum memanggil signing-session;
 - typed API client belum dibuat;
 - signing modal belum dibuat;
 - visible PDF editor belum dibuat;
@@ -1030,8 +1032,20 @@ media, status attempt/operation, klasifikasi error, dan gap register dikunci di
 capability signer dihitung tanpa N+1 oleh `LsSppSigningActionResolver`, row
 DataTable hanya membawa `step_public_id` dan boolean capability, serta delegated
 listener menerbitkan `sitangkas:esign:open`. Action masih tersembunyi karena
-`SIGNATURE_FRONTEND_ENABLED` default `false` sampai shell Svelte F2 siap.
-Tahap berikutnya adalah F2 fondasi Svelte/Vite island.
+`SIGNATURE_FRONTEND_ENABLED` default `false`. F2 juga sudah selesai di source:
+layout authenticated mempunyai satu root global, loader hanya mengimpor Svelte
+dan CSS eSign saat event open pertama, dan shell modal mengikuti Bootstrap 5 /
+Argon tanpa Tailwind. `pdfjs-dist` tersedia sebagai dependency tetapi belum
+masuk initial bundle. Tahap berikutnya adalah F3 penguncian event lifecycle,
+kemudian F4 shell modal lengkap dan F5 API client/session state.
+
+Audit lintas payment menegaskan bahwa editor/session contract bersifat generik,
+tetapi action resolver, activation/handoff, submit gate, dan compatibility
+projector baru lengkap untuk LS SPP. `Data\Detail` dapat menjadi titik adapter
+bersama setelah resolver digeneralisasi secara batch; `Data\DetailTbp` juga
+harus ikut ditangani. Rollout tidak boleh menjadi global dan wajib memakai
+allowlist per `payment_type:src_type` setelah backend workflow masing-masing
+siap.
 Pilot real, aktivasi feature flag operasional, public verification, dan rollout
 tetap menunggu gate backend terkait. Urutan rinci berada di
 `ESIGN_FRONTEND_IMPLEMENTATION_AND_LEGACY_MIGRATION_PLAN.md`.
@@ -1052,7 +1066,7 @@ tetap menunggu gate backend terkait. Urutan rinci berada di
 11. Legacy mapping index deployment wave
 12. Policy delivery PDF + watermark/cache/audit + verify/public route + legacy resolver
 13. Backend Ready Gate operasional
-14. Svelte/Vite foundation dan bridge Blade
+14. [SELESAI DI SOURCE] Svelte/Vite foundation dan bridge Blade
 15. Signing modal/editor visible + validation modal
 16. Pilot LS SPP operasional
 17. Perluasan LS SPM/SP2D lalu rollout per payment

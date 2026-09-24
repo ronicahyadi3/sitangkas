@@ -8,4 +8,8 @@
 
 import './echo';
 import './realtime-presence';
-import './esign/action-bridge';
+import { installEsignActionBridge } from './esign/action-bridge';
+import { installEsignIslandLoader } from './esign/island-loader';
+
+installEsignIslandLoader();
+installEsignActionBridge();

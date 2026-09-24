@@ -2,8 +2,9 @@
 
 Tanggal keputusan: **24 September 2026**.
 
-Status: **rancangan implementasi disetujui; frontend Svelte belum
-diimplementasikan**.
+Status: **F0 dan F1 selesai di source; fondasi Svelte/Vite island F2 sudah
+diimplementasikan, sedangkan session API, viewer, editor, dan rollout payment
+belum dihubungkan**.
 
 Dokumen ini adalah source of truth operasional untuk membangun frontend TTE dan
 validasi baru. Dokumen ini menggabungkan keputusan pengguna, kontrak backend
@@ -80,6 +81,75 @@ handoff BP/BPP -> PPTK -> PA/KPA.
 - Jangan membuat atau menjalankan test suite otomatis. Acceptance untuk scope
   frontend ini dilakukan manual dan terkontrol sampai pengguna mencabut
   keputusan tersebut secara eksplisit.
+
+### 2.3 Temuan audit universalitas integrasi payment
+
+Audit `Data\Detail`, seluruh pemakai komponen detail, registry workflow, action
+bridge, dan data canonical pada 24 September 2026 menghasilkan batas berikut:
+
+1. **Editor dan endpoint dapat dipakai ulang.** Kontrak editor hanya menerima
+   `step_public_id`, `can_sign`, dan `can_verify`. Signing session kemudian
+   menyelesaikan workflow, source artifact, signer, PDF, konfigurasi editor,
+   prepared rendition, dan endpoint lanjutan dari backend. Editor tidak perlu
+   mengetahui `payment_type`, `src_type`, folder, nama file, NIK, atau urutan
+   jabatan.
+2. **`Data\Detail` adalah titik integrasi lintas payment yang baik, tetapi masih
+   legacy.** Controller tersebut melayani keluarga dokumen UP, GU_SKPD, GU_UK,
+   LS, LS_GAJI, TU, dan KKPD. Hampir seluruh halaman payment memuat komponen
+   detail yang sama. Namun `generateButtonTTE()` masih menentukan tombol dari
+   `id_jabatan`, CSV `assigned_to`/`submit`/`status`, serta path `/File_{TYPE}`,
+   kemudian menghasilkan `.signModal`.
+3. **Action canonical belum universal.** `LsSppSigningActionResolver` masih
+   mengunci `payment_type=LS` dan `document_type=SPP`; tombol canonical juga
+   baru dipasang pada controller LS SPP. Payment lain tetap memakai action dan
+   storage path legacy.
+4. **Definisi workflow sudah luas, runtime workflow belum.**
+   `DocumentSigningWorkflowDefinitionRegistry` sudah mendefinisikan dokumen TTE
+   untuk UP, GU_SKPD, GU_UK, LS, LS_GAJI, TU, dan KKPD. `BMD`/`SPJ` sengaja
+   tidak diprovisikan. Akan tetapi snapshot database saat audit hanya mempunyai
+   dua workflow LS SPP dan satu workflow GU_SKPD NPD; dokumen aktif/historis
+   lainnya belum otomatis siap dibuka oleh editor canonical.
+5. **Activation, assignment, handoff, submit gate, dan compatibility projector
+   belum universal.** Implementasi yang membuktikan urutan BP/BPP -> PPTK ->
+   PA/KPA baru lengkap untuk vertical slice LS SPP. Editor boleh dipakai ulang,
+   tetapi payment lain tidak boleh diaktifkan sebelum backend workflow-nya
+   menegakkan urutan, assignment, projection `document`/`document_process`, dan
+   kondisi submit masing-masing.
+6. **Detail TBP mempunyai jalur terpisah.** `Data\DetailTbp` saat ini hanya
+   menghasilkan view/download. Bila TBP ditandatangani dari daftar tersebut,
+   response-nya juga harus menerima capability canonical yang sama.
+7. **Hak melihat detail bukan hak menandatangani.** Scope organisasi pada
+   `Data\Detail` tetap dipakai untuk visibility. Capability tombol harus
+   dihitung dari canonical current step, sedangkan endpoint signing session
+   tetap mengulang authorization authoritative. Flag dari browser tidak pernah
+   menjadi bukti izin.
+8. **Query capability lintas dokumen harus batch.** Saat capability dipasang ke
+   `Data\Detail`, resolver harus mengambil current signable step untuk seluruh
+   `document_id` yang tampil dalam satu query/bounded query, bukan query per row.
+9. **Rollout harus allowlist per workflow.** Global frontend flag tidak cukup
+   setelah resolver digeneralisasi. Aktivasi disarankan memakai allowlist
+   pasangan `payment_type:src_type`; LS:SPP tetap menjadi pilot pertama dan
+   payment berikutnya ditambahkan hanya setelah backend workflow terkait lulus.
+
+Arsitektur target universal:
+
+```text
+Tabel payment / modal detail / daftar TBP
+                  |
+                  v
+      DocumentSigningActionResolver
+                  |
+      step_public_id + capability
+                  |
+                  v
+       satu Svelte EsignApp global
+                  |
+                  v
+       signing session API canonical
+```
+
+Jangan membuat editor per payment. Perbedaan payment ditempatkan pada workflow
+coordinator/policy backend. Resolver action dan Svelte editor tetap generik.
 
 ## 3. Hasil audit frontend TTE lama
 
@@ -458,9 +528,10 @@ diaktifkan setelah shell Svelte F2 terpasang.
 Gate source selesai pada 24 September 2026: delegated listener hanya menangkap
 button canonical, menghasilkan tepat satu event, dan tidak memanggil
 `resetPdfFromUrl()` atau modal legacy. Build Vite production berhasil. Acceptance
-klik di browser menunggu shell modal F2 dan aktivasi flag.
+klik di browser menunggu lifecycle F3, session state F5, dan aktivasi flag
+terkontrol.
 
-### Tahap F2 - Fondasi Svelte/Vite island
+### Tahap F2 - Fondasi Svelte/Vite island — SELESAI DI SOURCE
 
 Tujuan: menyediakan satu root UI yang hidup berdampingan dengan Blade.
 
@@ -480,6 +551,26 @@ Hasil: modal shell dapat dibuka/tutup dari custom event.
 
 Gate selesai: halaman non-eSign tidak memuat engine PDF pada initial load dan
 layout Bootstrap/Argon tetap normal.
+
+Realisasi source 24 September 2026:
+
+- Svelte 5, plugin Vite Svelte, TypeScript, dan `pdfjs-dist` sudah tercatat di
+  dependency project;
+- plugin Svelte dan `vitePreprocess()` sudah dikonfigurasi;
+- layout authenticated memiliki tepat satu `data-esign-app-root`;
+- `app.js` hanya memasang loader event dan action bridge; komponen Svelte serta
+  CSS eSign dimuat melalui dynamic import saat event open pertama;
+- `EsignApp.svelte` menyediakan shell modal Bootstrap 5/Argon minimal yang dapat
+  dibuka dan ditutup; ini belum memanggil signing-session dan bukan editor F6;
+- seluruh CSS eSign berada di bawah `.esign-ui`; tidak ada utility Tailwind pada
+  komponen;
+- `pdfjs-dist` belum diimpor oleh entry awal dan baru boleh dimuat lazy pada
+  tahap viewer;
+- `SIGNATURE_FRONTEND_ENABLED` tetap default `false`; source-ready F2 bukan izin
+  rollout operasional.
+
+Build produksi Vite adalah verifikasi F2 yang diizinkan. Tidak ada test suite
+yang dibuat atau dijalankan.
 
 ### Tahap F3 - Event bridge Blade/DataTable/Svelte
 
@@ -900,8 +991,8 @@ Aturan:
 
 ## 13. Checklist Definition of Done frontend LS SPP
 
-- [ ] Action LS SPP mempunyai `step_public_id` dan capability canonical.
-- [ ] Svelte island satu kali mount melalui Vite.
+- [x] Action LS SPP mempunyai `step_public_id` dan capability canonical.
+- [x] Svelte island satu kali mount melalui Vite.
 - [ ] Modal Bootstrap/Argon responsif dan tidak bertumpuk.
 - [ ] Source PDF dimuat binary tanpa Base64/upload ulang.
 - [ ] Geometry top-left point konsisten dengan backend.
@@ -921,7 +1012,7 @@ Aturan:
 - [ ] Close modal membersihkan resource PDF/object URL/listener.
 - [ ] Modal validasi memakai artifact canonical tanpa upload ulang.
 - [ ] Acceptance manual LS SPP lulus untuk BP/BPP -> PPTK -> PA/KPA.
-- [ ] Tidak ada test suite otomatis yang dibuat atau dijalankan.
+- [x] Tidak ada test suite otomatis yang dibuat atau dijalankan.
 
 ## 14. Langkah implementasi paling tepat berikutnya
 
@@ -932,12 +1023,14 @@ baru. Urutannya:
    backend aktual;
 2. [SELESAI DI SOURCE] Tahap F1: action LS SPP mengirim `step_public_id` tanpa
    path file melalui event bridge;
-3. pasang fondasi Svelte/Vite Tahap F2-F5, lalu aktifkan feature flag frontend
-   setelah shell modal siap;
-4. bangun viewer/geometry/editor secara berurutan pada Tahap F6-F10;
-5. sambungkan final sign/progress pada Tahap F11-F12;
-6. tutup gap backend validasi/public delivery sebelum Tahap F13-F15;
-7. lakukan pilot manual sebelum rollout payment lain.
+3. [SELESAI DI SOURCE] Tahap F2: fondasi Svelte/Vite island, root global, lazy
+   loader, dan shell Bootstrap/Argon;
+4. lanjutkan Tahap F3-F5: lifecycle event, shell modal lengkap, API client, dan
+   signing-session state; feature flag tetap `false` sampai rangkaian ini siap;
+5. bangun viewer/geometry/editor secara berurutan pada Tahap F6-F10;
+6. sambungkan final sign/progress pada Tahap F11-F12;
+7. tutup gap backend validasi/public delivery sebelum Tahap F13-F15;
+8. lakukan pilot manual sebelum rollout payment lain.
 
 Dengan urutan ini, komponen frontend dibangun langsung di atas boundary
 canonical dan tidak perlu dirombak kedua kali untuk membuang path, upload PDF,
