@@ -86,6 +86,12 @@ export interface SignaturePlacement extends PlacementGeometry {
     operation_index: number;
 }
 
+export interface SignaturePlacementTarget {
+    page: number;
+    center_x: number;
+    center_y: number;
+}
+
 export type FooterPlacement = PlacementGeometry;
 
 export interface FooterPlan {

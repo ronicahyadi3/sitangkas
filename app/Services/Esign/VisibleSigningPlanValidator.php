@@ -126,8 +126,8 @@ final class VisibleSigningPlanValidator
         }
 
         $rawPlacements = $input['placements'] ?? null;
-        if (! is_array($rawPlacements) || count($rawPlacements) !== count($pages)) {
-            $this->invalid('footer.placements', 'esign.footer_all_pages_required');
+        if (! is_array($rawPlacements)) {
+            $this->invalid('footer.placements', 'esign.footer_placement_invalid');
         }
 
         $placements = [];
@@ -144,8 +144,14 @@ final class VisibleSigningPlanValidator
             }
 
             $rectangle = $this->rectangle($placement, $page, 'footer.placements');
-            $lineCount = $this->wrappedLineCount($text, $rectangle['width'], $fontSize);
-            $minimumHeight = $lineCount * $fontSize * 1.2;
+            $lineCount = $this->wrappedLineCount(
+                $text,
+                $rectangle['width'],
+                $fontSize,
+                $fontKey,
+                (bool) ($input['is_bold'] ?? false),
+            );
+            $minimumHeight = $lineCount * $fontSize * 1.35;
 
             if ($lineCount < 1
                 || $minimumHeight > $rectangle['height'] + 0.01
@@ -157,9 +163,6 @@ final class VisibleSigningPlanValidator
         }
 
         ksort($placements);
-        if (array_keys($placements) !== array_keys($pages)) {
-            $this->invalid('footer.placements', 'esign.footer_all_pages_required');
-        }
 
         return [
             'text' => $text,
@@ -274,8 +277,13 @@ final class VisibleSigningPlanValidator
         return (float) $value;
     }
 
-    private function wrappedLineCount(string $text, float $maximumWidth, float $fontSize): int
-    {
+    private function wrappedLineCount(
+        string $text,
+        float $maximumWidth,
+        float $fontSize,
+        string $fontKey,
+        bool $isBold,
+    ): int {
         $lineCount = 0;
         $paragraphs = preg_split('/\R/u', trim($text)) ?: [];
 
@@ -284,12 +292,12 @@ final class VisibleSigningPlanValidator
             $line = '';
 
             foreach ($words as $word) {
-                if ($this->estimatedTextWidth($word, $fontSize) > $maximumWidth) {
+                if ($this->estimatedTextWidth($word, $fontSize, $fontKey, $isBold) > $maximumWidth) {
                     return 0;
                 }
 
                 $candidate = $line === '' ? $word : "{$line} {$word}";
-                if ($line !== '' && $this->estimatedTextWidth($candidate, $fontSize) > $maximumWidth) {
+                if ($line !== '' && $this->estimatedTextWidth($candidate, $fontSize, $fontKey, $isBold) > $maximumWidth) {
                     $lineCount++;
                     $line = $word;
                 } else {
@@ -305,11 +313,23 @@ final class VisibleSigningPlanValidator
         return $lineCount;
     }
 
-    private function estimatedTextWidth(string $text, float $fontSize): float
+    private function estimatedTextWidth(string $text, float $fontSize, string $fontKey, bool $isBold): float
     {
         $encoded = iconv('UTF-8', 'Windows-1252//TRANSLIT//IGNORE', $text);
 
-        return strlen(is_string($encoded) ? $encoded : $text) * $fontSize * 0.55;
+        return strlen(is_string($encoded) ? $encoded : $text)
+            * $fontSize
+            * $this->fontWidthFactor($fontKey, $isBold);
+    }
+
+    private function fontWidthFactor(string $fontKey, bool $isBold): float
+    {
+        return match ($fontKey) {
+            'helvetica' => $isBold ? 0.49 : 0.45,
+            'times' => $isBold ? 0.45 : 0.41,
+            'courier' => 0.6,
+            default => 0.55,
+        };
     }
 
     private function invalid(string $field, string $code): never

@@ -529,6 +529,7 @@ final class PerformEsignAttemptAction
         $lastOperation = $attempt->signatureOperations()
             ->where('status', EsignSignatureOperationStatus::Completed->value)
             ->whereNotNull('output_artifact_id')
+            ->reorder()
             ->orderByDesc('operation_index')
             ->first();
 
@@ -789,13 +790,23 @@ final class PerformEsignAttemptAction
                 EsignAttemptStatus::Validating,
             ], true)) {
             try {
+                $providerDispatchStarted = $this->providerDispatchStarted($freshAttempt);
+                $failedBeforeProviderDispatch = $freshAttempt->status === EsignAttemptStatus::Signing
+                    && ! $providerDispatchStarted;
                 $target = $freshAttempt->status === EsignAttemptStatus::Signing
+                    && $providerDispatchStarted
                     ? EsignAttemptStatus::Unknown
                     : EsignAttemptStatus::Failed;
                 $freshAttempt = $this->attempts->transition(
                     $freshAttempt,
                     $target,
-                    $this->failureContext($freshAttempt, 'esign.local_processing_failed', false),
+                    $this->failureContext(
+                        $freshAttempt,
+                        $failedBeforeProviderDispatch
+                            ? 'esign.local_pre_provider_processing_failed'
+                            : 'esign.local_processing_failed',
+                        $failedBeforeProviderDispatch,
+                    ),
                 );
                 if ($target === EsignAttemptStatus::Failed) {
                     $this->writeLegacyFailure(
@@ -816,10 +827,38 @@ final class PerformEsignAttemptAction
 
         Log::channel('module_esign')->error('Eksekusi attempt TTE gagal di proses internal.', [
             'attempt_id' => $attempt->getKey(),
-            'exception_class' => $exception::class,
+            'provider_dispatch_started' => $freshAttempt instanceof EsignAttempt
+                ? $this->providerDispatchStarted($freshAttempt)
+                : null,
+            ...$this->safeExceptionContext($exception),
         ]);
 
         return $freshAttempt instanceof EsignAttempt;
+    }
+
+    private function providerDispatchStarted(EsignAttempt $attempt): bool
+    {
+        if (! $attempt->signatureOperations()->exists()) {
+            return $attempt->status !== EsignAttemptStatus::Prepared;
+        }
+
+        return $attempt->signatureOperations()
+            ->whereNotNull('request_sent_at')
+            ->exists();
+    }
+
+    /** @return array{exception_class: string, exception_message_sha256: string, exception_file: string, exception_line: int} */
+    private function safeExceptionContext(Throwable $exception): array
+    {
+        $normalizedBasePath = str_replace('\\', '/', base_path()).'/';
+        $normalizedFile = str_replace('\\', '/', $exception->getFile());
+
+        return [
+            'exception_class' => $exception::class,
+            'exception_message_sha256' => hash('sha256', $exception->getMessage()),
+            'exception_file' => Str::after($normalizedFile, $normalizedBasePath),
+            'exception_line' => $exception->getLine(),
+        ];
     }
 
     private function replaySucceededCompatibilityProjection(EsignAttempt $attempt): void

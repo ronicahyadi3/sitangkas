@@ -6,6 +6,7 @@
         NormalizedEsignError,
         PreparedSigningRendition,
         SignaturePlacement,
+        SignaturePlacementTarget,
         SigningSession,
     } from '../types';
     import type { EsignShellStage } from '../ui-state';
@@ -27,6 +28,8 @@
         resumeRetryRemaining,
         submitError,
         onResume,
+        onAddSignature,
+        onResetPlacements,
         placements = $bindable(),
         footerPlan = $bindable(null),
         activeEditorPage = $bindable(1),
@@ -49,6 +52,8 @@
         resumeRetryRemaining: number;
         submitError: NormalizedEsignError | null;
         onResume: (passphrase: string) => void;
+        onAddSignature: (target?: SignaturePlacementTarget) => void;
+        onResetPlacements: () => void;
         placements: SignaturePlacement[];
         footerPlan: FooterPlan | null;
         activeEditorPage: number;
@@ -127,6 +132,8 @@
         <PdfViewer
             {session}
             {fetchPdf}
+            {onAddSignature}
+            {onResetPlacements}
             bind:placements
             bind:footerPlan
             bind:activePage={activeEditorPage}

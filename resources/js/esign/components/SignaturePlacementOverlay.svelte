@@ -188,6 +188,12 @@
             onDeselect();
         }
     }
+
+    function deletePlacement(event: MouseEvent): void {
+        event.preventDefault();
+        event.stopPropagation();
+        onDelete(placement.client_id);
+    }
 </script>
 
 <div
@@ -217,6 +223,19 @@
     <i class="fas fa-qrcode esign-signature-placement__icon" aria-hidden="true"></i>
     <span class="esign-signature-placement__label">QR {placement.operation_index + 1}</span>
     {#if selected}
+        <button
+            type="button"
+            class="esign-signature-placement__delete"
+            aria-label="Hapus QR {placement.operation_index + 1}"
+            title="Hapus QR"
+            onpointerdown={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+            }}
+            onclick={deletePlacement}
+        >
+            <i class="fas fa-xmark" aria-hidden="true"></i>
+        </button>
         <span
             class="esign-signature-placement__resize"
             role="presentation"

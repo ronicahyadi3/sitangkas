@@ -270,27 +270,29 @@
 </script>
 
 <section class="esign-prepared-viewer" aria-label="Prepared preview authoritative" aria-busy={loading}>
-    <div class="esign-workspace-toolbar" aria-label="Toolbar prepared preview">
-        <div class="btn-group btn-group-sm" role="group" aria-label="Navigasi halaman prepared preview">
-            <button
-                type="button"
-                class="btn btn-outline-secondary"
-                disabled={activePage <= 1 || document === null}
-                aria-label="Halaman sebelumnya"
-                onclick={() => goToPage(activePage - 1)}
-            ><i class="fas fa-chevron-left" aria-hidden="true"></i></button>
-            <button
-                type="button"
-                class="btn btn-outline-secondary"
-                disabled={activePage >= session.pages.length || document === null}
-                aria-label="Halaman berikutnya"
-                onclick={() => goToPage(activePage + 1)}
-            ><i class="fas fa-chevron-right" aria-hidden="true"></i></button>
+    <div class="esign-workspace-toolbar esign-prepared-viewer__toolbar" aria-label="Toolbar prepared preview">
+        <div class="esign-workspace-toolbar__navigation">
+            <div class="btn-group btn-group-sm" role="group" aria-label="Navigasi halaman prepared preview">
+                <button
+                    type="button"
+                    class="btn btn-outline-secondary"
+                    disabled={activePage <= 1 || document === null}
+                    aria-label="Halaman sebelumnya"
+                    onclick={() => goToPage(activePage - 1)}
+                ><i class="fas fa-chevron-left" aria-hidden="true"></i></button>
+                <button
+                    type="button"
+                    class="btn btn-outline-secondary"
+                    disabled={activePage >= session.pages.length || document === null}
+                    aria-label="Halaman berikutnya"
+                    onclick={() => goToPage(activePage + 1)}
+                ><i class="fas fa-chevron-right" aria-hidden="true"></i></button>
+            </div>
+            <span class="esign-workspace-toolbar__page" aria-label={`Halaman ${activePage} dari ${session.pages.length}`}>
+                {activePage}/{session.pages.length}
+            </span>
         </div>
-        <span class="esign-workspace-toolbar__page">
-            Halaman {activePage} dari {session.pages.length}
-        </span>
-        <div class="btn-group btn-group-sm ms-auto" role="group" aria-label="Zoom prepared preview">
+        <div class="btn-group btn-group-sm esign-workspace-toolbar__zoom" role="group" aria-label="Zoom prepared preview">
             <button
                 type="button"
                 class="btn btn-outline-secondary"

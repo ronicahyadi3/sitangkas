@@ -130,6 +130,7 @@ final class VisibleSigningEditorConfiguration
 
         return array_map(function (array $page) use ($margin, $height): array {
             $geometry = PdfPageGeometryData::fromArray($page);
+            $width = $geometry->width - ($margin * 2);
 
             return [
                 'page' => $geometry->pageNumber,
@@ -138,7 +139,7 @@ final class VisibleSigningEditorConfiguration
                 'page_rotation' => $geometry->rotation,
                 'origin_x' => $margin,
                 'origin_y' => $geometry->height - $margin - $height,
-                'width' => $geometry->width - ($margin * 2),
+                'width' => $width,
                 'height' => $height,
             ];
         }, $session->pageGeometries);

@@ -130,6 +130,17 @@ final class BsreResponseMapper
             );
         }
 
+        if ($signing && $vendorCode === '2031') {
+            throw new EsignOperationException(
+                errorCode: EsignErrorCode::InvalidPassphrase,
+                retryable: true,
+                endpoint: $endpoint,
+                httpStatus: $httpStatus,
+                vendorCode: $vendorCode,
+                correlationId: $correlationId,
+            );
+        }
+
         $errorCode = match (true) {
             $response->serverError(), $httpStatus === 408, $httpStatus === 429 => EsignErrorCode::ProviderUnavailable,
             default => EsignErrorCode::ProviderRejected,

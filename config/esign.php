@@ -29,7 +29,7 @@ return [
         'pdfinfo_binary' => env('SIGNATURE_PDFINFO_BINARY', 'pdfinfo'),
         'qpdf_binary' => env('SIGNATURE_QPDF_BINARY', 'qpdf'),
         'process_timeout_seconds' => (int) env('SIGNATURE_PDF_RENDER_TIMEOUT_SECONDS', 120),
-        'renderer_version' => 'qpdf-overlay-v1',
+        'renderer_version' => 'qpdf-overlay-v3',
         'verification_base_url' => env(
             'SIGNATURE_VERIFY_BASE_URL',
             'https://sitangkas.malangkota.go.id/verify',
@@ -54,7 +54,7 @@ return [
             'Dokumen ini telah ditandatangani secara elektronik menggunakan sertifikat elektronik.',
         ),
         'footer_default_font' => 'helvetica',
-        'footer_default_font_size_pt' => 8.0,
+        'footer_default_font_size_pt' => 7.5,
         'footer_font_size_min_pt' => 6.0,
         'footer_font_size_max_pt' => 14.0,
         'allowed_fonts' => [

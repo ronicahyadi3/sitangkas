@@ -25,7 +25,7 @@ final class PreparedPdfRenderer
             throw new EsignInvariantViolationException('prepared_rendition_source_invalid');
         }
 
-        if ($footer === null) {
+        if ($footer === null || ($footer['placements'] ?? []) === []) {
             return $sourcePdf;
         }
 
@@ -113,14 +113,12 @@ final class PreparedPdfRenderer
             $page = PdfPageGeometryData::fromArray($pageValue);
             $placement = $placements[$page->pageNumber] ?? null;
 
-            if (! is_array($placement)) {
-                throw new EsignInvariantViolationException('prepared_rendition_footer_page_missing');
-            }
-
             $pageObject = $nextObject++;
             $contentObject = $nextObject++;
             $pageObjectNumbers[] = $pageObject;
-            $content = $this->footerContent($page, $placement, $footer);
+            $content = is_array($placement)
+                ? $this->footerContent($page, $placement, $footer)
+                : '';
             $objects[$pageObject] = sprintf(
                 '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 %.4F %.4F] /Resources << /Font << /F1 3 0 R >> >> /Contents %d 0 R >>',
                 $page->width,
@@ -141,8 +139,16 @@ final class PreparedPdfRenderer
     private function footerContent(PdfPageGeometryData $page, array $placement, array $footer): string
     {
         $fontSize = (float) $footer['font_size_pt'];
-        $lineHeight = $fontSize * 1.2;
-        $lines = $this->wrapText((string) $footer['text'], (float) $placement['width'], $fontSize);
+        $lineHeight = $fontSize * 1.35;
+        $fontKey = (string) $footer['font_key'];
+        $isBold = (bool) $footer['is_bold'];
+        $lines = $this->wrapText(
+            (string) $footer['text'],
+            (float) $placement['width'],
+            $fontSize,
+            $fontKey,
+            $isBold,
+        );
         $requiredHeight = count($lines) * $lineHeight;
 
         if ($requiredHeight > (float) $placement['height'] + 0.01) {
@@ -150,19 +156,26 @@ final class PreparedPdfRenderer
         }
 
         $x = (float) $placement['origin_x'];
+        $boxWidth = (float) $placement['width'];
+        $boxHeight = (float) $placement['height'];
         $boxBottom = $page->height - (float) $placement['origin_y'] - (float) $placement['height'];
-        $baseline = $page->height - (float) $placement['origin_y'] - $fontSize;
+        $verticalPadding = max(0, ($boxHeight - $requiredHeight) / 2);
         $commands = [
             'q',
-            sprintf('%.4F %.4F %.4F %.4F re W n', $x, $boxBottom, (float) $placement['width'], (float) $placement['height']),
+            sprintf('%.4F %.4F %.4F %.4F re W n', $x, $boxBottom, $boxWidth, $boxHeight),
             '0 0 0 rg',
             'BT',
             sprintf('/F1 %.3F Tf', $fontSize),
         ];
 
         foreach ($lines as $index => $line) {
-            $lineBaseline = $baseline - ($index * $lineHeight);
-            $commands[] = sprintf('1 0 0 1 %.4F %.4F Tm (%s) Tj', $x, $lineBaseline, $this->escapeText($line));
+            $lineBaseline = $boxBottom
+                + $verticalPadding
+                + ((count($lines) - 1 - $index) * $lineHeight)
+                + ($fontSize * 0.2);
+            $lineWidth = min($boxWidth, $this->estimatedWidth($line, $fontSize, $fontKey, $isBold));
+            $lineX = $x + max(0, ($boxWidth - $lineWidth) / 2);
+            $commands[] = sprintf('1 0 0 1 %.4F %.4F Tm (%s) Tj', $lineX, $lineBaseline, $this->escapeText($line));
         }
 
         $commands[] = 'ET';
@@ -170,9 +183,13 @@ final class PreparedPdfRenderer
         if ((bool) $footer['is_underline']) {
             $commands[] = sprintf('%.3F w', max(0.4, $fontSize / 16));
             foreach ($lines as $index => $line) {
-                $lineBaseline = $baseline - ($index * $lineHeight);
-                $lineWidth = min((float) $placement['width'], $this->estimatedWidth($line, $fontSize));
-                $commands[] = sprintf('%.4F %.4F m %.4F %.4F l S', $x, $lineBaseline - 1.2, $x + $lineWidth, $lineBaseline - 1.2);
+                $lineBaseline = $boxBottom
+                    + $verticalPadding
+                    + ((count($lines) - 1 - $index) * $lineHeight)
+                    + ($fontSize * 0.2);
+                $lineWidth = min($boxWidth, $this->estimatedWidth($line, $fontSize, $fontKey, $isBold));
+                $lineX = $x + max(0, ($boxWidth - $lineWidth) / 2);
+                $commands[] = sprintf('%.4F %.4F m %.4F %.4F l S', $lineX, $lineBaseline - 1.2, $lineX + $lineWidth, $lineBaseline - 1.2);
             }
         }
 
@@ -182,8 +199,13 @@ final class PreparedPdfRenderer
     }
 
     /** @return list<string> */
-    private function wrapText(string $text, float $maximumWidth, float $fontSize): array
-    {
+    private function wrapText(
+        string $text,
+        float $maximumWidth,
+        float $fontSize,
+        string $fontKey,
+        bool $isBold,
+    ): array {
         $lines = [];
         $paragraphs = preg_split('/\R/u', trim($text)) ?: [];
 
@@ -194,7 +216,7 @@ final class PreparedPdfRenderer
             foreach ($words as $word) {
                 $candidate = $line === '' ? $word : "{$line} {$word}";
 
-                if ($line !== '' && $this->estimatedWidth($candidate, $fontSize) > $maximumWidth) {
+                if ($line !== '' && $this->estimatedWidth($candidate, $fontSize, $fontKey, $isBold) > $maximumWidth) {
                     $lines[] = $line;
                     $line = $word;
                 } else {
@@ -210,11 +232,23 @@ final class PreparedPdfRenderer
         return $lines === [] ? [''] : $lines;
     }
 
-    private function estimatedWidth(string $text, float $fontSize): float
+    private function estimatedWidth(string $text, float $fontSize, string $fontKey, bool $isBold): float
     {
         $encoded = iconv('UTF-8', 'Windows-1252//TRANSLIT//IGNORE', $text);
 
-        return strlen(is_string($encoded) ? $encoded : $text) * $fontSize * 0.55;
+        return strlen(is_string($encoded) ? $encoded : $text)
+            * $fontSize
+            * $this->fontWidthFactor($fontKey, $isBold);
+    }
+
+    private function fontWidthFactor(string $fontKey, bool $isBold): float
+    {
+        return match ($fontKey) {
+            'helvetica' => $isBold ? 0.49 : 0.45,
+            'times' => $isBold ? 0.45 : 0.41,
+            'courier' => 0.6,
+            default => 0.55,
+        };
     }
 
     private function escapeText(string $text): string

@@ -85,7 +85,8 @@ final class VisibleEsignAttemptPersistenceService
                                     'signature_count' => count($currentRendition->signatureOperations),
                                     'baseline_verified_signature_count' => $context->session->verifiedSignatureCount,
                                     'footer_applied' => $context->session->footerApplied
-                                        || $currentRendition->footer !== null,
+                                        || ($currentRendition->footer !== null
+                                            && ($currentRendition->footer['placements'] ?? []) !== []),
                                     'source_artifact_id' => $currentRendition->sourceArtifactId,
                                     'source_artifact_sha256' => $currentRendition->sourceArtifactSha256,
                                 ],

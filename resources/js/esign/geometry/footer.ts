@@ -143,27 +143,51 @@ export function footerCssFontFamily(fontKey: string): string {
     }
 }
 
-function estimatedTextWidth(text: string, fontSize: number): number {
-    return text.length * fontSize * 0.55;
+function footerFontWidthFactor(fontKey: string, isBold: boolean): number {
+    switch (fontKey) {
+        case 'helvetica':
+            return isBold ? 0.49 : 0.45;
+        case 'times':
+            return isBold ? 0.45 : 0.41;
+        case 'courier':
+            return 0.6;
+        default:
+            return 0.55;
+    }
 }
 
-function wrappedLineCount(text: string, maximumWidth: number, fontSize: number): number {
-    let lineCount = 0;
-    const paragraphs = text.trim().split(/\r?\n/u);
+export function estimatedFooterTextWidth(
+    text: string,
+    fontSize: number,
+    fontKey: string,
+    isBold: boolean,
+): number {
+    return Array.from(text).length * fontSize * footerFontWidthFactor(fontKey, isBold);
+}
+
+export function wrapFooterText(
+    text: string,
+    maximumWidth: number,
+    fontSize: number,
+    fontKey: string,
+    isBold: boolean,
+): string[] {
+    const lines: string[] = [];
+    const paragraphs = text.trim().split(/\r\n|[\n\v\f\r\u0085\u2028\u2029]/u);
 
     for (const paragraph of paragraphs) {
         const words = paragraph.trim().split(/\s+/u).filter(Boolean);
         let line = '';
 
         for (const word of words) {
-            if (estimatedTextWidth(word, fontSize) > maximumWidth) {
-                return 0;
+            if (estimatedFooterTextWidth(word, fontSize, fontKey, isBold) > maximumWidth) {
+                return [];
             }
 
             const candidate = line === '' ? word : `${line} ${word}`;
 
-            if (line !== '' && estimatedTextWidth(candidate, fontSize) > maximumWidth) {
-                lineCount += 1;
+            if (line !== '' && estimatedFooterTextWidth(candidate, fontSize, fontKey, isBold) > maximumWidth) {
+                lines.push(line);
                 line = word;
             } else {
                 line = candidate;
@@ -171,11 +195,11 @@ function wrappedLineCount(text: string, maximumWidth: number, fontSize: number):
         }
 
         if (line !== '') {
-            lineCount += 1;
+            lines.push(line);
         }
     }
 
-    return lineCount;
+    return lines;
 }
 
 export function validateFooterPlan(
@@ -210,20 +234,26 @@ export function validateFooterPlan(
         });
     }
 
-    const pageNumbers = [...footer.placements.map((placement) => placement.page)].sort((a, b) => a - b);
-    const expectedPageNumbers = pages.map((page) => page.page).sort((a, b) => a - b);
+    const pageNumbers = footer.placements.map((placement) => placement.page);
+    const availablePageNumbers = new Set(pages.map((page) => page.page));
 
-    if (pageNumbers.length !== expectedPageNumbers.length
-        || pageNumbers.some((page, index) => page !== expectedPageNumbers[index])) {
+    if (new Set(pageNumbers).size !== pageNumbers.length
+        || pageNumbers.some((page) => !availablePageNumbers.has(page))) {
         issues.push({
             code: 'footer_pages_invalid',
-            message: 'Footer harus mempunyai tepat satu placement pada setiap halaman.',
+            message: 'Setiap footer harus terhubung ke halaman PDF yang valid dan tidak boleh duplikat.',
         });
     }
 
     for (const placement of footer.placements) {
-        const lineCount = wrappedLineCount(text, placement.width, footer.font_size_pt);
-        const minimumHeight = lineCount * footer.font_size_pt * 1.2;
+        const lineCount = wrapFooterText(
+            text,
+            placement.width,
+            footer.font_size_pt,
+            footer.font_key,
+            footer.is_bold,
+        ).length;
+        const minimumHeight = lineCount * footer.font_size_pt * 1.35;
 
         if (lineCount < 1
             || placement.width < footer.font_size_pt * 4

@@ -38,12 +38,14 @@
         onViewportReady,
         onRenderReady,
         onRenderError,
+        onPageSelect,
         onPlacementSelect,
         onPlacementChange,
         onPlacementDelete,
         onPlacementDeselect,
         onFooterSelect,
         onFooterChange,
+        onFooterDelete,
         onFooterDeselect,
     }: {
         document: PDFDocumentProxy;
@@ -64,12 +66,14 @@
         onViewportReady?: (metrics: RenderedPdfPageMetrics) => void;
         onRenderReady?: (page: number) => void;
         onRenderError?: (page: number) => void;
+        onPageSelect?: (page: number) => void;
         onPlacementSelect?: (clientId: string) => void;
         onPlacementChange?: (placement: SignaturePlacement) => void;
         onPlacementDelete?: (clientId: string) => void;
         onPlacementDeselect?: () => void;
         onFooterSelect?: (page: number) => void;
         onFooterChange?: (placement: FooterPlacement) => void;
+        onFooterDelete?: (page: number) => void;
         onFooterDeselect?: () => void;
     } = $props();
 
@@ -80,6 +84,14 @@
     let renderState = $state<'idle' | 'loading' | 'ready' | 'failed'>('idle');
     let cssWidth = $state(0);
     let cssHeight = $state(0);
+    let reservedSize = $derived.by(() => {
+        const size = displayedPageSize(expectedGeometry);
+
+        return {
+            height: Math.max(1, Math.floor(size.height * scale)),
+            width: Math.max(1, Math.floor(size.width * scale)),
+        };
+    });
     let renderGeneration = 0;
     let renderTask: RenderTask | null = null;
     let renderedPage: PDFPageProxy | null = null;
@@ -209,14 +221,25 @@
     data-page-width-pt={expectedGeometry.width}
     data-page-height-pt={expectedGeometry.height}
     data-page-rotation={expectedGeometry.rotation}
-    style:width={cssWidth > 0 ? `${cssWidth}px` : undefined}
-    style:height={cssHeight > 0 ? `${cssHeight}px` : undefined}
+    style:width={`${cssWidth > 0 ? cssWidth : reservedSize.width}px`}
+    style:height={`${cssHeight > 0 ? cssHeight : reservedSize.height}px`}
     aria-label="Halaman PDF {pageNumber}"
 >
     <canvas
         bind:this={canvasElement}
         class="esign-pdf-page__canvas"
-        aria-label="Isi halaman {pageNumber}"
+        role={!thumbnail && onPageSelect ? 'button' : undefined}
+        tabindex={!thumbnail && onPageSelect ? 0 : undefined}
+        aria-label={!thumbnail && onPageSelect
+            ? `Aktifkan halaman ${pageNumber} untuk penempatan QR`
+            : `Isi halaman ${pageNumber}`}
+        onclick={() => onPageSelect?.(pageNumber)}
+        onkeydown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                onPageSelect?.(pageNumber);
+            }
+        }}
     ></canvas>
 
     {#if !thumbnail}
@@ -252,6 +275,7 @@
                             invalid={invalidFooterPages.includes(pageNumber)}
                             onSelect={onFooterSelect ?? (() => undefined)}
                             onChange={onFooterChange ?? (() => undefined)}
+                            onDelete={onFooterDelete ?? (() => undefined)}
                             onDeselect={onFooterDeselect ?? (() => undefined)}
                         />
                     {/if}

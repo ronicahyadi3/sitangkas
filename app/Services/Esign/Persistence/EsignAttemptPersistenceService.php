@@ -830,6 +830,7 @@ final class EsignAttemptPersistenceService
         $lastOperation = $attempt->signatureOperations()
             ->where('status', EsignSignatureOperationStatus::Completed->value)
             ->whereNotNull('output_artifact_id')
+            ->reorder()
             ->orderByDesc('operation_index')
             ->first();
 
@@ -954,8 +955,11 @@ final class EsignAttemptPersistenceService
             ->where('decoration_type', DocumentArtifactDecorationType::Footer->value)
             ->first();
 
-        if (($rendition->footer === null && $footerDecoration instanceof DocumentArtifactDecoration)
-            || ($rendition->footer !== null
+        $footerHasPlacements = $rendition->footer !== null
+            && ($rendition->footer['placements'] ?? []) !== [];
+
+        if ((! $footerHasPlacements && $footerDecoration instanceof DocumentArtifactDecoration)
+            || ($footerHasPlacements
                 && (! $footerDecoration instanceof DocumentArtifactDecoration
                     || ! hash_equals(
                         (string) $footerDecoration->configuration_sha256,
@@ -972,7 +976,7 @@ final class EsignAttemptPersistenceService
     ): void {
         $footer = $rendition->footer;
 
-        if ($footer === null) {
+        if ($footer === null || ($footer['placements'] ?? []) === []) {
             return;
         }
 
@@ -997,9 +1001,9 @@ final class EsignAttemptPersistenceService
             'is_bold' => $footer['is_bold'],
             'is_italic' => $footer['is_italic'],
             'is_underline' => $footer['is_underline'],
-            'text_alignment' => 'left',
+            'text_alignment' => 'center',
             'text_color' => '#000000',
-            'page_scope' => DocumentArtifactDecorationScope::AllPages,
+            'page_scope' => DocumentArtifactDecorationScope::SelectedPages,
             'renderer_version' => $rendition->rendererVersion,
             'configuration_sha256' => Str::lower($configurationSha256),
             'created_by_user_id' => $attempt->actor_user_id,

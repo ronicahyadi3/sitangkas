@@ -15,6 +15,7 @@
         resizeSquareSignaturePlacement,
     } from '../geometry/placement';
     import { serializeSignaturePlacement } from '../geometry/serialization';
+    import { domPointToCanonicalPoint } from '../geometry/transform';
     import { validateGeometryPlan } from '../geometry/validation';
     import { verifyPdfDocumentGeometry } from '../geometry/pdf-document';
     import type { RenderedPdfPageMetrics } from '../geometry/types';
@@ -24,13 +25,18 @@
         FooterPlacement,
         FooterPlan,
         SignaturePlacement,
+        SignaturePlacementTarget,
         SigningSession,
     } from '../types';
     import PdfPageCanvas from './PdfPageCanvas.svelte';
 
+    const FOOTER_FONT_SIZE_STEP_PT = 0.1;
+
     let {
         session,
         fetchPdf,
+        onAddSignature,
+        onResetPlacements,
         placements = $bindable(),
         footerPlan = $bindable(null),
         activePage = $bindable(1),
@@ -40,6 +46,8 @@
     }: {
         session: SigningSession;
         fetchPdf: (url: string, signal?: AbortSignal) => Promise<ArrayBuffer>;
+        onAddSignature: (target?: SignaturePlacementTarget) => void;
+        onResetPlacements: () => void;
         placements: SignaturePlacement[];
         footerPlan: FooterPlan | null;
         activePage: number;
@@ -50,6 +58,7 @@
 
     let workspaceElement: HTMLDivElement;
     let pagesElement: HTMLDivElement;
+    let thumbnailListElement: HTMLDivElement;
     let document = $state<PDFDocumentProxy | null>(null);
     let viewerError = $state<NormalizedEsignError | null>(null);
     let loading = $state(true);
@@ -60,6 +69,7 @@
     let loadedDocument: LoadedPdfDocument | null = null;
     let loadGeneration = 0;
     let placementFeedback = $state('');
+    let inspectorPanel = $state<'signature' | 'footer' | 'document'>('signature');
 
     let activeGeometry = $derived(session.pages[activePage - 1] ?? session.pages[0]);
     let fitScale = $derived.by(() => {
@@ -71,7 +81,6 @@
         return Math.min(1.6, Math.max(0.25, availableWidth / Math.max(1, pageWidth)));
     });
     let renderScale = $derived(fitScale * zoom);
-    let activeMetrics = $derived(renderedPageMetrics[activePage]);
     let geometryValidation = $derived(validateGeometryPlan(
         placements,
         footerPlan?.placements ?? [],
@@ -132,13 +141,7 @@
             page.height - session.editor.safe_margin_pt - selectedPlacement.origin_y,
         );
     });
-    let visiblePages = $derived.by(() => {
-        const pages = [activePage - 1, activePage, activePage + 1]
-            .filter((page) => page >= 1 && page <= session.pages.length);
-
-        return [...new Set(pages)];
-    });
-
+    let viewerPages = $derived(session.pages.map((page) => page.page));
     onMount(() => {
         const observer = new ResizeObserver((entries) => {
             const entry = entries[0];
@@ -166,6 +169,7 @@
         thumbnailCount = 0;
         renderedPageMetrics = {};
         placementFeedback = '';
+        inspectorPanel = 'signature';
         editorReady = false;
 
         void (async (): Promise<void> => {
@@ -272,13 +276,164 @@
         return () => window.clearTimeout(handle);
     });
 
-    async function goToPage(page: number): Promise<void> {
-        activePage = Math.min(session.pages.length, Math.max(1, page));
+    async function scrollThumbnailToPage(
+        page: number,
+        behavior: ScrollBehavior = 'smooth',
+    ): Promise<void> {
         await tick();
 
-        pagesElement
-            ?.querySelector<HTMLElement>(`[data-page-number="${activePage}"]`)
-            ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        const targetThumbnail = thumbnailListElement
+            ?.querySelector<HTMLElement>(`[data-thumbnail-page="${page}"]`);
+
+        if (targetThumbnail === null || targetThumbnail === undefined) {
+            return;
+        }
+
+        const thumbnailTop = targetThumbnail.offsetTop
+            - Math.max(0, (thumbnailListElement.clientHeight - targetThumbnail.offsetHeight) / 2);
+
+        thumbnailListElement.scrollTo({
+            behavior,
+            top: Math.max(0, thumbnailTop),
+        });
+    }
+
+    async function activateWorkspacePage(page: number): Promise<void> {
+        const normalizedPage = Math.min(session.pages.length, Math.max(1, page));
+
+        activePage = normalizedPage;
+        thumbnailCount = Math.max(thumbnailCount, normalizedPage);
+        await scrollThumbnailToPage(normalizedPage);
+    }
+
+    function visiblePlacementTarget(): SignaturePlacementTarget | undefined {
+        if (pagesElement === undefined) {
+            return undefined;
+        }
+
+        const workspaceBounds = pagesElement.getBoundingClientRect();
+        const pageElements = pagesElement.querySelectorAll<HTMLElement>('[data-page-number]');
+        let bestMatch: {
+            element: HTMLElement;
+            page: number;
+            visibleArea: number;
+            visibleBottom: number;
+            visibleLeft: number;
+            visibleRight: number;
+            visibleTop: number;
+        } | null = null;
+
+        for (const element of pageElements) {
+            const page = Number(element.dataset.pageNumber);
+
+            if (!Number.isInteger(page)) {
+                continue;
+            }
+
+            const bounds = element.getBoundingClientRect();
+            const visibleLeft = Math.max(bounds.left, workspaceBounds.left);
+            const visibleRight = Math.min(bounds.right, workspaceBounds.right);
+            const visibleTop = Math.max(bounds.top, workspaceBounds.top);
+            const visibleBottom = Math.min(bounds.bottom, workspaceBounds.bottom);
+            const visibleArea = Math.max(0, visibleRight - visibleLeft)
+                * Math.max(0, visibleBottom - visibleTop);
+
+            if (visibleArea > (bestMatch?.visibleArea ?? 0)) {
+                bestMatch = {
+                    element,
+                    page,
+                    visibleArea,
+                    visibleBottom,
+                    visibleLeft,
+                    visibleRight,
+                    visibleTop,
+                };
+            }
+        }
+
+        if (bestMatch === null || bestMatch.visibleArea <= 0) {
+            return undefined;
+        }
+
+        const page = session.pages.find((item) => item.page === bestMatch.page);
+
+        if (page === undefined) {
+            return undefined;
+        }
+
+        const bounds = bestMatch.element.getBoundingClientRect();
+        const center = domPointToCanonicalPoint({
+            x: (bestMatch.visibleLeft + bestMatch.visibleRight) / 2,
+            y: (bestMatch.visibleTop + bestMatch.visibleBottom) / 2,
+        }, page, {
+            left: bounds.left,
+            top: bounds.top,
+            width: bounds.width,
+            height: bounds.height,
+        });
+
+        return {
+            page: page.page,
+            center_x: center.x,
+            center_y: center.y,
+        };
+    }
+
+    function addSignatureAtVisibleCenter(): void {
+        const target = visiblePlacementTarget();
+
+        if (target !== undefined) {
+            activePage = target.page;
+            thumbnailCount = Math.max(thumbnailCount, target.page);
+            void scrollThumbnailToPage(target.page);
+        }
+
+        onAddSignature(target);
+    }
+
+    async function goToPage(page: number): Promise<void> {
+        const normalizedPage = Math.min(session.pages.length, Math.max(1, page));
+
+        activePage = normalizedPage;
+        thumbnailCount = Math.max(thumbnailCount, normalizedPage);
+        await tick();
+
+        const targetPage = pagesElement
+            ?.querySelector<HTMLElement>(`[data-page-number="${normalizedPage}"]`);
+
+        if (pagesElement !== undefined && targetPage !== null && targetPage !== undefined) {
+            const viewport = pagesElement.getBoundingClientRect();
+            const pageBounds = targetPage.getBoundingClientRect();
+            const viewportTop = viewport.top + pagesElement.clientTop;
+            const viewportLeft = viewport.left + pagesElement.clientLeft;
+            const viewportBottom = viewportTop + pagesElement.clientHeight;
+            const viewportRight = viewportLeft + pagesElement.clientWidth;
+            const pageIsAlreadyVisible = pageBounds.bottom > viewportTop
+                && pageBounds.top < viewportBottom
+                && pageBounds.right > viewportLeft
+                && pageBounds.left < viewportRight;
+
+            if (!pageIsAlreadyVisible) {
+                const verticalDelta = pageBounds.top >= viewportBottom
+                    ? pageBounds.top - viewportTop
+                    : pageBounds.bottom <= viewportTop
+                        ? pageBounds.bottom - viewportBottom
+                        : 0;
+                const horizontalDelta = pageBounds.left >= viewportRight
+                    ? pageBounds.left - viewportLeft
+                    : pageBounds.right <= viewportLeft
+                        ? pageBounds.right - viewportRight
+                        : 0;
+
+                pagesElement.scrollBy({
+                    behavior: 'smooth',
+                    left: horizontalDelta,
+                    top: verticalDelta,
+                });
+            }
+        }
+
+        await scrollThumbnailToPage(normalizedPage);
     }
 
     function zoomIn(): void {
@@ -295,7 +450,7 @@
             ? geometry.height
             : geometry?.width;
 
-        return Math.min(0.3, 124 / Math.max(1, width ?? 1));
+        return Math.min(0.26, 104 / Math.max(1, width ?? 1));
     }
 
     function registerViewport(metrics: RenderedPdfPageMetrics): void {
@@ -337,6 +492,7 @@
 
         selectedPlacementId = clientId;
         selectedFooterPage = null;
+        inspectorPanel = 'signature';
         placementFeedback = '';
 
         if (placement.page !== activePage) {
@@ -406,6 +562,7 @@
 
         selectedFooterPage = page;
         selectedPlacementId = null;
+        inspectorPanel = 'footer';
         placementFeedback = '';
 
         if (page !== activePage) {
@@ -419,6 +576,23 @@
         }
 
         footerPlan = replaceFooterPlacement(footerPlan, updated);
+        placementFeedback = '';
+    }
+
+    function deleteFooterPlacement(page: number): void {
+        if (footerPlan === null) {
+            return;
+        }
+
+        footerPlan = {
+            ...footerPlan,
+            placements: footerPlan.placements.filter((placement) => placement.page !== page),
+        };
+
+        if (selectedFooterPage === page) {
+            selectedFooterPage = null;
+        }
+
         placementFeedback = '';
     }
 
@@ -487,14 +661,28 @@
     <aside class="esign-editor-shell__thumbnails" aria-label="Daftar halaman">
         <div class="esign-panel-heading">
             <span>Halaman</span>
-            <span class="badge bg-light text-dark">{session.pages.length}</span>
+            <label class="esign-thumbnail-page-select">
+                <span class="visually-hidden">Pilih halaman</span>
+                <select
+                    class="form-select form-select-sm"
+                    value={activePage}
+                    disabled={document === null}
+                    aria-label="Pilih halaman PDF"
+                    onchange={(event) => goToPage(Number(event.currentTarget.value))}
+                >
+                    {#each session.pages as page}
+                        <option value={page.page}>{page.page} / {session.pages.length}</option>
+                    {/each}
+                </select>
+            </label>
         </div>
 
-        <div class="esign-thumbnail-list">
+        <div bind:this={thumbnailListElement} class="esign-thumbnail-list">
             {#if document}
                 {#each Array.from({ length: thumbnailCount }, (_, index) => index + 1) as page}
                     <button
                         type="button"
+                        data-thumbnail-page={page}
                         class:esign-thumbnail-button--active={page === activePage}
                         class="esign-thumbnail-button"
                         aria-label="Buka halaman {page}"
@@ -530,32 +718,59 @@
 
     <div bind:this={workspaceElement} class="esign-editor-shell__workspace">
         <div class="esign-workspace-toolbar" aria-label="Toolbar PDF">
-            <div class="btn-group btn-group-sm" role="group" aria-label="Navigasi halaman">
+            <div class="esign-workspace-toolbar__navigation">
+                <div class="btn-group btn-group-sm" role="group" aria-label="Navigasi halaman">
+                    <button
+                        class="btn btn-outline-secondary"
+                        type="button"
+                        disabled={activePage <= 1 || document === null}
+                        aria-label="Halaman sebelumnya"
+                        onclick={() => goToPage(activePage - 1)}
+                    >
+                        <i class="fas fa-chevron-left" aria-hidden="true"></i>
+                    </button>
+                    <button
+                        class="btn btn-outline-secondary"
+                        type="button"
+                        disabled={activePage >= session.pages.length || document === null}
+                        aria-label="Halaman berikutnya"
+                        onclick={() => goToPage(activePage + 1)}
+                    >
+                        <i class="fas fa-chevron-right" aria-hidden="true"></i>
+                    </button>
+                </div>
+
+                <span class="esign-workspace-toolbar__page" aria-label={`Halaman ${activePage} dari ${session.pages.length}`}>
+                    {activePage}/{session.pages.length}
+                </span>
+            </div>
+
+            <div class="esign-workspace-toolbar__placement-actions" aria-label="Aksi penempatan QR">
                 <button
-                    class="btn btn-outline-secondary"
                     type="button"
-                    disabled={activePage <= 1 || document === null}
-                    aria-label="Halaman sebelumnya"
-                    onclick={() => goToPage(activePage - 1)}
+                    class="btn btn-sm btn-outline-secondary mb-0"
+                    disabled={placements.length === 0}
+                    title="Kembalikan seluruh QR ke posisi aman"
+                    onclick={onResetPlacements}
                 >
-                    <i class="fas fa-chevron-left" aria-hidden="true"></i>
+                    <i class="fas fa-rotate-left me-1" aria-hidden="true"></i>
+                    Reset Posisi
                 </button>
                 <button
-                    class="btn btn-outline-secondary"
                     type="button"
-                    disabled={activePage >= session.pages.length || document === null}
-                    aria-label="Halaman berikutnya"
-                    onclick={() => goToPage(activePage + 1)}
+                    class="btn btn-sm bg-gradient-primary mb-0"
+                    disabled={!editorReady || placements.length >= session.editor.maximum_signature_count}
+                    title={placements.length >= session.editor.maximum_signature_count
+                        ? `Maksimal ${session.editor.maximum_signature_count} QR`
+                        : `Tambahkan QR pada halaman ${activePage}`}
+                    onclick={addSignatureAtVisibleCenter}
                 >
-                    <i class="fas fa-chevron-right" aria-hidden="true"></i>
+                    <i class="fas fa-qrcode me-1" aria-hidden="true"></i>
+                    Tambah QR{placements.length > 0 ? ` (${placements.length})` : ''}
                 </button>
             </div>
 
-            <span class="esign-workspace-toolbar__page">
-                Halaman {activePage} dari {session.pages.length}
-            </span>
-
-            <div class="btn-group btn-group-sm ms-auto" role="group" aria-label="Pengaturan zoom">
+            <div class="btn-group btn-group-sm esign-workspace-toolbar__zoom" role="group" aria-label="Pengaturan zoom">
                 <button
                     class="btn btn-outline-secondary"
                     type="button"
@@ -613,10 +828,20 @@
                 </div>
             {:else if document}
                 <div class="esign-pdf-pages">
-                    {#each visiblePages as page (page)}
-                        <div class:esign-pdf-pages__item--active={page === activePage} class="esign-pdf-pages__item">
+                    {#each viewerPages as page (page)}
+                        <div
+                            class:esign-pdf-pages__item--active={page === activePage}
+                            class="esign-pdf-pages__item"
+                            aria-current={page === activePage ? 'page' : undefined}
+                        >
                             <div class="esign-pdf-pages__label">
                                 <span>Halaman {page}</span>
+                                {#if page === activePage}
+                                    <span class="esign-pdf-pages__active-badge">
+                                        <i class="fas fa-circle-check" aria-hidden="true"></i>
+                                        Aktif
+                                    </span>
+                                {/if}
                                 {#if session.pages[page - 1]?.rotation !== 0}
                                     <span class="badge bg-gradient-warning">
                                         Rotasi {session.pages[page - 1]?.rotation}°
@@ -628,6 +853,7 @@
                                 pageNumber={page}
                                 expectedGeometry={session.pages[page - 1]}
                                 scale={renderScale}
+                                deferUntilVisible
                                 placements={placementsForPage(page)}
                                 {selectedPlacementId}
                                 {invalidPlacementIds}
@@ -636,12 +862,14 @@
                                 {invalidFooterPages}
                                 editor={session.editor}
                                 onViewportReady={registerViewport}
+                                onPageSelect={activateWorkspacePage}
                                 onPlacementSelect={selectPlacement}
                                 onPlacementChange={updatePlacement}
                                 onPlacementDelete={deletePlacement}
                                 onPlacementDeselect={() => selectedPlacementId = null}
                                 onFooterSelect={selectFooter}
                                 onFooterChange={updateFooterPlacement}
+                                onFooterDelete={deleteFooterPlacement}
                                 onFooterDeselect={() => selectedFooterPage = null}
                             />
                         </div>
@@ -652,22 +880,91 @@
     </div>
 
     <aside class="esign-editor-shell__inspector" aria-label="Informasi PDF">
-        <div class="esign-panel-heading">Informasi dokumen</div>
-        <dl class="esign-summary-list mb-0">
-            <div><dt>Penandatangan</dt><dd>{session.signer_name}</dd></div>
-            <div><dt>NIK</dt><dd>{session.masked_nik}</dd></div>
-            <div><dt>Halaman</dt><dd>{session.pages.length}</dd></div>
-            <div><dt>Versi artifact</dt><dd>{session.artifact_version}</dd></div>
-            <div>
-                <dt>Status signature</dt>
-                <dd>{session.signature_state === 'signed' ? 'Sudah memiliki TTE' : 'Belum memiliki TTE'}</dd>
+        <nav class="esign-inspector-tabs" aria-label="Panel pengaturan editor">
+            <button
+                type="button"
+                class:esign-inspector-tabs__button--active={inspectorPanel === 'signature'}
+                class="esign-inspector-tabs__button"
+                aria-pressed={inspectorPanel === 'signature'}
+                onclick={() => inspectorPanel = 'signature'}
+            >
+                <i class="fas fa-qrcode" aria-hidden="true"></i>
+                QR
+                <span class="badge bg-gradient-primary">{placements.length}</span>
+            </button>
+            {#if session.editor.footer.allowed && footerPlan}
+                <button
+                    type="button"
+                    class:esign-inspector-tabs__button--active={inspectorPanel === 'footer'}
+                    class="esign-inspector-tabs__button"
+                    aria-pressed={inspectorPanel === 'footer'}
+                    onclick={() => inspectorPanel = 'footer'}
+                >
+                    <i class="fas fa-align-left" aria-hidden="true"></i>
+                    Footer
+                </button>
+            {/if}
+            <button
+                type="button"
+                class:esign-inspector-tabs__button--active={inspectorPanel === 'document'}
+                class="esign-inspector-tabs__button"
+                aria-pressed={inspectorPanel === 'document'}
+                onclick={() => inspectorPanel = 'document'}
+            >
+                <i class="fas fa-circle-info" aria-hidden="true"></i>
+                Info
+            </button>
+        </nav>
+
+        <div class="esign-inspector-content">
+        {#if inspectorPanel === 'document'}
+        <div class="esign-panel-heading">Ringkasan dokumen</div>
+        <dl class="esign-summary-list esign-summary-list--compact esign-summary-list--document mb-0">
+            <div
+                class="esign-summary-list__status"
+                class:esign-summary-list__status--signed={session.signature_state === 'signed'}
+            >
+                <dt>Status tanda tangan</dt>
+                <dd>
+                    <i
+                        class="fas {session.signature_state === 'signed' ? 'fa-circle-check' : 'fa-clock'}"
+                        aria-hidden="true"
+                    ></i>
+                    <span>{session.signature_state === 'signed' ? 'Sudah memiliki TTE' : 'Belum memiliki TTE'}</span>
+                </dd>
+                {#if session.signature_state === 'signed'}
+                    <small>{session.verified_signature_count} tanda tangan terverifikasi</small>
+                {:else}
+                    <small>Dokumen siap diproses sesuai alur penandatangan.</small>
+                {/if}
+            </div>
+            <div class="esign-summary-list__identity">
+                <dt>Penandatangan saat ini</dt>
+                <dd>
+                    <strong>{session.signer_name}</strong>
+                    <small>NIK {session.masked_nik}</small>
+                </dd>
+            </div>
+            <div class="esign-summary-list__metric">
+                <dt>Halaman</dt>
+                <dd>{session.pages.length}</dd>
+            </div>
+            <div class="esign-summary-list__metric">
+                <dt>Versi dokumen</dt>
+                <dd>{session.artifact_version}</dd>
             </div>
         </dl>
+        {/if}
+        {#if inspectorPanel === 'signature'}
         <div class="esign-panel-heading esign-panel-heading--section">
             <span>QR tanda tangan</span>
             <span class="badge bg-gradient-primary">
                 {placements.length}/{session.editor.maximum_signature_count}
             </span>
+        </div>
+        <div class="esign-inspector-hint">
+            <i class="fas fa-circle-info" aria-hidden="true"></i>
+            <span>Pilih QR untuk mengatur ukuran; geser QR pada halaman untuk mengubah posisi.</span>
         </div>
         {#if placements.length === 0}
             <div class="esign-empty-panel esign-empty-panel--compact">
@@ -703,7 +1000,10 @@
                     <span>Halaman {selectedPlacement.page}</span>
                 </div>
                 <div class="esign-signature-size-control">
-                    <span>Ukuran</span>
+                    <span class="esign-signature-size-control__label">
+                        <i class="fas fa-expand" aria-hidden="true"></i>
+                        <span>Ukuran QR</span>
+                    </span>
                     <div class="btn-group btn-group-sm" role="group" aria-label="Ubah ukuran QR">
                         <button
                             type="button"
@@ -749,20 +1049,25 @@
                 {/if}
             </div>
         {/if}
+        {/if}
 
-        {#if session.editor.footer.allowed && footerPlan}
+        {#if inspectorPanel === 'footer' && session.editor.footer.allowed && footerPlan}
             <div class="esign-panel-heading esign-panel-heading--section">
                 <span>Footer dokumen</span>
                 <span class="badge bg-gradient-info">
-                    {session.editor.footer.required ? 'Wajib' : 'Opsional'}
+                    {footerPlan.placements.length} / {session.pages.length} halaman
                 </span>
             </div>
             <div class="esign-footer-inspector">
-                <label class="form-label" for="esignFooterText">Kalimat footer</label>
+                <div class="esign-inspector-hint esign-inspector-hint--footer">
+                    <i class="fas fa-circle-info" aria-hidden="true"></i>
+                    <span>{footerPlan.placements.length}/{session.pages.length} halaman memakai footer. Hapus dari halaman melalui tombol × pada footer.</span>
+                </div>
+                <label class="form-label" for="esignFooterText">Teks footer <span>· rata tengah</span></label>
                 <textarea
                     id="esignFooterText"
                     class="form-control form-control-sm"
-                    rows="3"
+                    rows="4"
                     maxlength="1000"
                     value={footerPlan.text}
                     oninput={(event) => updateFooterStyle({ text: event.currentTarget.value })}
@@ -789,17 +1094,17 @@
                                 class="btn btn-outline-secondary"
                                 disabled={footerPlan.font_size_pt <= session.editor.footer.font_size_min_pt}
                                 aria-label="Perkecil font footer"
-                                onclick={() => changeFooterFontSize(-1)}
+                                onclick={() => changeFooterFontSize(-FOOTER_FONT_SIZE_STEP_PT)}
                             >
                                 <i class="fas fa-minus" aria-hidden="true"></i>
                             </button>
-                            <span class="btn btn-outline-secondary disabled">{footerPlan.font_size_pt} pt</span>
+                            <span class="btn btn-outline-secondary disabled">{footerPlan.font_size_pt.toFixed(1)} pt</span>
                             <button
                                 type="button"
                                 class="btn btn-outline-secondary"
                                 disabled={footerPlan.font_size_pt >= session.editor.footer.font_size_max_pt}
                                 aria-label="Perbesar font footer"
-                                onclick={() => changeFooterFontSize(1)}
+                                onclick={() => changeFooterFontSize(FOOTER_FONT_SIZE_STEP_PT)}
                             >
                                 <i class="fas fa-plus" aria-hidden="true"></i>
                             </button>
@@ -839,7 +1144,7 @@
                 </div>
                 <div class="esign-footer-position-controls">
                     <div>
-                        <strong>Posisi per halaman</strong>
+                        <strong><i class="fas fa-arrows-up-down-left-right" aria-hidden="true"></i> Posisi per halaman</strong>
                         <small>
                             {selectedFooterPage === null
                                 ? 'Pilih footer pada preview.'
@@ -861,7 +1166,7 @@
                         <button
                             type="button"
                             class="btn btn-sm btn-outline-primary mb-0"
-                            disabled={selectedFooterPage === null}
+                            disabled={selectedFooterPlacement === null}
                             onclick={applyCurrentFooterPlacementToAllPages}
                         >Terapkan ke semua</button>
                     </div>
@@ -879,29 +1184,6 @@
                 {placementFeedback}
             </div>
         {/if}
-        <div class="esign-geometry-status" role="status">
-            <div class="esign-geometry-status__heading">
-                <span><i class="fas fa-ruler-combined" aria-hidden="true"></i> Geometri canonical</span>
-                <span class="badge bg-gradient-success">Siap</span>
-            </div>
-            <dl class="esign-geometry-status__details mb-0">
-                <div><dt>Koordinat</dt><dd>PDF point · kiri atas</dd></div>
-                <div>
-                    <dt>Halaman aktif</dt>
-                    <dd>{activeGeometry?.width} × {activeGeometry?.height} pt</dd>
-                </div>
-                <div><dt>Safe margin</dt><dd>{session.editor.safe_margin_pt} pt</dd></div>
-                <div><dt>Jarak minimum</dt><dd>{session.editor.minimum_gap_pt} pt</dd></div>
-                {#if activeMetrics}
-                    <div>
-                        <dt>Skala render</dt>
-                        <dd>{activeMetrics.scale_x.toFixed(3)} px/pt</dd>
-                    </div>
-                {/if}
-            </dl>
-        </div>
-        <div class="esign-viewer-note">
-            Transform point ↔ pixel, safe margin, snap, dan collision sudah mengikuti kontrak backend. Backend tetap validator akhir.
         </div>
     </aside>
 </section>

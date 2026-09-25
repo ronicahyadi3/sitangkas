@@ -55,6 +55,10 @@
     );
 
     function attemptHeading(): string {
+        if (details?.error_code === 'esign.invalid_passphrase') {
+            return 'Passphrase tidak sesuai';
+        }
+
         if (stage === 'succeeded') {
             return 'Dokumen berhasil ditandatangani';
         }
@@ -79,6 +83,12 @@
     }
 
     function attemptDescription(): string {
+        if (details?.error_code === 'esign.invalid_passphrase') {
+            return stage === 'requires_passphrase'
+                ? 'BSrE menolak passphrase sebelumnya. Masukkan passphrase yang benar untuk melanjutkan tanpa mengulang QR yang sudah selesai.'
+                : 'BSrE menolak passphrase yang digunakan. Mulai ulang TTE dan masukkan passphrase yang benar.';
+        }
+
         if (details?.requires_reconciliation) {
             return 'Sistem menahan retry karena hasil provider belum dapat dipastikan.';
         }

@@ -99,27 +99,62 @@
     </div>
 
     <aside class="esign-confirmation-shell__summary">
-        <div class="esign-panel-heading">Informasi tanda tangan</div>
+        <div class="esign-panel-heading">
+            <span>Ringkasan TTE</span>
+            <span class="esign-confirmation-shell__status">
+                <i class="fas fa-shield-halved" aria-hidden="true"></i>
+                Preview final
+            </span>
+        </div>
 
-        <dl class="esign-summary-list">
-            <div><dt>Penandatangan</dt><dd>{session.signer_name}</dd></div>
-            <div><dt>NIK</dt><dd>{session.masked_nik}</dd></div>
-            <div><dt>Dokumen</dt><dd>{session.pages.length} halaman · artifact versi {session.artifact_version}</dd></div>
-            <div><dt>Tanda tangan sebelumnya</dt><dd>{session.verified_signature_count}</dd></div>
-            <div><dt>QR baru</dt><dd>{rendition.signature_count} operasi pada halaman {pageSummary(signaturePages)}</dd></div>
+        <div class="esign-confirmation-signer">
+            <span class="esign-confirmation-signer__icon" aria-hidden="true">
+                <i class="fas fa-user-check"></i>
+            </span>
+            <div>
+                <span>Penandatangan</span>
+                <strong>{session.signer_name}</strong>
+                <small>NIK {session.masked_nik}</small>
+            </div>
+        </div>
+
+        <dl class="esign-summary-list esign-confirmation-metadata">
+            <div class="esign-confirmation-metadata__document">
+                <dt>Dokumen</dt>
+                <dd>{session.pages.length} halaman <span>· versi {session.artifact_version}</span></dd>
+            </div>
+            <div>
+                <dt>TTE sebelumnya</dt>
+                <dd>{session.verified_signature_count}</dd>
+            </div>
+            <div>
+                <dt>QR baru</dt>
+                <dd>{rendition.signature_count} <span>di halaman {pageSummary(signaturePages)}</span></dd>
+            </div>
             <div>
                 <dt>Footer</dt>
                 <dd>
-                    {rendition.footer === null
-                        ? 'Tidak ditambahkan'
-                        : `Diterapkan pada ${rendition.footer.placements.length} halaman`}
+                    {rendition.footer === null || rendition.footer.placements.length === 0
+                        ? 'Tidak ada'
+                        : `${rendition.footer.placements.length} halaman`}
                 </dd>
             </div>
-            <div><dt>Preview berlaku sampai</dt><dd>{expirySummary(rendition.expires_at)}</dd></div>
+            <div class="esign-confirmation-metadata__expiry">
+                <dt>Preview berlaku sampai</dt>
+                <dd>{expirySummary(rendition.expires_at)}</dd>
+            </div>
         </dl>
 
         <div class="esign-confirmation-shell__authorization">
-            <div class="esign-panel-heading esign-panel-heading--section">Konfirmasi penandatangan</div>
+            <div class="esign-confirmation-shell__authorization-heading">
+                <span class="esign-confirmation-shell__authorization-icon" aria-hidden="true">
+                    <i class="fas fa-key"></i>
+                </span>
+                <div>
+                    <strong>Konfirmasi penandatangan</strong>
+                    <small>Masukkan passphrase untuk memulai proses TTE.</small>
+                </div>
+            </div>
             <div class="esign-passphrase-form">
                 <label class="form-label text-sm" for="esign-confirmation-passphrase">
                     Passphrase BSrE
@@ -149,9 +184,9 @@
                         <i class={revealPassphrase ? 'fas fa-eye-slash' : 'fas fa-eye'} aria-hidden="true"></i>
                     </button>
                 </div>
-                <p id="esign-confirmation-passphrase-help" class="text-xs text-secondary mt-2 mb-0">
+                <p id="esign-confirmation-passphrase-help" class="esign-passphrase-form__help mb-0">
+                    <i class="fas fa-circle-info" aria-hidden="true"></i>
                     Satu klik TTE akan memproses {rendition.signature_count} QR secara berurutan di server.
-                    Passphrase hanya disimpan sementara di memori halaman.
                 </p>
             </div>
         </div>
@@ -175,7 +210,7 @@
             </div>
         {/if}
 
-        <div class="alert alert-light border text-sm" role="note">
+        <div class="esign-confirmation-note" role="note">
             <i class="fas fa-shield-halved me-2" aria-hidden="true"></i>
             Pastikan nama penandatangan dan seluruh posisi QR pada preview sudah benar.
         </div>

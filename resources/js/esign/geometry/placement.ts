@@ -12,7 +12,7 @@ import {
     safeAreaForPage,
 } from './constraints';
 import { serializeSignaturePlacement } from './serialization';
-import type { CanonicalRectangle } from './types';
+import type { CanonicalPoint, CanonicalRectangle } from './types';
 
 const PREFERRED_QR_SIZE_PT = 96;
 
@@ -52,6 +52,7 @@ export function findAvailableSignatureRectangle(
     editor: VisibleSigningEditorConfiguration,
     requestedSize?: number,
     footerPlacements: FooterPlacement[] = [],
+    preferredCenter?: CanonicalPoint,
 ): CanonicalRectangle | null {
     const area = safeAreaForPage(page, editor.safe_margin_pt);
     const preferredSize = preferredQrSize(page, editor);
@@ -67,8 +68,14 @@ export function findAvailableSignatureRectangle(
     ));
     const maximumX = area.origin_x + area.width - size;
     const maximumY = area.origin_y + area.height - size;
-    const centerX = area.origin_x + ((area.width - size) / 2);
-    const centerY = area.origin_y + ((area.height - size) / 2);
+    const centerX = Math.min(maximumX, Math.max(
+        area.origin_x,
+        (preferredCenter?.x ?? (area.origin_x + (area.width / 2))) - (size / 2),
+    ));
+    const centerY = Math.min(maximumY, Math.max(
+        area.origin_y,
+        (preferredCenter?.y ?? (area.origin_y + (area.height / 2))) - (size / 2),
+    ));
     const step = size + editor.minimum_gap_pt;
     const xCandidates = axisCandidates(area.origin_x, maximumX, centerX, step);
     const yCandidates = axisCandidates(area.origin_y, maximumY, centerY, step);
@@ -113,6 +120,7 @@ export function createDefaultSignaturePlacement(
     editor: VisibleSigningEditorConfiguration,
     clientId: Uuid,
     footerPlacements: FooterPlacement[] = [],
+    preferredCenter?: CanonicalPoint,
 ): SignaturePlacement | null {
     const rectangle = findAvailableSignatureRectangle(
         page,
@@ -120,6 +128,7 @@ export function createDefaultSignaturePlacement(
         editor,
         undefined,
         footerPlacements,
+        preferredCenter,
     );
 
     return rectangle === null

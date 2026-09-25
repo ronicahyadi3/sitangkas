@@ -31,6 +31,7 @@
         NormalizedEsignError,
         PreparedSigningRendition,
         SignaturePlacement,
+        SignaturePlacementTarget,
         SigningSession,
     } from '../types';
     import SigningShellBody from './SigningShellBody.svelte';
@@ -1025,14 +1026,15 @@
         }
     }
 
-    function addSignaturePlacement(): void {
+    function addSignaturePlacement(target?: SignaturePlacementTarget): void {
         const session = signingSession;
 
         if (session === null || placements.length >= session.editor.maximum_signature_count) {
             return;
         }
 
-        const page = session.pages.find((item) => item.page === activeEditorPage);
+        const targetPage = target?.page ?? activeEditorPage;
+        const page = session.pages.find((item) => item.page === targetPage);
 
         if (page === undefined) {
             editorFeedback = 'Halaman aktif tidak tersedia. Pilih halaman lain lalu coba kembali.';
@@ -1064,6 +1066,9 @@
             session.editor,
             crypto.randomUUID(),
             effectiveFooter?.placements ?? [],
+            target === undefined
+                ? undefined
+                : { x: target.center_x, y: target.center_y },
         );
 
         if (placement === null) {
@@ -1072,6 +1077,7 @@
         }
 
         placements = normalizeSignatureOperationIndexes([...placements, placement]);
+        activeEditorPage = placement.page;
         footerPlan = effectiveFooter;
         selectedPlacementId = placement.client_id;
         selectedFooterPage = null;
@@ -1259,12 +1265,6 @@
                 </div>
 
                 <div class="esign-shell__header-actions">
-                    <span
-                        class="badge {isValidation ? validationBadge.className : presentation.badgeClass}"
-                        aria-live="polite"
-                    >
-                        {isValidation ? validationBadge.label : presentation.label}
-                    </span>
                     <button
                         type="button"
                         class="btn-close"
@@ -1272,7 +1272,7 @@
                         aria-disabled={closeBlocked}
                         aria-label="Tutup editor TTE"
                         onclick={requestClose}
-                    ></button>
+                    >x</button>
                 </div>
             </header>
 
@@ -1287,7 +1287,11 @@
                 </div>
             {/if}
 
-            <main class="modal-body esign-shell__body" aria-live="polite">
+            <main
+                class:esign-shell__body--editor={!isValidation && stage === 'editing'}
+                class="modal-body esign-shell__body"
+                aria-live="polite"
+            >
                 {#if isValidation}
                     {#if activeAction?.kind === 'validation'}
                         <VerificationPanel
@@ -1313,6 +1317,8 @@
                         {resumeRetryRemaining}
                         {submitError}
                         onResume={resumePartialAttempt}
+                        onAddSignature={addSignaturePlacement}
+                        onResetPlacements={requestPlacementReset}
                         bind:placements
                         bind:footerPlan
                         bind:activeEditorPage
@@ -1346,34 +1352,12 @@
                         {stage === 'load_failed' ? 'Tutup' : 'Batal'}
                     </button>
                 {:else if stage === 'editing'}
-                    <button type="button" class="btn btn-outline-secondary mb-0" onclick={requestClose}>
-                        Batal
-                    </button>
                     {#if editorFeedback !== ''}
                         <p class="esign-shell__editor-feedback mb-0" role="status" aria-live="polite">
                             {editorFeedback}
                         </p>
                     {/if}
                     <div class="esign-shell__footer-actions">
-                        <button
-                            type="button"
-                            class="btn btn-outline-primary mb-0"
-                            disabled={placements.length === 0}
-                            onclick={requestPlacementReset}
-                        >
-                            Reset Posisi
-                        </button>
-                        <button
-                            type="button"
-                            class="btn btn-outline-primary mb-0"
-                            disabled={!editorReady || signingSession === null || placements.length >= signingSession.editor.maximum_signature_count}
-                            title={signingSession !== null && placements.length >= signingSession.editor.maximum_signature_count
-                                ? `Maksimal ${signingSession.editor.maximum_signature_count} QR`
-                                : 'Tambahkan QR pada halaman aktif'}
-                            onclick={addSignaturePlacement}
-                        >
-                            Tambah QR{placements.length > 0 ? ` (${placements.length})` : ''}
-                        </button>
                         <button
                             type="button"
                             class="btn bg-gradient-primary mb-0"
