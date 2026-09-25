@@ -1890,6 +1890,36 @@
     gap: 1rem;
 }
 
+.esign-ui .esign-attempt-panel__header--success {
+    background:
+        radial-gradient(circle at top, rgba(45, 206, 137, 0.16), transparent 62%),
+        #fff;
+    border: 1px solid rgba(45, 206, 137, 0.3);
+    border-radius: 0.9rem;
+    flex-direction: column;
+    justify-content: center;
+    padding: 1.6rem 1.25rem;
+    text-align: center;
+}
+
+.esign-ui .esign-attempt-panel__header--success > div:last-child {
+    display: grid;
+    justify-items: center;
+    max-width: 34rem;
+}
+
+.esign-ui .esign-attempt-panel__header--success .esign-attempt-panel__icon {
+    flex-basis: 4rem;
+    font-size: 1.4rem;
+    height: 4rem;
+    width: 4rem;
+}
+
+.esign-ui .esign-attempt-panel__finish {
+    margin-top: 1rem;
+    min-width: 10rem;
+}
+
 .esign-ui .esign-attempt-panel__icon {
     align-items: center;
     background: rgba(94, 114, 228, 0.12);
@@ -2645,6 +2675,15 @@
         align-items: center;
         flex-direction: column;
         text-align: center;
+    }
+
+    .esign-ui .esign-attempt-panel__header--success {
+        padding: 1.25rem 0.9rem;
+    }
+
+    .esign-ui .esign-attempt-panel__finish {
+        max-width: 18rem;
+        width: 100%;
     }
 
     .esign-ui .esign-workspace-toolbar {

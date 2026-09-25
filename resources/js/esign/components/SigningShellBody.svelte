@@ -28,6 +28,7 @@
         resumeRetryRemaining,
         submitError,
         onResume,
+        onFinish,
         onAddSignature,
         onResetPlacements,
         placements = $bindable(),
@@ -52,6 +53,7 @@
         resumeRetryRemaining: number;
         submitError: NormalizedEsignError | null;
         onResume: (passphrase: string) => void;
+        onFinish: () => void;
         onAddSignature: (target?: SignaturePlacementTarget) => void;
         onResetPlacements: () => void;
         placements: SignaturePlacement[];
@@ -199,6 +201,7 @@
         {resumeError}
         {resumeRetryRemaining}
         {onResume}
+        {onFinish}
     />
 {:else}
     <section

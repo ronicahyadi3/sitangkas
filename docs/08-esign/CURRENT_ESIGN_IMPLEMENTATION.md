@@ -1,6 +1,7 @@
 # Kondisi Implementasi eSign/TTE Saat Ini
 
-Tanggal snapshot: **25 September 2026**.
+Tanggal snapshot kode: **25 September 2026**. Dokumentasi rencana secure PDF
+delivery diperbarui **26 September 2026** tanpa perubahan runtime.
 
 Status: **backend in progress**. Boundary provider, schema/model/state service,
 authorization, signing session, private artifact persistence, secret store,
@@ -48,13 +49,17 @@ target final tetap baca:
 
 1. `README.md`;
 2. `PDF_DELIVERY_WATERMARK_AND_VERIFICATION.md`;
-3. `ESIGN_V2_CONTRACT_AND_BACKEND.md`;
-4. `ESIGN_VISIBLE_EDITOR_AND_MULTI_QR_DESIGN.md`;
-5. `ESIGN_AUTHORIZATION_AND_WORKFLOW_MATRIX.md`;
-6. `LEGACY_OPERATIONAL_TABLES_COMPATIBILITY.md`;
-7. `ESIGN_DOCUMENT_LIFECYCLE_AND_REPORTING_COMPATIBILITY.md`;
-8. `ESIGN_RESUMABLE_MIGRATION_RUNBOOK.md`;
-9. `ESIGN_V2_IMPLEMENTATION_PLAN.md`.
+3. `PDF_DELIVERY_WATERMARK_IMPLEMENTATION_PLAN.md` dan
+   `PDF_DELIVERY_WATERMARK_IMPLEMENTATION_APPENDICES.md` bila menyentuh secure
+   viewer, delivery session, watermark, COPY-ID, access audit, atau persistent
+   verification summary;
+4. `ESIGN_V2_CONTRACT_AND_BACKEND.md`;
+5. `ESIGN_VISIBLE_EDITOR_AND_MULTI_QR_DESIGN.md`;
+6. `ESIGN_AUTHORIZATION_AND_WORKFLOW_MATRIX.md`;
+7. `LEGACY_OPERATIONAL_TABLES_COMPATIBILITY.md`;
+8. `ESIGN_DOCUMENT_LIFECYCLE_AND_REPORTING_COMPATIBILITY.md`;
+9. `ESIGN_RESUMABLE_MIGRATION_RUNBOOK.md`;
+10. `ESIGN_V2_IMPLEMENTATION_PLAN.md`.
 
 Jika ada perbedaan antara tracker lama dan dokumen ini, verifikasi kode,
 migration status, dan route aktual. Jangan menganggap komponen sudah deployed
@@ -116,7 +121,10 @@ masih berada pada **Phase 4 menuju Phase 5**.
   exact original setelah authorization. Guest public selalu watermark. Admin
   Super saat acting like diperlakukan sebagai `false`; posisi bisnis nyata
   miliknya mengikuti flag posisi tersebut. Seluruh rancangan ini belum
-  diimplementasikan.
+  diimplementasikan. Urutan operasional, schema target, kontrak endpoint,
+  transition, queue, frontend general viewer, rollout, dan acceptance manual
+  sudah dikunci di `PDF_DELIVERY_WATERMARK_IMPLEMENTATION_PLAN.md` serta
+  `PDF_DELIVERY_WATERMARK_IMPLEMENTATION_APPENDICES.md`.
 - Frontend target adalah Svelte island melalui Vite pada Blade, bukan SPA dan
   bukan SvelteKit.
 - Tampilan eSign memakai Bootstrap 5 + custom Argon Dashboard Pro 2; Tailwind

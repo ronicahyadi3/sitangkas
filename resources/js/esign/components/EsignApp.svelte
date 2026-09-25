@@ -1317,6 +1317,7 @@
                         {resumeRetryRemaining}
                         {submitError}
                         onResume={resumePartialAttempt}
+                        onFinish={requestClose}
                         onAddSignature={addSignaturePlacement}
                         onResetPlacements={requestPlacementReset}
                         bind:placements
@@ -1331,6 +1332,7 @@
                 {/if}
             </main>
 
+            {#if isValidation || stage !== 'succeeded'}
             <footer class="modal-footer esign-shell__footer">
                 {#if isValidation}
                     {#if validationError !== null}
@@ -1415,6 +1417,7 @@
                     </button>
                 {/if}
             </footer>
+            {/if}
         </div>
     </div>
 </div>

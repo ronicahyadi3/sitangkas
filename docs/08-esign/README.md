@@ -59,6 +59,10 @@ integrasi BSrE wajib membaca berurutan:
 4. [kebijakan delivery PDF, watermark, dan cache verifikasi](PDF_DELIVERY_WATERMARK_AND_VERIFICATION.md)
    bila menyentuh `pdf_watermark_required`, preview/view/download PDF, guest,
    Admin Super acting, COPY-ID, cache derivative, atau cache verifikasi BSrE;
+   untuk implementasi lanjutkan ke
+   [rencana secure PDF viewer/watermark](PDF_DELIVERY_WATERMARK_IMPLEMENTATION_PLAN.md)
+   dan
+   [lampiran teknisnya](PDF_DELIVERY_WATERMARK_IMPLEMENTATION_APPENDICES.md);
 5. [kontrak dan arsitektur backend](ESIGN_V2_CONTRACT_AND_BACKEND.md);
 6. [desain editor visible dan multi-QR satu signer](ESIGN_VISIBLE_EDITOR_AND_MULTI_QR_DESIGN.md)
    bila menyentuh source PDF editor, binary preview, placement, footer,

@@ -1,13 +1,21 @@
 # Delivery PDF, Watermark Forensik, dan Cache Verifikasi BSrE
 
-Tanggal keputusan: **21 September 2026**.
+Tanggal keputusan: **21 September 2026**. Rencana implementasi diselaraskan
+pada **26 September 2026**.
 
-Status: **kontrak arsitektur yang sudah disetujui pengguna, belum
-diimplementasikan**. Pada snapshot ini kolom `pdf_watermark_required`, policy
-delivery, derivative watermark, COPY-ID, audit akses dokumen, cache verifikasi
-artifact, route content/download canonical, dan cleanup watermark belum ada di
-runtime. Seluruh agent wajib membedakan keputusan target pada dokumen ini dari
-kondisi source aktual pada `CURRENT_ESIGN_IMPLEMENTATION.md`.
+Status: **kontrak arsitektur yang sudah disetujui pengguna; implementasi
+watermark belum dimulai**. Fondasi current canonical artifact, integrity
+service, authenticated LS SPP content/download, PDF.js, `qpdf`, `pdfinfo`, dan
+verifikasi exact artifact sudah ada di source. Kolom `pdf_watermark_required`,
+delivery session universal, derivative watermark, COPY-ID, audit akses, viewer
+umum, persistent verification summary, dan cleanup watermark belum ada.
+Seluruh agent wajib membedakan keputusan target pada dokumen ini dari kondisi
+source aktual pada `CURRENT_ESIGN_IMPLEMENTATION.md`.
+
+Rencana operasional dan lampiran implementasinya berada di:
+
+- `PDF_DELIVERY_WATERMARK_IMPLEMENTATION_PLAN.md`;
+- `PDF_DELIVERY_WATERMARK_IMPLEMENTATION_APPENDICES.md`.
 
 Dokumen ini adalah source of truth untuk:
 
@@ -29,6 +37,12 @@ Dokumen ini harus dibaca bersama:
 5. `ESIGN_V2_CONTRACT_AND_BACKEND.md`;
 6. `ESIGN_V2_FRONTEND_MODAL.md`;
 7. `ESIGN_V2_IMPLEMENTATION_PLAN.md`.
+
+Setelah memahami kebijakan final pada dokumen ini, agent yang akan
+mengimplementasikan fitur wajib membaca implementation plan dan appendices di
+atas. Dokumen lampiran pengguna `SITANGKAS_AI_AGENT_PDF_SECURITY_DOCS.zip`
+adalah referensi desain; ia tidak mengalahkan keputusan proyek atau kondisi
+source aktual.
 
 ### Cakupan seluruh PDF aplikasi
 

@@ -16,6 +16,7 @@
         resumeError,
         resumeRetryRemaining,
         onResume,
+        onFinish,
     }: {
         stage: EsignShellStage;
         attempt: AcceptedEsignAttempt;
@@ -24,6 +25,7 @@
         resumeError: NormalizedEsignError | null;
         resumeRetryRemaining: number;
         onResume: (passphrase: string) => void;
+        onFinish: () => void;
     } = $props();
 
     let passphrase = $state('');
@@ -224,13 +226,26 @@
     class="esign-attempt-panel"
     aria-live="polite"
 >
-    <header class="esign-attempt-panel__header">
+    <header
+        class:esign-attempt-panel__header--success={stage === 'succeeded'}
+        class="esign-attempt-panel__header"
+    >
         <div class="esign-attempt-panel__icon" aria-hidden="true">
             <i class={attemptIcon()}></i>
         </div>
         <div>
             <h3 class="h5 mb-1">{attemptHeading()}</h3>
             <p class="text-sm text-secondary mb-0">{attemptDescription()}</p>
+            {#if stage === 'succeeded'}
+                <button
+                    type="button"
+                    class="btn bg-gradient-success esign-attempt-panel__finish mb-0"
+                    onclick={onFinish}
+                >
+                    <i class="fas fa-check me-2" aria-hidden="true"></i>
+                    Selesai
+                </button>
+            {/if}
         </div>
     </header>
 
