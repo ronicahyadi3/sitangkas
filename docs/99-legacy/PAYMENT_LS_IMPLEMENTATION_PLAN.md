@@ -1,6 +1,6 @@
 # Rencana Implementasi Payment LS
 
-Tanggal rencana awal: **8 September 2026**. Status diperbarui **23 September
+Tanggal rencana awal: **8 September 2026**. Status diperbarui **26 September
 2026**.
 
 Status: **sedang diimplementasikan; Tahap 1 sebagian besar tersedia. Vertical
@@ -14,7 +14,7 @@ Dokumen ini tidak menetapkan schema atau aturan bisnis baru secara final.
 Kondisi kode dan blocker terbaru wajib dibaca pada
 [PAYMENT_LS_CURRENT_IMPLEMENTATION.md](PAYMENT_LS_CURRENT_IMPLEMENTATION.md).
 
-## 0. Kemajuan aktual 23 September 2026
+## 0. Kemajuan aktual 26 September 2026
 
 - [x] Model bersama `Document`, `DocumentHistory`, anggaran, `BeforeSign`, dan
   `AfterSign` tersedia.
@@ -48,7 +48,10 @@ Kondisi kode dan blocker terbaru wajib dibaca pada
   transaksional serta idempotent.
 - [ ] Jalankan vertical slice BP -> PPTK -> PA sampai handoff final secara
   permanen dan terkontrol.
-- [ ] Migrasikan SPJ, Billing, dan BMD create/update dari public storage.
+- [x] Migrasikan create/replacement SPJ ke canonical private artifact dan
+  tambahkan authenticated content/download route tanpa mengubah pola row
+  `document`.
+- [ ] Migrasikan Billing dan BMD create/update dari public storage.
 - [ ] Validasi runtime upload, rollback, delivery, provisioning, dan TTE LS.
 - [ ] Review dan selesaikan SPM, SP2D, bank, serta penyelesaian LS.
 
@@ -81,17 +84,18 @@ diaktifkan atau direfaktor.
 
 Fondasi awal, create/upload SPP, kontrak `storage_path_sha256`, request update,
 replacement canonical SPP, locking pagu, lazy activation, submit gate, serta
-assignment signer pada handoff sudah dikerjakan. Hasil konkret berikutnya adalah
-backend visible placement dan controlled signing vertical slice LS SPP. Setelah
-alur itu terbukti, migrasikan attachment SPJ/Billing/BMD dan lanjutkan SPM serta
-SP2D secara bertahap.
+assignment signer pada handoff sudah dikerjakan. Direct private create,
+replacement, dan delivery SPJ juga sudah tersedia dengan cutover per row untuk
+data historis. Hasil berikutnya adalah backend visible placement/controlled
+signing LS SPP atau private BMD sesuai prioritas aktif; Billing tetap memerlukan
+mapping attachment additive tanpa row/`src_type` baru.
 
 ## 3. Keputusan yang belum ditetapkan
 
 | Topik | Yang sudah diketahui | Yang perlu dipastikan sebelum pekerjaan terkait |
 |---|---|---|
 | Data awal | Tabel operasional `document`, `document_process`, anggaran, `before_signs`, dan `after_signs` sudah disediakan; model bersama tersedia | Apakah histori LS juga diimpor; periode, sumber, dan high-watermark bila dibutuhkan |
-| Struktur dokumen | `document` tetap projection bersama dan `document_artifacts` menyimpan version chain; keluarga LS tetap beranchor SPP | Constraint kardinalitas keluarga, mapping Billing, dan aturan replacement/revisi artifact |
+| Struktur dokumen | `document` tetap projection bersama dan `document_artifacts` menyimpan version chain; keluarga LS tetap beranchor SPP; SPJ tetap row `src_type=SPJ`; Billing tetap kolom row SPJ | Constraint kardinalitas keluarga dan bentuk mapping attachment additive Billing tanpa row/`src_type` baru |
 | Sumber anggaran | SPP wajib mempunyai rekening/pagu dan rincian penggunaan | Sumber resmi, tahun/unit, cara pemuatan, serta aturan perubahan pagu |
 | Scope organisasi | `skpd_id` telah dihapus; master memakai instansi/parent/jenis/kode | Pemetaan kewenangan PA/KPA/PPK terhadap sekolah, kesehatan, Setda, kecamatan, dan unit terkait |
 | Tahap/revisi | Legacy memakai CSV dan BP/BPP mengajukan lebih dari sekali | Matriks action-stage, kapan revisi/tolak/hapus boleh, serta dampak terhadap persetujuan dan dokumen turunan |
@@ -263,7 +267,8 @@ berlaku; jangan meminta ulang bila izin tersebut sudah diberikan.
 - [x] Next step tetap pending setelah TTE sampai handoff dilakukan.
 - [ ] Visible placement QR/footer backend.
 - [ ] Controlled signing/handoff LS SPP end-to-end.
-- [ ] Private artifact dan delivery SPJ/Billing/BMD.
+- [x] Private artifact create/replacement dan delivery SPJ LS.
+- [ ] Private artifact dan delivery Billing/BMD.
 - [ ] Implementasi SPP lengkap.
 - [ ] Implementasi SPM lengkap.
 - [ ] Implementasi SP2D, TTE, billing, dan penyelesaian bank khusus LS.

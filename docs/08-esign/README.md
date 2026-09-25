@@ -24,8 +24,10 @@ replacement artifact berversi dengan draft-workflow rebind/revision cycle, dan
 authenticated delivery route khusus current artifact pada working tree.
 Formula `storage_path_sha256` persistence/integrity sudah disatukan; acceptance
 runtime delivery masih belum dilakukan. Create/update SPP sudah memakai
-protokol lock dan pemeriksaan ulang pagu yang sama di dalam transaksi, sedangkan
-attachment SPJ/Billing/BMD masih memakai public storage.
+protokol lock dan pemeriksaan ulang pagu yang sama di dalam transaksi. SPJ LS
+sudah memakai direct private artifact dan authenticated delivery route,
+sedangkan Billing/BMD masih memakai public storage. Billing tetap merupakan
+kolom pada row SPJ dan tidak dibuat sebagai `src_type` baru.
 Reconciliation, public verification, dan mapping runner belum dibuat. Audit
 frontend-backend F0 sudah selesai: endpoint aktif, response,
 binary media, error class, serta typed contract dikunci di

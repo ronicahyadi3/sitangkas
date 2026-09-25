@@ -370,6 +370,12 @@ class Detail extends Controller
 
         $dataQuery = (clone $accessibleQuery)
             ->select('document.*', 'unit_kerjas.nama as unit_kerja')
+            ->selectRaw('EXISTS (
+                SELECT 1
+                FROM document_artifacts AS current_artifact
+                WHERE current_artifact.document_id = document.id
+                  AND current_artifact.is_current = 1
+            ) AS has_current_artifact')
             ->get();
 
         if ($dataQuery->isEmpty()) {
@@ -406,14 +412,20 @@ class Detail extends Controller
         $assignedTo = $this->csvToArray($data->assigned_to);
         $submit = $this->csvToArray($data->submit);
         $statusList = $this->csvToArray($data->status);
-        $isLsSpp = $data->payment_type === 'LS' && $data->src_type === Document::TYPE_SPP;
-        $encryptedDocumentId = $isLsSpp ? EncryptedId::encode($data->id) : null;
+        $lsDeliveryType = $data->payment_type === 'LS'
+            ? match ($data->src_type) {
+                Document::TYPE_SPP => 'spp',
+                Document::TYPE_SPJ => (bool) $data->has_current_artifact ? 'spj' : null,
+                default => null,
+            }
+        : null;
+        $encryptedDocumentId = $lsDeliveryType === null ? null : EncryptedId::encode($data->id);
         $contentUrl = $encryptedDocumentId === null
             ? null
-            : route('document.ls.spp.content', ['document' => $encryptedDocumentId]);
+            : route("document.ls.{$lsDeliveryType}.content", ['document' => $encryptedDocumentId]);
         $downloadUrl = $encryptedDocumentId === null
             ? null
-            : route('document.ls.spp.download', ['document' => $encryptedDocumentId]);
+            : route("document.ls.{$lsDeliveryType}.download", ['document' => $encryptedDocumentId]);
         $fileUrl = $downloadUrl ?? $this->generateUrl($data->src_type, $data->src_name, $status);
         $documentDate = optional($data->created_at)->format('Y-m-d') ?? 'tanggal-tidak-tersedia';
         $downloadName = $data->unit_kerja.' - '.str_replace('/', '|', (string) $data->nomor).' - '.$documentDate.'.pdf';

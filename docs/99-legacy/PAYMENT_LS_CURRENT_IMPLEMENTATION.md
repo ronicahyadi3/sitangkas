@@ -1,9 +1,9 @@
 # Kondisi Implementasi Payment LS Saat Ini
 
-Tanggal snapshot: **23 September 2026**.
+Tanggal snapshot: **26 September 2026**.
 
 Status: **SPP LS sedang diintegrasikan. Create/upload dan replacement file utama
-SPP sudah memakai canonical private artifact. Vertical slice canonical jalur
+SPP serta SPJ sudah memakai canonical private artifact. Vertical slice canonical jalur
 BP/BPP sekarang mempunyai lazy activation, submit gate, assignment signer pada
 handoff, dan legacy projection, tetapi belum dinyatakan lulus runtime
 end-to-end. Keseluruhan Payment LS belum selesai.**
@@ -133,6 +133,9 @@ Route LS yang saat ini terdaftar:
 - delivery SPP LS:
   - `document.ls.spp.content`;
   - `document.ls.spp.download`.
+- delivery SPJ LS:
+  - `document.ls.spj.content`;
+  - `document.ls.spj.download`.
 
 Sidebar mempunyai grup **Pencairan Langsung** dan memetakan SPP/SPM/SP2D sesuai
 kode jabatan. Keberadaan route/menu SPM dan SP2D tidak berarti kedua tahap itu
@@ -154,9 +157,11 @@ dipertahankan saat melanjutkan:
 - mutasi keluarga dokumen dibungkus transaksi dan menulis histori;
 - logging memakai channel `module_document_data` tanpa menyimpan secret TTE.
 
-`Detail` mempunyai pengecualian khusus **LS + SPP**: URL preview dan download
-dibentuk dari named delivery route canonical. Payment/type lain masih memakai
-path `public/File_*` legacy.
+`Detail` mempunyai pengecualian khusus **LS + SPP/SPJ**: URL preview dan
+download SPJ dibentuk dari named delivery route canonical bila current artifact
+sudah ada. SPJ historis yang belum dimapping sementara tetap memakai URL legacy
+agar layanan data masif tidak putus sebelum backfill. Payment/type lain masih
+memakai path `public/File_*` legacy.
 
 ## 6. Alur create/upload SPP LS saat ini
 
@@ -207,16 +212,31 @@ Entry point: `Payment\LS\SPP::store()`.
 
 `SPP::store()` tidak membuat file SPP baru di `public/File_SPP`.
 
-### 6.3 Dokumen pendamping yang masih legacy
+### 6.3 Dokumen pendamping
 
 Pada create SPP saat ini:
 
-- SPJ masih ditulis ke `public/File_SPJ`;
+- SPJ langsung di-stage dan difinalisasi sebagai current canonical
+  `before_sign` artifact pada private storage;
+- row `document` SPJ tetap memakai pola lama: `src_type=SPJ`, `reference_id`
+  menunjuk SPP, dan `src_name` berisi UUID filename artifact current;
+- tidak ada file SPJ baru yang dibuat di `public/File_SPJ`;
 - Billing masih ditulis ke `public/File_Billing`;
 - BMD masih ditulis ke `public/File_BMD`;
 - row SPJ/BMD tetap dibuat pada `document` dan histori upload tetap ditulis;
-- provisioning after-commit dokumen pendamping masih bergantung pada locator
-  file legacy sampai migrasi private-nya dikerjakan.
+- provisioning after-commit SPJ bersifat idempotent karena current artifact
+  sudah tersedia sebelum commit.
+
+Kontrak data masif `document` tidak diubah. Billing tetap merupakan nama file
+pada kolom `document.billing` milik row SPJ; tidak dibuat row baru atau
+`src_type=BILLING`. Migrasi private Billing nanti harus memakai mapping
+attachment additive di luar pola row `document` yang sudah ada.
+
+Snapshot database read-only 26 September 2026 menemukan 51.945 row SPJ LS
+aktif: 4 mempunyai tepat satu current artifact, 51.941 belum mempunyai current
+artifact, dan tidak ada row dengan current artifact ambigu. Karena itu cutover
+delivery SPJ dilakukan per row. Backfill tetap wajib sebelum URL legacy SPJ
+dapat dihentikan seluruhnya.
 
 ### 6.4 Anggaran dan transaksi
 
@@ -242,7 +262,7 @@ Pada create SPP saat ini:
   menghasilkan `ValidationException`, transaksi rollback, dan respons validasi
   `422`.
 - Jika transaksi gagal, file pendamping public yang baru dibuat dibersihkan.
-- Source SPP private dibersihkan melalui
+- Source SPP dan SPJ private dibersihkan melalui
   `discardUnpersistedSourceArtifact()` hanya jika tidak ada row
   `document_artifacts` untuk public ID tersebut.
 - Cleanup memeriksa integritas staging/final sebelum menghapus sehingga tidak
@@ -470,9 +490,16 @@ Boundary fallback:
 - bila transaksi gagal, staging/final canonical yang belum mempunyai row
   artifact dibersihkan dengan aman.
 
-SPJ, Billing, dan BMD replacement masih memakai folder public. SPP historis
-yang belum mempunyai current canonical artifact harus melalui provisioning atau
-backfill sebelum file utamanya dapat diganti.
+Replacement SPJ sekarang membuat versi canonical baru di private storage dengan
+`parent_artifact_id` menunjuk current artifact lama. Row SPJ dan pola penulisan
+`document.src_name` tetap sama. Artifact lama dipertahankan sebagai histori dan
+current pointer berpindah ke versi baru. Bila SPJ lama belum mempunyai artifact,
+update terlebih dahulu memprovisikan file legacy sebagai versi awal, lalu
+membuat replacement sebagai versi berikutnya. Billing dan BMD replacement masih
+memakai folder public. SPP historis yang belum mempunyai current canonical
+artifact harus melalui provisioning atau backfill sebelum file utamanya dapat
+diganti. Pada replacement SPJ lama, controller melakukan provisioning awal
+secara otomatis bila source legacy masih tersedia.
 
 UUID pada `original_name` row hasil provisioning legacy bukan nama asli yang
 dibuat oleh storage canonical. Project lama hanya menyimpan nama fisik UUID pada
@@ -508,7 +535,8 @@ Urutan prioritas blocker saat snapshot:
    setiap batas transaksi.
 3. Siapkan worker `signatures` production dan shared cache sesuai topology
    server; worker lokal bukan bukti availability production.
-4. Migrasikan SPJ, Billing, dan BMD create/update dari public storage.
+4. Migrasikan BMD dan Billing create/update dari public storage. Billing wajib
+   tetap memakai kolom `document.billing`; jangan membuat `src_type=BILLING`.
 5. Tutup seluruh URL langsung `public/File_*` untuk LS setelah setiap tipe
    mempunyai delivery resolver/policy canonical.
 6. Review kebutuhan indeks komposit anggaran berdasarkan query plan dan volume
@@ -534,14 +562,14 @@ Risiko tambahan:
    submit gate, assignment event, legacy projection, dan current artifact.
 3. Konfigurasikan shared cache, production process manager, health/heartbeat,
    dan recovery worker `signatures`.
-4. Migrasikan SPJ, Billing, dan BMD ke private storage dengan pemodelan artifact
-   yang eksplisit; Billing saat ini masih nama file pada row SPJ sehingga perlu
-   keputusan mapping yang tidak ambigu.
-5. Tambahkan resolver dan delivery route untuk artifact pendamping yang sudah
-   dimigrasikan, lalu hentikan URL langsung ke folder public untuk tipe itu.
-6. Selesaikan delivery policy LS SPP, termasuk watermark/audit bila scope fase
+4. Migrasikan BMD ke `document_artifacts` tanpa mengubah pola row `document`.
+5. Rancang mapping attachment additive untuk Billing sambil mempertahankan
+   `document.billing`; jangan membuat row document/`src_type` baru.
+6. Tambahkan resolver dan delivery route untuk BMD/Billing setelah private
+   artifact masing-masing tersedia, lalu hentikan URL public untuk tipe itu.
+7. Selesaikan delivery policy LS SPP/SPJ, termasuk watermark/audit bila scope fase
    tersebut sudah diaktifkan.
-7. Baru lanjutkan SPM dan SP2D, lalu bank/penyelesaian LS.
+8. Baru lanjutkan SPM dan SP2D, lalu bank/penyelesaian LS.
 
 ## 14. Verifikasi yang sudah dan belum dilakukan
 
