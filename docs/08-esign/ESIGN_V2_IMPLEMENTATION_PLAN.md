@@ -600,15 +600,17 @@ Acceptance:
 - PDF hanya berasal dari authorized backend binary stream; tidak ada upload,
   replace file, path, atau Base64 JSON;
 - lazy-load PDF renderer/worker;
-- render halaman aktif/sekitar secara virtual dan thumbnail resolusi rendah;
+- tampilkan seluruh halaman dalam flow dan render canvas terlihat/sekitar secara
+  lazy, dengan thumbnail resolusi rendah;
 - sediakan zoom/page navigation serta DOM overlay drag/resize untuk satu atau
   beberapa QR;
 - simpan placement dalam coordinate canonical, bukan CSS pixel;
 - preview client-side tidak menggantikan backend bounds validation;
 - tampilkan capability visible/invisible yang diberikan backend.
-- pada PDF unsigned, QR pertama membuat footer seluruh halaman dengan editor
-  text, font, size, bold/italic/underline, posisi per halaman, apply-all, dan
-  reset; pada PDF signed tidak tampilkan editor footer;
+- pada PDF unsigned, QR pertama membuat footer default seluruh halaman dengan
+  editor text, font, size, bold/italic/underline, posisi/resize/hapus per
+  halaman, apply-all, dan reset; snapshot akhir boleh selected-pages. Pada PDF
+  signed tidak tampilkan editor footer;
 - di dalam tahap confirmation, tampilkan authorized rendition dari exact
   prepared artifact backend bersama informasi signer dan passphrase. Setiap
   perubahan placement/footer harus meminta revision baru;

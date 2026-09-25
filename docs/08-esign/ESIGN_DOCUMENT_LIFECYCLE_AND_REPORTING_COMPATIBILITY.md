@@ -144,7 +144,9 @@ aplikasi lain.
   satu upload NPD `GU_SKPD`. Lazy activation, submit gate, serta assignment
   signer saat handoff sudah dibuat untuk LS SPP; production process manager/
   shared cache, acceptance end-to-end, public verification route,
-  reconciliation, mapping runner, dan frontend belum selesai.
+  reconciliation, dan mapping runner belum selesai. Frontend F0-F13 sudah ada
+  di source untuk LS SPP, tetapi feature flag, pilot operasional, dan rollout
+  lintas payment belum selesai.
 - Credential, NIK lengkap, passphrase, Basic Auth, dan response mentah tidak
   boleh ditulis ke dokumentasi ini atau dokumentasi lanjutan.
 

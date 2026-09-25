@@ -1,10 +1,14 @@
 # Urutan Implementasi Frontend TTE dan Migrasi dari UI Legacy
 
-Tanggal keputusan: **24 September 2026**.
+Tanggal keputusan: **24 September 2026**. Snapshot implementasi diperbarui
+**26 September 2026**.
 
-Status: **F0 dan F1 selesai di source; fondasi Svelte/Vite island F2 sudah
-diimplementasikan, sedangkan session API, viewer, editor, dan rollout payment
-belum dihubungkan**.
+Status: **F0-F13 selesai di source untuk vertical slice LS SPP**. Signing
+session/API, binary viewer, editor multi-QR/footer, prepared confirmation,
+submit asynchronous, polling/resume/result, dan modal validasi canonical sudah
+terhubung. Feature flag operasional tetap `false`; acceptance manual F14,
+production worker/shared cache, public verify/result delivery, secure general
+PDF viewer/watermark, dan rollout payment belum selesai.
 
 Dokumen ini adalah source of truth operasional untuk membangun frontend TTE dan
 validasi baru. Dokumen ini menggabungkan keputusan pengguna, kontrak backend
@@ -731,8 +735,8 @@ Pekerjaan:
 
 1. fetch `preview_url` sebagai `ArrayBuffer` atau Blob authorized;
 2. load PDF.js worker dari dependency lokal yang version-locked;
-3. render halaman aktif dan halaman sekitar, bukan seluruh dokumen resolusi penuh
-   secara bersamaan;
+3. tampilkan seluruh halaman dalam document flow, tetapi render canvas hanya
+   ketika halaman terlihat atau mendekati viewport;
 4. thumbnail dirender bertahap/idle;
 5. canvas PDF dan overlay placement dipisahkan;
 6. perubahan overlay tidak memicu render ulang canvas PDF;
@@ -754,8 +758,10 @@ Realisasi source 25 September 2026:
   lokal yang version-locked oleh package lock, bukan CDN;
 - jumlah halaman PDF diverifikasi terhadap geometry signing session sebelum
   editor ditampilkan;
-- workspace merender maksimal halaman aktif, sebelumnya, dan berikutnya pada
-  resolusi penuh. Halaman lain tidak dirender penuh secara bersamaan;
+- workspace mempunyai elemen untuk seluruh halaman agar semua halaman dapat
+  discroll dan dipilih. Canvas resolusi penuh dirender lazy melalui
+  `IntersectionObserver`; canvas yang menjauh dibersihkan, sehingga seluruh
+  halaman terlihat tanpa merender semuanya bersamaan;
 - thumbnail ditambahkan per batch saat browser idle dan canvas hanya dirender
   ketika mendekati viewport melalui `IntersectionObserver`; canvas thumbnail
   yang menjauh dibersihkan kembali;
@@ -764,8 +770,10 @@ Realisasi source 25 September 2026:
   agar tetap tajam tanpa alokasi canvas berlebihan;
 - canvas PDF dan `<div data-esign-placement-layer>` adalah layer terpisah.
   Perubahan overlay pada F7-F9 tidak menjadi dependency render canvas;
-- navigasi halaman, thumbnail aktif, indikator halaman, loading, dan error
-  viewer sudah mengikuti shell Bootstrap/Argon serta dark mode;
+- navigasi halaman, klik langsung pada canvas workspace, thumbnail aktif,
+  indikator ringkas `aktif/total`, loading, dan error viewer sudah mengikuti
+  shell Bootstrap/Argon serta dark mode. Memilih halaman yang sudah terlihat
+  tidak memaksa scroll ke bagian atas halaman;
 - seluruh render task dibatalkan, page resource dibersihkan, fetch di-abort,
   dan PDF loading task/worker di-destroy saat session berubah, modal ditutup,
   atau komponen unmount;
@@ -850,12 +858,13 @@ Realisasi source 25 September 2026:
   halaman lolos verifikasi F7. Tombol berhenti pada batas
   `maximum_signature_count` yang dikirim backend;
 - QR baru memperoleh `crypto.randomUUID()`, ditempatkan sedekat mungkin dengan
-  pusat halaman aktif, tetap berada dalam safe margin, dan otomatis mencari
-  slot aman terdekat bila posisi pusat bertabrakan dengan QR lain;
+  pusat area halaman yang paling terlihat pada viewport workspace, tetap berada
+  dalam safe margin, dan otomatis mencari slot aman terdekat bila posisi pusat
+  bertabrakan dengan QR lain;
 - setiap overlay QR dapat dipilih, di-drag memakai Pointer Events/pointer
   capture, di-resize proporsional, dipindah dengan tombol panah 1 pt atau
-  `Shift` + panah 10 pt, dihapus dengan Delete/Backspace, serta dilepas
-  seleksinya dengan Escape;
+  `Shift` + panah 10 pt, dihapus melalui tombol `x` langsung pada overlay atau
+  Delete/Backspace, serta dilepas seleksinya dengan Escape;
 - drag dan resize langsung menggunakan helper canonical F7. Ukuran selalu
   persegi, tunduk pada minimum/maksimum backend, dan tidak dapat melewati safe
   margin;
@@ -892,7 +901,8 @@ Pekerjaan:
 3. setiap halaman mempunyai placement yang dapat digeser;
 4. perubahan style global diterapkan konsisten pada seluruh placement footer;
 5. posisi per halaman dapat berbeda;
-6. footer tidak dapat dihapus bila backend menyatakannya required;
+6. footer default tetap dibuat pada semua halaman, tetapi placement halaman
+   tertentu dapat dihapus sehingga output footer memakai selected-pages;
 7. bila dokumen signed atau `footer.allowed=false`, jangan menampilkan editor
    footer dan kirim `footer: null`;
 8. jangan membaca keberadaan signature hanya dari canvas; gunakan session state
@@ -916,11 +926,13 @@ Realisasi source 25 September 2026:
 - dokumen `signed`, dokumen dengan footer yang sudah diterapkan, atau session
   dengan `footer.allowed=false` tidak membuat maupun menampilkan editor footer;
 - footer dirender sebagai overlay terpisah dari canvas PDF, memakai ukuran font
-  berbasis PDF point. User dapat mengubah kalimat, font whitelist, ukuran font,
-  bold, italic, dan underline tanpa merender ulang canvas PDF;
-- setiap placement footer dapat dipilih, digeser dengan Pointer Events, atau
-  dipindah dengan tombol panah 1 pt dan `Shift` + panah 10 pt. Footer required
-  tidak mempunyai aksi hapus;
+  berbasis PDF point. User dapat mengubah kalimat, font whitelist, ukuran font
+  dengan langkah 0,1 pt, bold, italic, dan underline tanpa merender ulang
+  canvas PDF. Default backend saat ini 7,5 pt;
+- setiap placement footer dapat dipilih, digeser dengan Pointer Events,
+  di-resize melalui empat sudut, dipindah dengan tombol panah 1 pt dan `Shift`
+  + panah 10 pt, atau dihapus melalui tombol `x` pada overlay. Teks selalu rata
+  tengah di dalam box;
 - inspector menyediakan reset style ke default backend, reset posisi halaman
   aktif, dan `Terapkan ke semua`. Penerapan lintas halaman mempertahankan posisi
   relatif di dalam safe area sehingga aman untuk halaman dengan ukuran berbeda;
@@ -931,8 +943,10 @@ Realisasi source 25 September 2026:
   obstacle. Collision QR-footer menandai kedua overlay dan menampilkan pesan
   lokal; backend tetap validator final;
 - validasi lokal footer mengikuti batas request/backend: teks wajib dan maksimal
-  1000 karakter, font whitelist, range font size, tepat satu placement per
-  halaman, estimasi line wrapping, minimum box, safe margin, dan minimum gap;
+  1000 karakter, font whitelist, range font size, maksimal satu placement per
+  halaman terpilih, estimasi line wrapping, minimum box, safe margin, dan
+  minimum gap. Coverage seluruh halaman tidak lagi diwajibkan setelah default
+  awal dibuat;
 - thumbnail menampilkan indikator QR dan footer per halaman. Safe area tampil
   ketika QR atau footer pada halaman tersebut dipilih;
 - state footer dibersihkan bersama signing session tanpa membuat attempt atau
@@ -1158,6 +1172,50 @@ Yang belum termasuk F13 ini adalah halaman public `/verify/{public_id}`, guest
 delivery/download, watermark/COPY-ID, durable verification history terpisah,
 dan rollout action ke payment selain LS SPP.
 
+### Penyesuaian editor dan failure semantics 25-26 September 2026
+
+Setelah F13 selesai, source menerima penyempurnaan yang wajib dipertahankan:
+
+1. modal hampir memenuhi viewport. Desktop mempunyai kompensasi terhadap
+   sidebar aplikasi; tablet/mobile fullscreen. Header, stepper, dan footer
+   dipadatkan agar workspace mendapat ruang utama;
+2. desktop memakai tiga panel. Thumbnail dan inspector tidak mengikuti scroll
+   PDF serta mempunyai scroll internal. Di bawah 1200 px keduanya saat ini
+   disembunyikan; drawer/offcanvas belum dibuat;
+3. semua halaman berada di workspace dengan canvas lazy, sehingga dokumen
+   delapan halaman tidak lagi tampak seolah hanya mempunyai dua/tiga halaman;
+4. canvas workspace dapat diklik/diaktifkan langsung. Sinkronisasi halaman
+   aktif tidak memaksa halaman yang sudah terlihat bergeser ke atas;
+5. topbar workspace berisi navigation + `aktif/total` di kiri,
+   `Reset Posisi`/`Tambah QR` di tengah, dan zoom di kanan;
+6. `Tambah QR` menggunakan pusat area halaman yang paling terlihat. Tombol
+   hapus dan resize tersedia langsung pada overlay tanpa menghilangkan kontrol
+   inspector;
+7. footer default memanjang mengikuti safe area, teks rata tengah, default 7,5
+   pt, langkah ukuran 0,1 pt, resize empat sudut, dan hapus per halaman. Renderer
+   backend, editor, dan prepared preview memakai wrapping/alignment/box yang
+   sama;
+8. persistence menandai snapshot footer sebagai `SelectedPages`. Source saat
+   ini menerima placement kosong dan tidak menulis decoration/footer-applied.
+   Per-page delete sudah disepakati; keputusan apakah **seluruh** footer boleh
+   dihapus masih perlu dikunci sebelum F14;
+9. panel inspector Info tidak menonjolkan geometri canonical kepada pengguna.
+   Tab Info/QR/Footer memakai ringkasan yang lebih compact dan informatif;
+10. prepared toolbar memakai hierarchy yang sama dengan editor, indikator
+    halaman memakai `aktif/total`, dan confirmation layout sudah responsive;
+11. tahap sukses menyembunyikan modal footer. Tombol `Selesai` berada bersama
+    notifikasi sukses di body tengah dan menutup modal melalui completion flow;
+12. vendor code BSrE `2031` dipetakan menjadi invalid passphrase retryable;
+13. exception sebelum provider dispatch menjadi
+    `esign.local_pre_provider_processing_failed` yang retryable. Setelah
+    dispatch dimulai, outcome lokal tetap ditahan sebagai `unknown` atau
+    `esign.local_processing_failed` untuk mencegah duplicate signature;
+14. prepared response `422` tetap ditampilkan sebagai normalized field error.
+    Browser tidak memperbaiki payload diam-diam dan tidak retry otomatis.
+
+Penyempurnaan di atas sudah ada di source, tetapi belum berarti acceptance F14
+lulus. Feature flag tetap `false`.
+
 ### Tahap F14 - Pilot manual LS SPP BP/BPP
 
 Tujuan: membuktikan satu vertical slice nyata sebelum rollout.
@@ -1169,7 +1227,9 @@ Urutan acceptance manual:
 3. buat session dan pastikan artifact yang tampil tepat;
 4. coba satu QR pada satu halaman;
 5. coba dua QR pada halaman berbeda dengan satu klik TTE;
-6. periksa footer unsigned dibuat di semua halaman dan dapat diedit;
+6. periksa footer unsigned default dibuat di semua halaman, dapat diedit,
+   di-resize, dan dihapus pada beberapa halaman; pastikan keputusan minimum satu
+   footer/all-deleted sudah dikunci sebelum skenario ini;
 7. review exact prepared rendition;
 8. submit dan pastikan response 202;
 9. tutup modal/koneksi browser setelah 202 dan pastikan worker tetap selesai;
@@ -1355,7 +1415,8 @@ Aturan:
 - [x] Geometry top-left point konsisten dengan backend di source.
 - [x] Satu hingga batas maksimum QR dapat diatur di source.
 - [x] QR final berasal dari backend dan memakai logo Malang di source.
-- [x] Footer unsigned otomatis dibuat dan dapat diedit sesuai kontrak di source.
+- [x] Footer unsigned otomatis dibuat pada seluruh halaman, dapat diedit,
+      di-resize, dan dihapus per halaman sesuai kontrak selected-pages.
 - [x] PDF signed tidak mendapatkan footer baru di source.
 - [x] Exact prepared rendition tampil bersama informasi signer dan passphrase
       pada tahap Konfirmasi.
@@ -1367,6 +1428,8 @@ Aturan:
 - [x] Partial resume hanya muncul dari capability backend.
 - [x] `unknown` melarang retry biasa.
 - [x] Completion me-refresh halaman melalui custom event.
+- [x] Hasil sukses menaruh tombol `Selesai` di body dan tidak bergantung pada
+      modal footer.
 - [x] Close modal membersihkan fetch, render task, PDF worker/document, dan
       listener; viewer tidak membuat object URL.
 - [x] Modal validasi memakai artifact canonical tanpa upload ulang di source.

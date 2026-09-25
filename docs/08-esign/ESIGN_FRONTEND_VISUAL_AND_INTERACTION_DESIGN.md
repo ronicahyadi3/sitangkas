@@ -1,16 +1,19 @@
 # Rancangan Visual dan Interaksi Frontend TTE
 
-Tanggal keputusan: **24 September 2026**.
+Tanggal keputusan: **24 September 2026**. Snapshot visual/source diperbarui
+**26 September 2026**.
 
-Status: **rancangan visual disetujui; fondasi F2-F6 selesai di source**.
+Status: **rancangan visual disetujui; F0-F13 selesai di source untuk LS SPP**.
 
 Shell modal responsive, stepper empat tahap, state body/footer, close guard,
 focus restoration, dark mode, dan reduced-motion support sudah tersedia.
 API/session authoritative dan error state sudah terhubung pada F5. PDF viewer
 binary, navigasi, zoom responsive, thumbnail bertahap, dan layer overlay
-terpisah sudah tersedia pada F6. Isi lain masih bertahap: geometry pada F7,
-editor QR/footer pada F8-F9, konfirmasi/passphrase pada F10, dan sign/progress
-pada F11-F12. Feature flag operasional masih `false`.
+terpisah tersedia pada F6. Geometry F7, editor QR/footer F8-F9,
+konfirmasi/passphrase F10, sign/progress F11-F12, dan modal validasi F13 juga
+tersedia di source. Penyempurnaan workspace, selected-page footer, confirmation,
+responsive layout, serta result success sudah masuk source. Feature flag
+operasional tetap `false` dan acceptance manual F14 belum lulus.
 
 Dokumen ini adalah source of truth untuk bentuk tampilan, hierarchy informasi,
 interaksi modal, prepared confirmation, progress, notifikasi, hasil TTE, modal
@@ -156,17 +159,17 @@ Setiap thumbnail menampilkan:
 - status error placement pada halaman jika ada.
 
 Thumbnail harus dirender bertahap dan tidak menghambat halaman aktif.
+Pada desktop, rail tidak mengikuti scroll workspace; daftar thumbnail mempunyai
+scroll sendiri dan otomatis menjaga thumbnail halaman aktif tetap terlihat.
 
 ### 4.3 Workspace PDF
 
 Toolbar minimum:
 
 - halaman sebelumnya/berikutnya;
-- nomor halaman;
+- indikator ringkas `halaman aktif/total`, sejajar dengan tombol navigasi;
 - zoom out/in;
-- fit width;
-- fit page;
-- buka/tutup thumbnail pada viewport kecil.
+- `Reset Posisi` dan `Tambah QR` di tengah antara navigasi dan zoom.
 
 Workspace menampilkan:
 
@@ -180,12 +183,18 @@ Workspace menampilkan:
 Overlay aktif menggunakan outline dan handle yang kontras. Perubahan overlay
 tidak boleh memicu render ulang canvas PDF.
 
+Seluruh halaman harus berada dalam flow workspace agar dapat discroll, tetapi
+canvas hanya dirender ketika terlihat/mendekati viewport. Halaman dapat
+diaktifkan dengan klik/keyboard langsung pada canvas; thumbnail hanya navigasi
+tambahan. Mengaktifkan halaman yang sudah terlihat tidak boleh memaksa scroll
+ke bagian atas halaman.
+
 ### 4.4 Interaksi QR
 
 Tombol `Tambah QR`:
 
-1. menambahkan QR pada halaman aktif;
-2. memilih posisi default aman di area yang sedang terlihat;
+1. menentukan halaman dengan area paling besar yang sedang terlihat;
+2. menambahkan QR pada pusat area halaman yang terlihat tersebut;
 3. memberi client UUID;
 4. menomori operasi secara deterministik;
 5. memindahkan fokus ke QR baru.
@@ -198,6 +207,9 @@ QR dapat:
 - dipindahkan dengan keyboard;
 - dipusatkan;
 - dihapus sebelum final submit.
+
+Tombol hapus tersedia langsung pada overlay QR. Handle resize dan tombol hapus
+harus berada di atas border/z-index placement agar tidak tertutup outline.
 
 Inspector QR menampilkan:
 
@@ -216,6 +228,15 @@ untuk support, letakkan di bagian `Detail teknis` yang collapsed.
 Jika backend menyatakan source unsigned dan footer allowed+required, QR pertama
 otomatis membuat footer default pada seluruh halaman.
 
+Default footer:
+
+- dibuat pada seluruh halaman ketika QR pertama ditambahkan pada PDF unsigned;
+- box awal memanjang mengikuti safe area halaman;
+- teks rata tengah secara horizontal dan vertikal;
+- ukuran font awal 7,5 pt dan perubahan ukuran 0,1 pt;
+- tinggi cukup untuk dua baris, tetapi teks satu baris tidak dipaksa wrapping
+  oleh padding yang berlebihan.
+
 Inspector footer menyediakan:
 
 - text;
@@ -229,15 +250,22 @@ Inspector footer menyediakan:
 - terapkan posisi halaman aktif ke seluruh halaman.
 
 Style berlaku konsisten untuk seluruh footer, tetapi posisi dapat berbeda per
-halaman. Footer required tidak dapat dihapus. Pada PDF yang sudah mempunyai TTE,
-inspector footer tidak ditampilkan dan frontend mengirim `footer: null`.
+halaman. Placement footer mempunyai drag, keyboard move, resize empat sudut, dan
+tombol hapus langsung pada overlay. Pengguna dapat mengecualikan halaman
+tertentu; persistence memakai scope `SelectedPages`. Pada PDF yang sudah
+mempunyai TTE, inspector footer tidak ditampilkan dan frontend mengirim
+`footer: null`.
+
+Per-page delete sudah diputuskan. Source saat ini juga menerima daftar placement
+kosong; keputusan apakah semua footer boleh dihapus masih terbuka dan wajib
+dikunci sebelum pilot.
 
 ### 4.6 Action footer tahap editor
 
 - `Batal`: tutup dan cleanup temporary session tanpa audit bisnis;
-- `Tambah QR`: secondary action;
-- `Reset Posisi`: outline secondary dan meminta konfirmasi ringan bila perubahan
-  signifikan;
+- `Tambah QR` dan `Reset Posisi` berada pada topbar workspace, bukan modal
+  footer;
+- `Reset Posisi` meminta konfirmasi ringan bila perubahan signifikan;
 - `Lanjutkan`: primary action.
 
 `Lanjutkan` hanya aktif bila placement lokal minimum valid. Saat ditekan:
@@ -424,8 +452,8 @@ Gunakan full result state dalam modal, bukan toast yang cepat hilang:
 | Penandatangan : Nama signer                                              |
 | Waktu          : 24 September 2026, 14:32 WIB                            |
 | Dokumen        : SPP-LS 900/123/SPP/2026                                 |
-+--------------------------------------------------------------------------+
-|                              [Lihat Dokumen] [Selesai]                    |
+|                                                                          |
+|                                [Selesai]                                 |
 +--------------------------------------------------------------------------+
 ```
 
@@ -433,7 +461,9 @@ Aturan:
 
 - `Lihat Dokumen` hanya muncul bila backend memberi URL/capability yang sah;
 - download hanya muncul bila authorization backend mengizinkan;
-- `Selesai` menutup modal dan mengirim `sitangkas:esign:completed`;
+- modal footer disembunyikan khusus pada state sukses;
+- tombol `Selesai` berada di body bersama notifikasi sukses, menutup modal, dan
+  mengirim `sitangkas:esign:completed`;
 - adapter halaman memutuskan tabel/detail mana yang perlu diperbarui;
 - toast sukses boleh muncul setelah modal ditutup sebagai feedback sekunder.
 
@@ -578,21 +608,25 @@ hanya karena BSrE tidak dapat dihubungi.
 
 - tiga panel editor;
 - confirmation dua kolom: preview dan informasi/passphrase;
-- thumbnail/inspector selalu terlihat bila ruang cukup.
+- thumbnail/inspector selalu terlihat bila lebar minimal 1200 px;
+- workspace PDF scroll sendiri; thumbnail dan inspector tetap pada tempatnya
+  serta mempunyai scroll internal bila kontennya panjang;
+- modal memakai hampir seluruh tinggi viewport dan digeser proporsional untuk
+  mengimbangi sidebar aplikasi.
 
 ### Tablet
 
-- thumbnail menjadi drawer/collapsible rail;
-- inspector menjadi offcanvas atau panel yang dapat disembunyikan;
+- pada source saat ini thumbnail dan inspector disembunyikan di bawah 1200 px;
 - workspace mendapat prioritas lebar;
 - confirmation tetap dua kolom bila cukup, lalu stack bila sempit.
+
+Drawer/offcanvas adalah pengembangan lanjutan, bukan kondisi source sekarang.
 
 ### Mobile
 
 - modal fullscreen;
 - workspace satu kolom;
-- thumbnail dibuka dari tombol `Halaman`;
-- inspector menjadi bottom sheet/panel bawah;
+- thumbnail dan inspector disembunyikan;
 - action bar sticky;
 - target sentuh minimal nyaman;
 - tidak ada horizontal overflow.
@@ -704,19 +738,24 @@ Aturan:
 
 ## 16. Definition of Done visual
 
-- [ ] Tampilan tidak meniru layout editor legacy.
-- [ ] Satu modal signing dengan empat tahap terlihat.
-- [ ] Editor desktop menggunakan thumbnail, workspace, dan inspector.
-- [ ] Prepared preview dan passphrase berada pada satu tahap Konfirmasi.
-- [ ] Tidak ada layar review prepared terpisah.
-- [ ] Tidak ada checkbox `Saya telah memeriksa dokumen`.
-- [ ] Klik `Tandatangani Sekarang` menjadi afirmasi eksplisit dan mengirim
+Checklist `[x]` berarti tersedia di source, bukan bukti acceptance operasional.
+
+- [x] Tampilan tidak meniru layout editor legacy.
+- [x] Satu modal signing dengan empat tahap terlihat.
+- [x] Editor desktop menggunakan thumbnail, workspace, dan inspector.
+- [x] Prepared preview dan passphrase berada pada satu tahap Konfirmasi.
+- [x] Tidak ada layar review prepared terpisah.
+- [x] Tidak ada checkbox `Saya telah memeriksa dokumen`.
+- [x] Klik `Tandatangani Sekarang` menjadi afirmasi eksplisit dan mengirim
       `affirmed=true`.
-- [ ] Multi-QR dijelaskan sebelum final submit dan progress per QR terlihat.
-- [ ] Sukses/gagal/partial/unknown memakai full result state yang berbeda.
-- [ ] Toast hanya dipakai untuk feedback ringan.
-- [ ] Modal validation membedakan invalid dan unavailable.
-- [ ] Desktop, tablet, mobile, keyboard, screen reader, dan dark mode ditangani.
-- [ ] CSS tetap scoped dan mengikuti Bootstrap 5/custom Argon.
-- [ ] Passphrase tidak tersimpan pada state persisten atau telemetry.
-- [ ] Tidak ada test suite otomatis yang dibuat atau dijalankan.
+- [x] Multi-QR dijelaskan sebelum final submit dan progress per QR terlihat.
+- [x] Sukses/gagal/partial/unknown memakai full result state yang berbeda.
+- [x] Toast hanya dipakai untuk feedback ringan.
+- [x] Modal validation membedakan invalid dan unavailable.
+- [x] Responsive CSS, keyboard interaction, dark mode, dan accessibility dasar
+      tersedia di source.
+- [x] CSS tetap scoped dan mengikuti Bootstrap 5/custom Argon.
+- [x] Passphrase tidak tersimpan pada state persisten atau telemetry.
+- [x] Tidak ada test suite otomatis yang dibuat atau dijalankan.
+- [ ] Acceptance manual desktop/tablet/mobile dan accessibility lulus pada F14.
+- [ ] Keputusan apakah seluruh placement footer boleh dihapus sudah dikunci.

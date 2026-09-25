@@ -1,6 +1,7 @@
 # Desain Editor Visible TTE dan Multi-QR Satu Signer
 
-Tanggal keputusan: **23 September 2026**.
+Tanggal keputusan: **23 September 2026**. Snapshot source diperbarui
+**26 September 2026**.
 
 Status: **desain disetujui; backend tahap 1-6 serta bagian runtime tahap 7-9
 tersedia di source, tetapi belum diaktifkan untuk layanan operasional**. Domain
@@ -8,8 +9,10 @@ placement/footer, prepared rendition, operation persistence, worker serial,
 intermediate artifact, final verification/promotion, partial resume, aktivasi
 public ID setelah sukses, compatibility projection aggregate, dan API polling
 tersedia. Feature flag multi-operation masih default `false`; public route
-`/verify/{public_id}`, reconciliation, operational gate, dan frontend belum
-selesai. Kondisi aktual tetap harus dibaca dari
+`/verify/{public_id}`, reconciliation, dan operational gate belum selesai.
+Frontend F0-F13 sudah tersedia di source untuk LS SPP, termasuk editor
+multi-QR/footer selected-pages, prepared confirmation, progress/resume/result,
+dan validasi canonical. Kondisi aktual tetap harus dibaca dari
 `CURRENT_ESIGN_IMPLEMENTATION.md`.
 
 Lampiran `SITANGKAS_TTE_EDITOR_AI_AGENT_CONTEXT_V2.zip` hanya merupakan bahan
@@ -134,9 +137,17 @@ Rekomendasi UX yang disetujui:
 - posisi dapat disesuaikan per halaman;
 - posisi awal berada di area bawah halaman dengan safe margin;
 - tersedia `Terapkan posisi ke semua halaman` dan `Reset ke default`;
-- footer tidak dapat dihapus dan scope-nya selalu seluruh halaman;
+- footer default dibuat pada seluruh halaman, tetapi placement halaman tertentu
+  dapat dihapus; snapshot authoritative memakai scope `SelectedPages`;
+- footer dapat dipindah, di-resize melalui empat sudut, dan teks tetap rata
+  tengah di dalam box;
+- default ukuran font 7,5 pt dengan perubahan 0,1 pt;
 - backend tetap mempunyai whitelist font, batas ukuran, safe area, dan aturan
   overlap; CSS browser bukan validator akhir.
+
+Per-page delete sudah diputuskan pengguna. Source saat ini juga menerima
+placement kosong; keputusan apakah seluruh footer boleh dihapus masih harus
+dikunci sebelum pilot operasional.
 
 ### 4.3 Preview dan rendering authoritative
 
@@ -501,7 +512,8 @@ Koleksi Postman tidak membuktikan semantik multi-placement satu PDF. Lakukan
 uji terkontrol dengan izin operator menggunakan sample yang tidak sensitif:
 
 1. verifikasi source benar-benar unsigned;
-2. render footer prepared dan pastikan font/style/posisi seluruh halaman tepat;
+2. render footer prepared dan pastikan font/style/posisi seluruh halaman yang
+   dipilih tepat serta halaman yang dikecualikan tidak menerima footer;
 3. tempatkan minimal dua QR untuk NIK yang sama pada halaman/lokasi berbeda;
 4. panggil sign secara serial dengan passphrase yang sama;
 5. simpan serta hash setiap intermediate;

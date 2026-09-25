@@ -1,6 +1,6 @@
 # eSign Client 2.2.0 / TTE
 
-Tanggal snapshot: **25 September 2026**.
+Tanggal snapshot: **26 September 2026**.
 
 Status: **backend in progress; kontrak visible multi-QR tersedia di source tetapi
 belum diaktifkan untuk layanan operasional**. Boundary provider, migration,
@@ -30,17 +30,18 @@ Reconciliation, public verification, dan mapping runner belum dibuat. Audit
 frontend-backend F0 sudah selesai: endpoint aktif, response,
 binary media, error class, serta typed contract dikunci di
 `ESIGN_FRONTEND_BACKEND_CONTRACT_V1.md` dan `resources/js/esign/types.ts`.
-Bridge action LS SPP F1 juga tersedia di source dengan capability fail-closed,
-tanpa path file dan tanpa handler legacy. Fondasi F2 Svelte/Vite island, root
-layout global, lazy loader, dan shell modal Bootstrap/Argon juga sudah tersedia
-di source. F3 event lifecycle dan adapter DataTable juga sudah tersedia tanpa
-ketergantungan pada global tabel halaman; LS SPP menjadi opt-in pertama.
-Signing-session, viewer PDF, editor, dan progress UI belum disambungkan;
-`SIGNATURE_FRONTEND_ENABLED` tetap default `false` sampai gate berikutnya lulus.
-Visible placement/multi-operation tersedia di source tetapi default
-feature flag masih nonaktif dan belum lulus vertical slice operasional. Baca
-`CURRENT_ESIGN_IMPLEMENTATION.md` untuk kondisi kode aktual dan batas
-operasionalnya.
+Bridge action LS SPP F1 dan frontend F2-F13 tersedia di source: Svelte island,
+event bridge, modal Bootstrap/Argon, typed signing session/API, binary PDF.js
+viewer, geometry canonical, editor multi-QR/footer, prepared confirmation,
+submit `202`, polling/progress, partial resume, terminal result, dan modal
+validasi exact artifact sudah tersambung. Penyempurnaan editor 25-26 September
+menambahkan seluruh halaman lazy, aktivasi halaman langsung dari workspace,
+penempatan QR di pusat viewport yang terlihat, kontrol hapus pada overlay,
+footer selected-pages berteks rata tengah, layout responsive, dan tombol
+`Selesai` pada body hasil sukses. `SIGNATURE_FRONTEND_ENABLED` dan feature flag
+multi-operation tetap default `false`; source belum berarti pilot LS SPP atau
+rollout payment sudah lulus operasional. Baca `CURRENT_ESIGN_IMPLEMENTATION.md`
+untuk kondisi kode aktual dan batas operasionalnya.
 
 Cluster ini adalah source of truth untuk perombakan proses Tanda Tangan
 Elektronik (TTE) SITANGKAS dari integrasi lama menuju eSign Client `2.2.0`

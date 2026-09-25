@@ -1,7 +1,6 @@
 # Kondisi Implementasi eSign/TTE Saat Ini
 
-Tanggal snapshot kode: **25 September 2026**. Dokumentasi rencana secure PDF
-delivery diperbarui **26 September 2026** tanpa perubahan runtime.
+Tanggal snapshot kode dan dokumentasi: **26 September 2026**.
 
 Status: **backend in progress**. Boundary provider, schema/model/state service,
 authorization, signing session, private artifact persistence, secret store,
@@ -897,7 +896,7 @@ Migration dijalankan memakai `--path` satu per satu. Dua migration indeks
 legacy `2026_09_18_034231` dan `2026_09_18_034233` tetap pending dan tidak ikut
 dijalankan.
 
-## 16C. Placement/footer dan prepared rendition per 24 September 2026
+## 16C. Placement/footer dan prepared rendition per 26 September 2026
 
 Tahap 3 backend sudah diimplementasikan tanpa membuka guard final sign visible:
 
@@ -909,8 +908,9 @@ Tahap 3 backend sudah diimplementasikan tanpa membuka guard final sign visible:
   batas ukuran QR, maksimal lima operasi, font whitelist, style footer, dan
   default placement footer untuk setiap halaman;
 - validator rendition menegakkan operation index kontinu 0-based, kecocokan
-  page width/height/rotation, bounds, margin, ukuran QR, footer seluruh halaman,
-  font/size/style, text fit, serta collision QR-vs-QR dan QR-vs-footer;
+  page width/height/rotation, bounds, margin, ukuran QR, footer pada halaman
+  terpilih tanpa duplikasi, font/size/style, text fit, serta collision
+  QR-vs-QR dan QR-vs-footer;
 - halaman dengan rotation selain 0 derajat ditolak fail-closed karena proof
   provider saat ini baru membuktikan rotation 0;
 - source `before_sign` yang konsisten belum mempunyai signature wajib menerima
@@ -938,7 +938,8 @@ Tahap 3 backend sudah diimplementasikan tanpa membuka guard final sign visible:
 - command `esign:cleanup-prepared-renditions` default dry-run; opsi `--delete`
   dijadwalkan hourly untuk membersihkan file expired berdasarkan retention;
 - renderer memakai core PDF font `Helvetica`, `Times`, atau `Courier`, style
-  bold/italic/underline, overlay `qpdf`, dan validasi output `qpdf --check`;
+  bold/italic/underline, teks rata tengah, placement selected-pages, overlay
+  `qpdf`, dan validasi output `qpdf --check`;
 - smoke render lokal terhadap `public/sample belum tte.pdf` menghasilkan PDF
   valid dua halaman, SHA source dan prepared berbeda, serta ukuran prepared
   102.296 byte. Tidak ada panggilan sign provider atau record database dibuat.
@@ -973,19 +974,75 @@ Keberadaan source bukan bukti deployment. Feature flag masih default `false`,
 public verification resolver belum ada, dan controlled vertical slice belum
 dijalankan.
 
+## 16E. Snapshot frontend dan failure semantics per 26 September 2026
+
+Frontend F0-F13 sudah terhubung di source untuk vertical slice LS SPP, dengan
+batas berikut:
+
+- modal memakai hampir seluruh viewport; desktop digeser secara terukur untuk
+  mengimbangi sidebar aplikasi, sedangkan tablet/mobile menjadi fullscreen;
+- header, stepper, dan footer modal dipadatkan agar workspace PDF lebih luas;
+- desktop mempertahankan thumbnail dan inspector sebagai panel tetap dengan
+  scroll internal; hanya workspace/page viewport yang menjadi area scroll PDF;
+- pada viewport di bawah 1200 px, thumbnail dan inspector saat ini disembunyikan
+  agar workspace tidak berantakan. Drawer/offcanvas belum dibuat;
+- seluruh halaman PDF berada dalam document flow dan canvas dirender lazy saat
+  mendekati viewport. Ini menggantikan implementasi awal tiga-page window yang
+  menyebabkan dokumen delapan halaman terlihat seperti hanya dua/tiga halaman;
+- halaman dapat diaktifkan langsung dari canvas workspace, thumbnail, selector,
+  atau tombol navigasi. Aktivasi halaman yang sudah terlihat tidak memaksa
+  scroll kembali ke bagian atas halaman;
+- toolbar menempatkan navigasi dan indikator `aktif/total` di kiri,
+  `Reset Posisi`/`Tambah QR` di tengah, dan zoom di kanan;
+- QR baru ditempatkan di pusat area halaman yang paling terlihat pada viewport,
+  bukan pusat seluruh PDF. QR mempunyai resize dan tombol hapus langsung pada
+  overlay, selain kontrol inspector;
+- footer unsigned pertama kali tetap dibuat dari default backend pada seluruh
+  halaman. Setiap placement dapat digeser, di-resize melalui empat sudut, dan
+  dihapus langsung dari overlay sehingga page scope dapat menjadi selected
+  pages. Teks rata tengah; default font 7,5 pt; perubahan ukuran 0,1 pt;
+- backend/persistence menyimpan footer sebagai `SelectedPages` dan hanya menulis
+  decoration/footer-applied bila ada placement. Source saat ini juga menerima
+  array placement kosong. Keputusan apakah pengguna boleh menghapus **semua**
+  footer belum dikunci dan wajib dipastikan sebelum pilot F14;
+- prepared renderer dan preview memakai placement/box yang sama dengan editor,
+  line wrapping dan estimasi lebar font yang sama, sehingga posisi footer tidak
+  boleh berubah antara editor dan Konfirmasi;
+- Konfirmasi tetap satu tahap berisi prepared preview, informasi dokumen,
+  ringkasan operasi/footer, dan passphrase; tidak ada modal kedua dan tidak ada
+  checkbox afirmasi;
+- ketika attempt sukses, footer modal disembunyikan. Ringkasan sukses dan tombol
+  `Selesai` berada di body tengah; tombol tersebut menutup modal dan memicu
+  completion event;
+- vendor code BSrE `2031` dipetakan menjadi invalid passphrase yang retryable.
+  Local failure sebelum request provider tercatat sebagai
+  `esign.local_pre_provider_processing_failed` dan dapat dicoba ulang; failure
+  setelah provider dispatch tetap `unknown`/reconciliation untuk mencegah TTE
+  ganda. `esign.local_processing_failed` tidak boleh dipaksa retry dari browser;
+- endpoint 422 prepared rendition tetap fail-closed dan frontend menampilkan
+  normalized field error; frontend tidak mengubah plan atau retry otomatis;
+- modal validasi F13 memakai exact private artifact dan tidak upload ulang Blob,
+  tetapi action canonical masih LS SPP. General secure PDF viewer/watermark
+  adalah workstream P0-P13 terpisah dan belum diimplementasikan.
+
+Feature flag tetap `false`. Perubahan source/UI di atas belum menggantikan
+acceptance manual F14, production worker/process manager, shared cache,
+observability, dan controlled end-to-end provider proof.
+
 ## 17. Blocker operasional dan pekerjaan yang belum ada
 
 ### Prioritas langsung
 
-1. selesaikan bridge canonical LS SPP yang mengekspos `step_public_id` dan
-   capability frontend tanpa path file legacy;
-2. konfigurasikan shared cache dan production process manager untuk worker
+1. konfigurasikan shared cache dan production process manager untuk worker
    `signatures`, termasuk graceful restart dan monitoring;
-3. jalankan controlled vertical slice LS SPP jalur BP dari lazy activation,
+2. jalankan controlled vertical slice LS SPP jalur BP dari lazy activation,
    TTE, submit ke PPTK, TTE PPTK, submit ke PA, TTE PA, sampai handoff final;
-4. implementasikan reconciliation, stuck recovery, cleanup, dan observability;
-5. implementasikan endpoint validasi canonical, `/verify/{public_id}`, serta
-   policy result delivery;
+3. implementasikan reconciliation attempt `unknown`, stuck recovery, cleanup,
+   dan observability;
+4. mulai P0 secure PDF delivery: inventaris seluruh view/download/report/
+   attachment/direct URL sebelum membuat migration watermark;
+5. implementasikan `/verify/{public_id}` dan policy result delivery; endpoint
+   validasi exact artifact authenticated F13 sudah tersedia;
 6. jadwalkan dua migration index mapping legacy sebagai deployment wave
    terpisah setelah capacity/lock review.
 
@@ -993,7 +1050,7 @@ dijalankan.
 
 - parity proof definition workflow untuk seluruh cabang payment;
 - assignment sync/activation adapter pada submit/verify controller payment;
-- endpoint verification berbasis artifact;
+- perluasan endpoint verification berbasis artifact ke seluruh payment;
 - `/verify/{public_id}`;
 - authenticated/guest authorized PDF delivery, enforcement satu flag
   `pdf_watermark_required`, acting override `false`, public watermark, dan audit;
@@ -1032,11 +1089,13 @@ dijalankan.
   CSRF, status/media type, runtime response guard, AbortController, dan error
   normalization;
 - PDF viewer F6 sudah memuat authorized binary melalui PDF.js worker lokal,
-  merender halaman aktif dan tetangga, memvirtualisasi thumbnail, serta
-  membersihkan fetch/render/document resource secara deterministik;
+  menampilkan seluruh halaman dalam flow dengan canvas lazy/intersection,
+  memvirtualisasi thumbnail, serta membersihkan fetch/render/document resource
+  secara deterministik;
 - F7-F9 sudah menghubungkan geometry canonical top-left/pt, editor multi-QR,
-  collision/safe area, urutan operasi, dan footer global yang posisi setiap
-  halamannya dapat disesuaikan;
+  collision/safe area, urutan operasi, QR pada pusat viewport terlihat, dan
+  footer global selected-pages yang posisi/ukuran setiap halamannya dapat
+  disesuaikan atau dihapus;
 - F10 sudah menghubungkan canonical prepare request dan panel konfirmasi
   terpadu: prepared PDF binary, QR PNG authoritative berlogo Kota Malang,
   validasi plan fail-closed, ringkasan signer/dokumen/operasi/footer, serta
@@ -1083,11 +1142,12 @@ reduced-motion support. Kontrol aksi masih disabled dan data tidak difabrikasi
 karena F5 API client/session state sekarang juga selesai di source. Modal telah
 membuat session authoritative dan baru berpindah ke editor setelah response
 lolos validator. F6 juga sudah selesai di source: viewer memakai binary tanpa
-Base64/object URL, lazy PDF.js worker lokal, tiga-page render window, thumbnail
-idle/intersection, zoom responsive, DPR cap, dan layer canvas/placement
-terpisah. F7-F9 juga selesai: transform geometry canonical, constraint,
-verifikasi metadata PDF, editor beberapa QR, keyboard/drag/resize, ordering,
-serta footer editable per halaman telah aktif di source. F10 selesai dengan
+Base64/object URL, lazy PDF.js worker lokal, seluruh halaman dalam flow dengan
+canvas intersection-lazy, thumbnail idle/intersection, zoom responsive, DPR
+cap, dan layer canvas/placement terpisah. F7-F9 juga selesai: transform geometry
+canonical, constraint, verifikasi metadata PDF, editor beberapa QR,
+keyboard/drag/resize/hapus, ordering, serta footer editable/resize/hapus per
+halaman telah aktif di source. F10 selesai dengan
 POST prepared rendition, pemeriksaan kesetaraan plan, prepared PDF/QR
 authoritative, dan konfirmasi/passphrase dalam modal yang sama. F11 juga selesai
 dengan submit idempotent, response `202 Accepted`, pembersihan secret, dan
