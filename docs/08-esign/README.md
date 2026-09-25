@@ -292,6 +292,11 @@ Jika TTE dipanggil dari payment LS, baca juga:
     checkbox afirmasi lain. Klik tombol `Tandatangani Sekarang` merupakan
     afirmasi eksplisit dan handler mengirim `affirmed=true`.
 
+Status frontend 25 September 2026: F0-F4 selesai di source. Svelte island,
+event bridge, adapter refresh opt-in, serta shell modal Bootstrap/Argon empat
+tahap sudah tersedia. F5 typed API client/session state adalah pekerjaan
+berikutnya. Feature flag frontend tetap `false`; belum ada rollout operasional.
+
 ## Batas keputusan
 
 Hal berikut belum boleh dianggap final hanya berdasarkan koleksi Postman:

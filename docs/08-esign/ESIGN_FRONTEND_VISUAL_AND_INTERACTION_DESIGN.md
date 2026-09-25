@@ -2,7 +2,13 @@
 
 Tanggal keputusan: **24 September 2026**.
 
-Status: **rancangan visual disetujui; implementasi Svelte belum dimulai**.
+Status: **rancangan visual disetujui; fondasi F2-F4 selesai di source**.
+
+Shell modal responsive, stepper empat tahap, state body/footer, close guard,
+focus restoration, dark mode, dan reduced-motion support sudah tersedia.
+Isi authoritative masih bertahap: API/session dimulai pada F5, PDF viewer pada
+F6, editor QR/footer pada F8-F9, konfirmasi/passphrase pada F10, dan
+sign/progress pada F11-F12. Feature flag operasional masih `false`.
 
 Dokumen ini adalah source of truth untuk bentuk tampilan, hierarchy informasi,
 interaksi modal, prepared confirmation, progress, notifikasi, hasil TTE, modal

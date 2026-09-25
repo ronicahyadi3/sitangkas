@@ -628,7 +628,7 @@ Build Vite dan pemeriksaan TypeScript adalah verifikasi source F3 yang
 diizinkan. Tidak ada test suite yang dibuat atau dijalankan. Feature flag tetap
 `false` sampai F4/F5 siap dan acceptance manual dilakukan.
 
-### Tahap F4 - Shell modal Bootstrap 5/Argon
+### Tahap F4 - Shell modal Bootstrap 5/Argon — SELESAI DI SOURCE
 
 Tujuan: mempertahankan UX familiar tanpa nested modal.
 
@@ -645,6 +645,35 @@ Pekerjaan:
 8. close setelah 202 diperbolehkan dengan pesan bahwa proses tetap berjalan.
 
 Hasil: tidak ada lagi `#ConfirmSign` yang ditumpuk di atas `#signModal`.
+
+Realisasi source 25 September 2026:
+
+- `EsignApp.svelte` sekarang memakai satu modal Bootstrap
+  `modal-xl modal-dialog-scrollable modal-fullscreen-lg-down` untuk seluruh
+  alur signing dan boundary validasi;
+- empat tahap visual `Atur Posisi`, `Konfirmasi`, `Proses`, dan `Selesai`
+  tersedia melalui stepper semantik dengan `aria-current`;
+- shell body mencakup state struktural `loading`, `editing`,
+  `preparing_rendition`, `confirming_prepared`, `submitting`, `processing`,
+  `succeeded`, `requires_passphrase`, `unknown`, dan `failed`;
+- footer berubah menurut state. Kontrol editor/submit masih sengaja disabled
+  sampai session state, geometry, prepared rendition, dan sign handler pada
+  tahap berikutnya tersedia;
+- Escape, backdrop, dan tombol close hanya diblokir ketika request prepare
+  atau submit sedang dikirim. Setelah attempt diterima dan masuk state
+  `processing`, modal boleh ditutup karena queue server tetap berjalan;
+- fokus diarahkan ke judul saat modal tampil dan dikembalikan ke trigger asal
+  setelah modal ditutup;
+- layout desktop, tablet, mobile, dark mode, dan reduced motion berada di CSS
+  scoped `.esign-ui`, memakai Bootstrap 5/Argon tanpa utility Tailwind;
+- tidak ada nested modal dan tidak ada checkbox afirmasi. Konfirmasi dan
+  passphrase tetap menjadi satu tahap saat F10 dihubungkan;
+- data dokumen/signer, PDF, QR/footer, passphrase, serta request API belum
+  difabrikasi di F4. Semua tetap menunggu F5-F12 sebagai source authoritative.
+
+Type-check TypeScript dan build production Vite berhasil. Tidak ada test suite
+yang dibuat atau dijalankan. `SIGNATURE_FRONTEND_ENABLED` tetap `false` sampai
+F5 selesai dan acceptance manual terkontrol dilakukan.
 
 ### Tahap F5 - Typed API client dan error normalization
 
@@ -1058,12 +1087,14 @@ baru. Urutannya:
    loader, dan shell Bootstrap/Argon;
 4. [SELESAI DI SOURCE] Tahap F3: lifecycle event dan adapter refresh DataTable
    tanpa ketergantungan pada global halaman;
-5. lanjutkan Tahap F4-F5: shell modal lengkap, typed API client, dan
+5. [SELESAI DI SOURCE] Tahap F4: shell modal lengkap, state visual, stepper,
+   accessibility dasar, dan responsive layout Bootstrap/Argon;
+6. lanjutkan Tahap F5: typed API client, error normalization, dan
    signing-session state; feature flag tetap `false` sampai rangkaian ini siap;
-6. bangun viewer/geometry/editor secara berurutan pada Tahap F6-F10;
-7. sambungkan final sign/progress pada Tahap F11-F12;
-8. tutup gap backend validasi/public delivery sebelum Tahap F13-F15;
-9. lakukan pilot manual sebelum rollout payment lain.
+7. bangun viewer/geometry/editor secara berurutan pada Tahap F6-F10;
+8. sambungkan final sign/progress pada Tahap F11-F12;
+9. tutup gap backend validasi/public delivery sebelum Tahap F13-F15;
+10. lakukan pilot manual sebelum rollout payment lain.
 
 Dengan urutan ini, komponen frontend dibangun langsung di atas boundary
 canonical dan tidak perlu dirombak kedua kali untuk membuang path, upload PDF,

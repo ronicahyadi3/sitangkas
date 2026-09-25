@@ -1012,13 +1012,15 @@ dijalankan.
 ### Frontend
 
 - fondasi Svelte 5/plugin Vite/TypeScript dan root island global sudah dipasang;
-- shell modal Bootstrap/Argon dimuat lazy dari event canonical dan sudah dapat
-  dibuka/ditutup, tetapi belum memanggil signing-session;
+- shell modal Bootstrap/Argon empat tahap dimuat lazy dari event canonical,
+  sudah responsive, mempunyai state body/footer, close guard, dan focus
+  restoration, tetapi belum memanggil signing-session;
 - typed API client belum dibuat;
-- signing modal belum dibuat;
+- isi editor signing belum terhubung ke session/PDF/placement/passphrase;
 - visible PDF editor belum dibuat;
 - validation modal belum dibuat;
-- adapter tombol payment belum dibuat.
+- adapter tombol canonical baru tersedia untuk LS SPP sebagai rollout pertama;
+  payment lain masih fail-closed sampai backend workflow masing-masing siap.
 
 Rancangan visual final berada di
 `ESIGN_FRONTEND_VISUAL_AND_INTERACTION_DESIGN.md`: empat tahap UI, prepared
@@ -1042,8 +1044,12 @@ serta completion adapter me-reload hanya DataTable yang opt-in tanpa mengenal
 global `mainTable` atau `tteDocumentTable`. Event completion memakai UUID
 `step_public_id`, `attempt_id`, dan `result_artifact_id`; raw integer dokumen dan
 secret tidak pernah masuk event. LS SPP main table dan modal detail adalah
-adapter opt-in pertama. Tahap berikutnya adalah F4 shell modal lengkap dan F5
-API client/session state.
+adapter opt-in pertama. F4 juga sudah selesai di source: satu modal responsive
+Bootstrap/Argon mempunyai empat tahap visual, state body/footer terpisah,
+close guard untuk request prepare/submit, focus restoration, dark mode, dan
+reduced-motion support. Kontrol aksi masih disabled dan data tidak difabrikasi
+karena F5 API client/session state adalah tahap berikutnya. Feature flag tetap
+`false`.
 
 Audit lintas payment menegaskan bahwa editor/session contract bersifat generik,
 tetapi action resolver, activation/handoff, submit gate, dan compatibility
@@ -1073,7 +1079,9 @@ tetap menunggu gate backend terkait. Urutan rinci berada di
 12. Policy delivery PDF + watermark/cache/audit + verify/public route + legacy resolver
 13. Backend Ready Gate operasional
 14. [SELESAI DI SOURCE] Svelte/Vite foundation dan bridge Blade
-15. Signing modal/editor visible + validation modal
+15. [F4 SELESAI DI SOURCE] Shell signing modal responsive dan state visual;
+    lanjut F5 API client/session state, kemudian editor visible + validation
+    modal
 16. Pilot LS SPP operasional
 17. Perluasan LS SPM/SP2D lalu rollout per payment
 18. Resumable legacy mapping + reporting cutover
