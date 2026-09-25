@@ -292,6 +292,9 @@ Yang sudah tersedia untuk upload baru:
 - upload dan replacement SPJ LS langsung membentuk current artifact private;
   route `document.ls.spj.content` dan `document.ls.spj.download` memakai
   resolver, policy, serta integrity-checked stream yang sama;
+- upload dan replacement BMD LS langsung membentuk current artifact private;
+  route `document.ls.bmd.content` dan `document.ls.bmd.download` memakai
+  resolver, policy, serta integrity-checked stream yang sama;
 - rollback create SPP dapat membersihkan staging/final source yang belum
   mempunyai row artifact tanpa menghapus artifact persisten;
 - seluruh 52 pemanggilan upload controller payment melewati
@@ -304,8 +307,9 @@ Yang sudah tersedia untuk upload baru:
 - workflow dibuat `draft`, step dibuat sequential `pending`, assignment exact
   dari uploader/`users_to` dipakai bila role cocok, dan sisanya disimpan
   `unresolved`/`partial` tanpa tebakan;
-- `SPJ` LS sudah direct private upload tanpa workflow TTE. `BMD` masih ditulis
-  ke `public/File_BMD`. Billing tetap berada pada field row SPJ dan folder
+- `SPJ` dan `BMD` LS sudah direct private upload tanpa workflow TTE dan memakai
+  authenticated delivery route dengan cutover per row. Billing tetap berada
+  pada field row SPJ dan folder
   `public/File_Billing`; kontrak `document` melarang pembuatan row atau
   `src_type=BILLING`, sehingga private Billing memerlukan mapping attachment
   additive;

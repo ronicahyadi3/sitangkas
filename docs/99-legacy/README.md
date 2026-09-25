@@ -95,10 +95,11 @@ yang sama di dalam transaksi. Lazy activation BP/BPP, submit gate canonical,
 assignment PPTK/PA/KPA pada handoff, dan projector `TTE` legacy sudah tersedia,
 tetapi vertical slice belum dijalankan sukses end-to-end. TTE sukses sengaja
 tidak mengaktifkan step berikutnya; activation berikutnya terjadi saat handoff.
-SPJ create/replacement sudah memakai canonical private artifact dan named
-delivery route tanpa mengubah pola row `document`. Billing tetap pada kolom
-`document.billing` dan tidak boleh dibuat sebagai `src_type` baru; Billing/BMD
-masih menuju storage public dan validasi runtime belum dilakukan.
+SPJ dan BMD create/replacement sudah memakai canonical private artifact dan
+named delivery route tanpa mengubah pola row `document`. Billing tetap pada
+kolom `document.billing`, tidak boleh dibuat sebagai `src_type` baru, dan masih
+menuju storage public sampai mapping attachment additive tersedia. Validasi
+runtime belum dilakukan.
 `UpdateSppRequest`, replacement version chain,
 draft-workflow rebind/revision cycle, serta blocker formula integrity hash sudah
 diselesaikan.

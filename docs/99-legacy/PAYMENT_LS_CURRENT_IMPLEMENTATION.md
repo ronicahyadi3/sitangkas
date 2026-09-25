@@ -157,11 +157,11 @@ dipertahankan saat melanjutkan:
 - mutasi keluarga dokumen dibungkus transaksi dan menulis histori;
 - logging memakai channel `module_document_data` tanpa menyimpan secret TTE.
 
-`Detail` mempunyai pengecualian khusus **LS + SPP/SPJ**: URL preview dan
-download SPJ dibentuk dari named delivery route canonical bila current artifact
-sudah ada. SPJ historis yang belum dimapping sementara tetap memakai URL legacy
-agar layanan data masif tidak putus sebelum backfill. Payment/type lain masih
-memakai path `public/File_*` legacy.
+`Detail` mempunyai pengecualian khusus **LS + SPP/SPJ/BMD**. SPP memakai named
+delivery route canonical. URL preview/download SPJ dan BMD memakai named route
+canonical bila current artifact sudah ada. SPJ/BMD historis yang belum dimapping
+sementara tetap memakai URL legacy agar layanan data masif tidak putus sebelum
+backfill. Payment/type lain masih memakai path `public/File_*` legacy.
 
 ## 6. Alur create/upload SPP LS saat ini
 
@@ -222,9 +222,13 @@ Pada create SPP saat ini:
   menunjuk SPP, dan `src_name` berisi UUID filename artifact current;
 - tidak ada file SPJ baru yang dibuat di `public/File_SPJ`;
 - Billing masih ditulis ke `public/File_Billing`;
-- BMD masih ditulis ke `public/File_BMD`;
+- BMD opsional langsung di-stage dan difinalisasi sebagai current canonical
+  `before_sign` artifact pada private storage;
+- row BMD tetap memakai pola lama: `src_type=BMD`, `reference_id` menunjuk SPP,
+  dan `src_name` berisi UUID filename artifact current;
+- tidak ada file BMD baru yang dibuat di `public/File_BMD`;
 - row SPJ/BMD tetap dibuat pada `document` dan histori upload tetap ditulis;
-- provisioning after-commit SPJ bersifat idempotent karena current artifact
+- provisioning after-commit SPJ/BMD bersifat idempotent karena current artifact
   sudah tersedia sebelum commit.
 
 Kontrak data masif `document` tidak diubah. Billing tetap merupakan nama file
@@ -237,6 +241,11 @@ aktif: 4 mempunyai tepat satu current artifact, 51.941 belum mempunyai current
 artifact, dan tidak ada row dengan current artifact ambigu. Karena itu cutover
 delivery SPJ dilakukan per row. Backfill tetap wajib sebelum URL legacy SPJ
 dapat dihentikan seluruhnya.
+
+Snapshot yang sama menemukan 8.911 row BMD LS aktif: 2 mempunyai tepat satu
+current artifact, 8.909 belum mempunyai current artifact, dan tidak ada row
+dengan current artifact ambigu. Delivery BMD juga memakai cutover per row;
+historis tetap memakai URL legacy sampai mempunyai current artifact.
 
 ### 6.4 Anggaran dan transaksi
 
@@ -262,7 +271,7 @@ dapat dihentikan seluruhnya.
   menghasilkan `ValidationException`, transaksi rollback, dan respons validasi
   `422`.
 - Jika transaksi gagal, file pendamping public yang baru dibuat dibersihkan.
-- Source SPP dan SPJ private dibersihkan melalui
+- Source SPP, SPJ, dan BMD private dibersihkan melalui
   `discardUnpersistedSourceArtifact()` hanya jika tidak ada row
   `document_artifacts` untuk public ID tersebut.
 - Cleanup memeriksa integritas staging/final sebelum menghapus sehingga tidak
@@ -490,16 +499,16 @@ Boundary fallback:
 - bila transaksi gagal, staging/final canonical yang belum mempunyai row
   artifact dibersihkan dengan aman.
 
-Replacement SPJ sekarang membuat versi canonical baru di private storage dengan
-`parent_artifact_id` menunjuk current artifact lama. Row SPJ dan pola penulisan
-`document.src_name` tetap sama. Artifact lama dipertahankan sebagai histori dan
-current pointer berpindah ke versi baru. Bila SPJ lama belum mempunyai artifact,
-update terlebih dahulu memprovisikan file legacy sebagai versi awal, lalu
-membuat replacement sebagai versi berikutnya. Billing dan BMD replacement masih
+Replacement SPJ dan BMD sekarang membuat versi canonical baru di private storage
+dengan `parent_artifact_id` menunjuk current artifact lama. Pola penulisan row
+dan `document.src_name` tetap sama. Artifact lama dipertahankan sebagai histori
+dan current pointer berpindah ke versi baru. Bila SPJ/BMD lama belum mempunyai
+artifact, update terlebih dahulu memprovisikan file legacy sebagai versi awal,
+lalu membuat replacement sebagai versi berikutnya. Billing replacement masih
 memakai folder public. SPP historis yang belum mempunyai current canonical
 artifact harus melalui provisioning atau backfill sebelum file utamanya dapat
-diganti. Pada replacement SPJ lama, controller melakukan provisioning awal
-secara otomatis bila source legacy masih tersedia.
+diganti. Replacement SPJ/BMD lama melakukan provisioning awal secara otomatis
+bila source legacy masih tersedia.
 
 UUID pada `original_name` row hasil provisioning legacy bukan nama asli yang
 dibuat oleh storage canonical. Project lama hanya menyimpan nama fisik UUID pada
@@ -535,8 +544,9 @@ Urutan prioritas blocker saat snapshot:
    setiap batas transaksi.
 3. Siapkan worker `signatures` production dan shared cache sesuai topology
    server; worker lokal bukan bukti availability production.
-4. Migrasikan BMD dan Billing create/update dari public storage. Billing wajib
-   tetap memakai kolom `document.billing`; jangan membuat `src_type=BILLING`.
+4. Migrasikan Billing create/update dari public storage melalui mapping
+   attachment additive. Billing wajib tetap memakai kolom `document.billing`;
+   jangan membuat `src_type=BILLING`.
 5. Tutup seluruh URL langsung `public/File_*` untuk LS setelah setiap tipe
    mempunyai delivery resolver/policy canonical.
 6. Review kebutuhan indeks komposit anggaran berdasarkan query plan dan volume
@@ -562,12 +572,13 @@ Risiko tambahan:
    submit gate, assignment event, legacy projection, dan current artifact.
 3. Konfigurasikan shared cache, production process manager, health/heartbeat,
    dan recovery worker `signatures`.
-4. Migrasikan BMD ke `document_artifacts` tanpa mengubah pola row `document`.
-5. Rancang mapping attachment additive untuk Billing sambil mempertahankan
+4. Rancang mapping attachment additive untuk Billing sambil mempertahankan
    `document.billing`; jangan membuat row document/`src_type` baru.
-6. Tambahkan resolver dan delivery route untuk BMD/Billing setelah private
-   artifact masing-masing tersedia, lalu hentikan URL public untuk tipe itu.
-7. Selesaikan delivery policy LS SPP/SPJ, termasuk watermark/audit bila scope fase
+5. Tambahkan resolver dan delivery route untuk Billing setelah private artifact
+   tersedia, lalu hentikan URL public untuk attachment itu.
+6. Backfill SPJ/BMD historis dan hentikan URL public per tipe setelah coverage
+   canonical terverifikasi.
+7. Selesaikan delivery policy LS SPP/SPJ/BMD, termasuk watermark/audit bila scope fase
    tersebut sudah diaktifkan.
 8. Baru lanjutkan SPM dan SP2D, lalu bank/penyelesaian LS.
 

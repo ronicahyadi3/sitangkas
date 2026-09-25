@@ -15,6 +15,7 @@ use App\Http\Controllers\Data\DetailTbp as DocumentDetailTbpController;
 use App\Http\Controllers\Data\History as DocumentHistoryController;
 use App\Http\Controllers\Data\Rekening as DocumentRekeningController;
 use App\Http\Controllers\Data\Verify as DocumentVerifyController;
+use App\Http\Controllers\Document\LsBmdDocumentDeliveryController;
 use App\Http\Controllers\Document\LsSpjDocumentDeliveryController;
 use App\Http\Controllers\Document\LsSppDocumentDeliveryController;
 use App\Http\Controllers\Esign\ArtifactVerificationController;
@@ -205,6 +206,12 @@ Route::middleware(['auth', 'account.accessible', 'single.device.session'])->grou
             Route::get('/ls/spj/{document}/download', [LsSpjDocumentDeliveryController::class, 'download'])
                 ->where('document', '[A-Za-z0-9_-]+')
                 ->name('ls.spj.download');
+            Route::get('/ls/bmd/{document}/content', [LsBmdDocumentDeliveryController::class, 'content'])
+                ->where('document', '[A-Za-z0-9_-]+')
+                ->name('ls.bmd.content');
+            Route::get('/ls/bmd/{document}/download', [LsBmdDocumentDeliveryController::class, 'download'])
+                ->where('document', '[A-Za-z0-9_-]+')
+                ->name('ls.bmd.download');
             Route::get('/detail', [DocumentDetailController::class, 'detail'])->name('detail');
             Route::get('/detail-tbp', [DocumentDetailTbpController::class, 'detail'])->name('detail_tbp');
             Route::post('/history', [DocumentHistoryController::class, 'history'])->name('history');

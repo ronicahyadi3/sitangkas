@@ -51,7 +51,11 @@ Kondisi kode dan blocker terbaru wajib dibaca pada
 - [x] Migrasikan create/replacement SPJ ke canonical private artifact dan
   tambahkan authenticated content/download route tanpa mengubah pola row
   `document`.
-- [ ] Migrasikan Billing dan BMD create/update dari public storage.
+- [x] Migrasikan create/replacement BMD ke canonical private artifact dan
+  tambahkan authenticated content/download route tanpa mengubah pola row
+  `document`.
+- [ ] Migrasikan Billing dari public storage melalui mapping attachment
+  additive tanpa row atau `src_type` baru.
 - [ ] Validasi runtime upload, rollback, delivery, provisioning, dan TTE LS.
 - [ ] Review dan selesaikan SPM, SP2D, bank, serta penyelesaian LS.
 
@@ -85,10 +89,10 @@ diaktifkan atau direfaktor.
 Fondasi awal, create/upload SPP, kontrak `storage_path_sha256`, request update,
 replacement canonical SPP, locking pagu, lazy activation, submit gate, serta
 assignment signer pada handoff sudah dikerjakan. Direct private create,
-replacement, dan delivery SPJ juga sudah tersedia dengan cutover per row untuk
-data historis. Hasil berikutnya adalah backend visible placement/controlled
-signing LS SPP atau private BMD sesuai prioritas aktif; Billing tetap memerlukan
-mapping attachment additive tanpa row/`src_type` baru.
+replacement, dan delivery SPJ/BMD juga sudah tersedia dengan cutover per row
+untuk data historis. Hasil berikutnya adalah backend visible
+placement/controlled signing LS SPP atau private Billing sesuai prioritas aktif;
+Billing tetap memerlukan mapping attachment additive tanpa row/`src_type` baru.
 
 ## 3. Keputusan yang belum ditetapkan
 
@@ -268,7 +272,8 @@ berlaku; jangan meminta ulang bila izin tersebut sudah diberikan.
 - [ ] Visible placement QR/footer backend.
 - [ ] Controlled signing/handoff LS SPP end-to-end.
 - [x] Private artifact create/replacement dan delivery SPJ LS.
-- [ ] Private artifact dan delivery Billing/BMD.
+- [x] Private artifact create/replacement dan delivery BMD LS.
+- [ ] Private artifact dan delivery Billing melalui mapping attachment additive.
 - [ ] Implementasi SPP lengkap.
 - [ ] Implementasi SPM lengkap.
 - [ ] Implementasi SP2D, TTE, billing, dan penyelesaian bank khusus LS.

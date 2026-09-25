@@ -416,6 +416,7 @@ class Detail extends Controller
             ? match ($data->src_type) {
                 Document::TYPE_SPP => 'spp',
                 Document::TYPE_SPJ => (bool) $data->has_current_artifact ? 'spj' : null,
+                Document::TYPE_BMD => (bool) $data->has_current_artifact ? 'bmd' : null,
                 default => null,
             }
         : null;
