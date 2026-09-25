@@ -2,7 +2,7 @@
     import { onMount, tick } from 'svelte';
     import { EsignApiClient } from '../api/client';
     import { EsignApiError, invalidResponseError, normalizeRequestError } from '../api/errors';
-    import { dispatchEsignClosed } from '../events';
+    import { dispatchEsignClosed, dispatchEsignCompleted } from '../events';
     import {
         createDefaultFooterPlan,
         resetFooterPlacements,
@@ -23,6 +23,8 @@
     } from '../ui-state';
     import type {
         AcceptedEsignAttempt,
+        ArtifactVerification,
+        EsignAttemptDetails,
         EsignFrontendConfiguration,
         EsignUiAction,
         FooterPlan,
@@ -33,6 +35,7 @@
     } from '../types';
     import SigningShellBody from './SigningShellBody.svelte';
     import SigningStepper from './SigningStepper.svelte';
+    import VerificationPanel from './VerificationPanel.svelte';
 
     interface BootstrapModal {
         dispose(): void;
@@ -55,9 +58,16 @@
         Modal?: BootstrapModalConstructor;
     }
 
+    interface RecoverableAttempt {
+        accepted: AcceptedEsignAttempt;
+        details: EsignAttemptDetails | null;
+    }
+
     let { configuration }: { configuration: EsignFrontendConfiguration } = $props();
 
     let apiClient = $derived(new EsignApiClient(configuration));
+    const recoverableAttempts = new Map<string, RecoverableAttempt>();
+    const completedAttemptIds = new Set<string>();
 
     let activeAction = $state<EsignUiAction | null>(null);
     let stage = $state<EsignShellStage>('loading');
@@ -75,15 +85,29 @@
     let preparedReady = $state(false);
     let passphrase = $state('');
     let acceptedAttempt = $state<AcceptedEsignAttempt | null>(null);
+    let attemptDetails = $state<EsignAttemptDetails | null>(null);
+    let pollingError = $state<NormalizedEsignError | null>(null);
+    let resumeError = $state<NormalizedEsignError | null>(null);
+    let resumeRetryRemaining = $state(0);
+    let validationResult = $state<ArtifactVerification | null>(null);
+    let validationError = $state<NormalizedEsignError | null>(null);
+    let validationLoading = $state(false);
     let submitError = $state<NormalizedEsignError | null>(null);
     let submitIdempotencyKey = $state<string | null>(null);
+    let submitRetryRemaining = $state(0);
     let resetConfirmationPending = $state(false);
     let modalElement: HTMLDivElement;
     let modalTitleElement: HTMLHeadingElement;
     let modal: BootstrapModal | null = null;
     let returnFocusTarget: HTMLElement | null = null;
     let requestController: AbortController | null = null;
+    let attemptPollController: AbortController | null = null;
+    let attemptPollTimer: ReturnType<typeof setTimeout> | null = null;
+    let submitRetryTimer: ReturnType<typeof setInterval> | null = null;
+    let resumeRetryTimer: ReturnType<typeof setInterval> | null = null;
     let requestSequence = 0;
+    let attemptPollGeneration = 0;
+    let attemptPollFailureCount = 0;
 
     let isValidation = $derived(activeAction?.kind === 'validation');
     let presentation = $derived(stagePresentation(stage));
@@ -110,6 +134,31 @@
         ];
     });
     let signingPlanReady = $derived(editorReady && signingPlanIssues.length === 0);
+    let finalSubmitReady = $derived(
+        preparedReady
+        && passphrase.length > 0
+        && passphrase.length <= 255
+        && submitRetryRemaining === 0,
+    );
+    let validationBadge = $derived.by(() => {
+        if (validationLoading) {
+            return { className: 'bg-gradient-info', label: 'Memvalidasi' };
+        }
+
+        if (validationError !== null) {
+            return { className: 'bg-gradient-warning', label: 'Tidak tersedia' };
+        }
+
+        if (validationResult?.verification.status === 'valid') {
+            return { className: 'bg-gradient-success', label: 'Valid' };
+        }
+
+        if (validationResult?.verification.status === 'invalid') {
+            return { className: 'bg-gradient-danger', label: 'Tidak valid' };
+        }
+
+        return { className: 'bg-gradient-warning', label: 'Tanpa tanda tangan' };
+    });
 
     export async function open(action: EsignUiAction): Promise<void> {
         if (closeBlocked) {
@@ -137,8 +186,77 @@
         modal?.show();
 
         if (action.kind === 'signing') {
-            await loadSigningSession(action);
+            const recoverable = recoverableAttempts.get(action.detail.step_public_id);
+
+            if (recoverable) {
+                restoreAttempt(recoverable);
+            } else {
+                await loadSigningSession(action);
+            }
+        } else {
+            await loadArtifactVerification(action);
         }
+    }
+
+    async function loadArtifactVerification(
+        action: Extract<EsignUiAction, { kind: 'validation' }>,
+    ): Promise<void> {
+        requestController?.abort();
+
+        const controller = new AbortController();
+        const sequence = ++requestSequence;
+        requestController = controller;
+        validationLoading = true;
+        validationError = null;
+
+        try {
+            const result = await apiClient.showArtifactVerification(
+                action.detail.verification_url,
+                controller.signal,
+            );
+
+            if (controller.signal.aborted || sequence !== requestSequence) {
+                return;
+            }
+
+            if (result.artifact.public_id !== action.detail.artifact_public_id
+                || absoluteUrl(result.preview_url) !== absoluteUrl(action.detail.preview_url)) {
+                throw new EsignApiError({
+                    ...invalidResponseError(),
+                    message: 'Respons validasi tidak cocok dengan artifact yang dipilih.',
+                    code: 'artifact_verification_identity_mismatch',
+                });
+            }
+
+            validationResult = result;
+        } catch (error: unknown) {
+            if (controller.signal.aborted || sequence !== requestSequence) {
+                return;
+            }
+
+            validationResult = null;
+            validationError = normalizeRequestError(error);
+        } finally {
+            if (sequence === requestSequence) {
+                validationLoading = false;
+            }
+
+            if (requestController === controller) {
+                requestController = null;
+            }
+        }
+    }
+
+    function retryArtifactVerification(): void {
+        if (activeAction?.kind !== 'validation' || validationLoading) {
+            return;
+        }
+
+        void loadArtifactVerification(activeAction);
+    }
+
+    function absoluteUrl(value: string): string {
+        return new URL(value, window.location.origin).toString();
     }
 
     async function loadSigningSession(action: Extract<EsignUiAction, { kind: 'signing' }>): Promise<void> {
@@ -188,6 +306,7 @@
             'editing',
             'preparing_rendition',
             'confirming_prepared',
+            'load_failed',
         ].includes(closingStage)) {
             return;
         }
@@ -199,7 +318,9 @@
         if (closeBlocked) {
             closeFeedback = stage === 'submitting'
                 ? 'Permintaan TTE sedang dikirim. Tunggu hingga server menerima permintaan.'
-                : 'Dokumen sedang dipersiapkan. Tunggu proses ini selesai.';
+                : stage === 'resuming'
+                    ? 'Passphrase baru sedang dikirim. Tunggu hingga server menerima permintaan.'
+                    : 'Dokumen sedang dipersiapkan. Tunggu proses ini selesai.';
 
             return;
         }
@@ -215,6 +336,76 @@
         return apiClient.fetchPng(url, signal);
     }
 
+    function clearSubmitRetry(): void {
+        if (submitRetryTimer !== null) {
+            clearInterval(submitRetryTimer);
+            submitRetryTimer = null;
+        }
+
+        submitRetryRemaining = 0;
+    }
+
+    function scheduleSubmitRetry(seconds: number | null): void {
+        clearSubmitRetry();
+
+        if (seconds === null || seconds <= 0) {
+            return;
+        }
+
+        const retryAt = Date.now() + (seconds * 1000);
+        const update = (): void => {
+            submitRetryRemaining = Math.max(0, Math.ceil((retryAt - Date.now()) / 1000));
+
+            if (submitRetryRemaining === 0) {
+                clearSubmitRetry();
+            }
+        };
+
+        update();
+        submitRetryTimer = setInterval(update, 500);
+    }
+
+    function clearResumeRetry(): void {
+        if (resumeRetryTimer !== null) {
+            clearInterval(resumeRetryTimer);
+            resumeRetryTimer = null;
+        }
+
+        resumeRetryRemaining = 0;
+    }
+
+    function scheduleResumeRetry(seconds: number | null): void {
+        clearResumeRetry();
+
+        if (seconds === null || seconds <= 0) {
+            return;
+        }
+
+        const retryAt = Date.now() + (seconds * 1000);
+        const update = (): void => {
+            resumeRetryRemaining = Math.max(0, Math.ceil((retryAt - Date.now()) / 1000));
+
+            if (resumeRetryRemaining === 0) {
+                clearResumeRetry();
+            }
+        };
+
+        update();
+        resumeRetryTimer = setInterval(update, 500);
+    }
+
+    function stopAttemptPolling(): void {
+        attemptPollGeneration += 1;
+
+        if (attemptPollTimer !== null) {
+            clearTimeout(attemptPollTimer);
+            attemptPollTimer = null;
+        }
+
+        attemptPollController?.abort();
+        attemptPollController = null;
+    }
+
     function resetEditorState(): void {
         placements = [];
         footerPlan = null;
@@ -226,8 +417,17 @@
         preparedReady = false;
         passphrase = '';
         acceptedAttempt = null;
+        attemptDetails = null;
+        pollingError = null;
+        resumeError = null;
         submitError = null;
         submitIdempotencyKey = null;
+        validationResult = null;
+        validationError = null;
+        validationLoading = false;
+        clearSubmitRetry();
+        clearResumeRetry();
+        stopAttemptPolling();
         editorFeedback = '';
         resetConfirmationPending = false;
     }
@@ -339,6 +539,7 @@
         acceptedAttempt = null;
         submitError = null;
         submitIdempotencyKey = null;
+        clearSubmitRetry();
         editorFeedback = '';
         closeFeedback = '';
         stage = 'preparing_rendition';
@@ -397,6 +598,7 @@
         acceptedAttempt = null;
         submitError = null;
         submitIdempotencyKey = null;
+        clearSubmitRetry();
         closeFeedback = '';
         editorFeedback = 'Preview final dibatalkan. Siapkan ulang setelah posisi selesai diperiksa.';
         stage = 'editing';
@@ -430,6 +632,310 @@
         ].includes(error.code ?? '');
     }
 
+    function activeStepPublicId(): string | null {
+        return activeAction?.kind === 'signing'
+            ? activeAction.detail.step_public_id
+            : null;
+    }
+
+    function rememberAttempt(): void {
+        const stepPublicId = activeStepPublicId();
+
+        if (stepPublicId === null || acceptedAttempt === null) {
+            return;
+        }
+
+        recoverableAttempts.set(stepPublicId, {
+            accepted: acceptedAttempt,
+            details: attemptDetails,
+        });
+    }
+
+    function forgetRememberedAttempt(): void {
+        const stepPublicId = activeStepPublicId();
+
+        if (stepPublicId !== null) {
+            recoverableAttempts.delete(stepPublicId);
+        }
+    }
+
+    function attemptStage(details: EsignAttemptDetails): EsignShellStage {
+        if (details.requires_reconciliation || details.status === 'unknown') {
+            return 'unknown';
+        }
+
+        if (details.requires_passphrase && details.resume_url !== null) {
+            return 'requires_passphrase';
+        }
+
+        if (details.status === 'partially_signed') {
+            return 'unknown';
+        }
+
+        if (details.status === 'succeeded') {
+            return details.result_artifact_id === null ? 'unknown' : 'succeeded';
+        }
+
+        if (details.status === 'failed') {
+            return 'failed';
+        }
+
+        return 'processing';
+    }
+
+    function dispatchAttemptCompleted(details: EsignAttemptDetails): void {
+        const stepPublicId = activeStepPublicId();
+        const resultArtifactId = details.result_artifact_id;
+
+        if (stepPublicId === null
+            || resultArtifactId === null
+            || completedAttemptIds.has(details.attempt_id)) {
+            return;
+        }
+
+        completedAttemptIds.add(details.attempt_id);
+        dispatchEsignCompleted({
+            step_public_id: stepPublicId,
+            attempt_id: details.attempt_id,
+            result_artifact_id: resultArtifactId,
+            result: 'succeeded',
+        });
+    }
+
+    function applyAttemptDetails(details: EsignAttemptDetails): boolean {
+        const attempt = acceptedAttempt;
+
+        if (attempt === null || attempt.attempt_id !== details.attempt_id) {
+            throw new EsignApiError({
+                ...invalidResponseError(),
+                message: 'Status attempt tidak cocok dengan permintaan TTE aktif.',
+                code: 'attempt_identity_mismatch',
+            });
+        }
+
+        attemptDetails = details;
+        pollingError = null;
+        attemptPollFailureCount = 0;
+        stage = attemptStage(details);
+        rememberAttempt();
+
+        if (details.status === 'succeeded') {
+            if (details.result_artifact_id === null) {
+                pollingError = {
+                    ...invalidResponseError(),
+                    message: 'TTE selesai tetapi artifact hasil belum tersedia. Status perlu diperiksa administrator.',
+                    code: 'result_artifact_missing',
+                };
+                stage = 'unknown';
+                rememberAttempt();
+
+                return false;
+            }
+
+            forgetRememberedAttempt();
+            dispatchAttemptCompleted(details);
+
+            return false;
+        }
+
+        if (details.status === 'failed') {
+            forgetRememberedAttempt();
+
+            return false;
+        }
+
+        if (stage === 'unknown' || stage === 'requires_passphrase') {
+            return false;
+        }
+
+        if (details.next_poll_after_ms === null) {
+            pollingError = {
+                ...invalidResponseError(),
+                message: 'Backend tidak memberikan jadwal pembaruan untuk attempt yang masih berjalan.',
+                code: 'attempt_poll_schedule_missing',
+            };
+            stage = 'unknown';
+            rememberAttempt();
+
+            return false;
+        }
+
+        return true;
+    }
+
+    function scheduleAttemptPoll(statusUrl: string, delayMs: number, generation: number): void {
+        if (generation !== attemptPollGeneration || document.visibilityState === 'hidden') {
+            return;
+        }
+
+        if (attemptPollTimer !== null) {
+            clearTimeout(attemptPollTimer);
+        }
+
+        attemptPollTimer = setTimeout(() => {
+            attemptPollTimer = null;
+            void pollAttempt(statusUrl, generation);
+        }, Math.max(0, delayMs));
+    }
+
+    async function pollAttempt(statusUrl: string, generation: number): Promise<void> {
+        if (generation !== attemptPollGeneration || document.visibilityState === 'hidden') {
+            return;
+        }
+
+        const controller = new AbortController();
+        attemptPollController = controller;
+
+        try {
+            const details = await apiClient.showAttempt(statusUrl, controller.signal);
+
+            if (controller.signal.aborted || generation !== attemptPollGeneration) {
+                return;
+            }
+
+            const shouldContinue = applyAttemptDetails(details);
+
+            if (shouldContinue && details.next_poll_after_ms !== null) {
+                scheduleAttemptPoll(
+                    statusUrl,
+                    Math.max(500, details.next_poll_after_ms),
+                    generation,
+                );
+            }
+        } catch (error: unknown) {
+            if (controller.signal.aborted || generation !== attemptPollGeneration) {
+                return;
+            }
+
+            const normalized = normalizeRequestError(error);
+            const retryableRead = ['network', 'server', 'rate_limited'].includes(normalized.category);
+
+            pollingError = normalized;
+
+            if (retryableRead) {
+                attemptPollFailureCount += 1;
+                const retryDelay = normalized.retry_after_seconds !== null
+                    ? normalized.retry_after_seconds * 1000
+                    : Math.min(15_000, 2_000 * (2 ** Math.min(3, attemptPollFailureCount - 1)));
+
+                scheduleAttemptPoll(statusUrl, Math.max(1_000, retryDelay), generation);
+            } else {
+                stage = 'unknown';
+                rememberAttempt();
+            }
+        } finally {
+            if (attemptPollController === controller) {
+                attemptPollController = null;
+            }
+        }
+    }
+
+    function startAttemptPolling(statusUrl: string): void {
+        stopAttemptPolling();
+        attemptPollFailureCount = 0;
+        const generation = attemptPollGeneration;
+
+        scheduleAttemptPoll(statusUrl, 0, generation);
+    }
+
+    function startAttemptTracking(attempt: AcceptedEsignAttempt): void {
+        acceptedAttempt = attempt;
+        attemptDetails = null;
+        pollingError = null;
+        resumeError = null;
+        clearResumeRetry();
+        stage = 'processing';
+        rememberAttempt();
+        startAttemptPolling(attempt.status_url);
+    }
+
+    function restoreAttempt(recoverable: RecoverableAttempt): void {
+        acceptedAttempt = recoverable.accepted;
+        attemptDetails = recoverable.details;
+        pollingError = null;
+        resumeError = null;
+        stage = recoverable.details === null
+            ? 'processing'
+            : attemptStage(recoverable.details);
+        startAttemptPolling(recoverable.accepted.status_url);
+    }
+
+    async function resumePartialAttempt(secret: string): Promise<void> {
+        const details = attemptDetails;
+        const attempt = acceptedAttempt;
+
+        if (stage !== 'requires_passphrase'
+            || details === null
+            || attempt === null
+            || details.resume_url === null
+            || details.requires_reconciliation
+            || secret.length < 1
+            || secret.length > 255
+            || resumeRetryRemaining > 0) {
+            return;
+        }
+
+        stopAttemptPolling();
+        const controller = new AbortController();
+        const sequence = ++requestSequence;
+
+        requestController?.abort();
+        requestController = controller;
+        resumeError = null;
+        clearResumeRetry();
+        closeFeedback = '';
+        stage = 'resuming';
+
+        try {
+            const resumed = await apiClient.resumeAttempt(
+                details.resume_url,
+                { affirmed: true, passphrase: secret },
+                controller.signal,
+            );
+
+            if (controller.signal.aborted || sequence !== requestSequence) {
+                return;
+            }
+
+            if (resumed.attempt_id !== attempt.attempt_id) {
+                throw new EsignApiError({
+                    ...invalidResponseError(),
+                    message: 'Respons resume tidak cocok dengan attempt yang sedang ditampilkan.',
+                    code: 'resume_attempt_identity_mismatch',
+                });
+            }
+
+            startAttemptTracking(resumed);
+        } catch (error: unknown) {
+            if (controller.signal.aborted || sequence !== requestSequence) {
+                return;
+            }
+
+            const normalized = normalizeRequestError(error);
+
+            resumeError = normalized;
+            scheduleResumeRetry(
+                normalized.category === 'rate_limited'
+                    ? normalized.retry_after_seconds
+                    : null,
+            );
+
+            if (normalized.category === 'validation' || normalized.category === 'rate_limited') {
+                stage = 'requires_passphrase';
+            } else {
+                pollingError = normalized;
+                stage = 'unknown';
+                rememberAttempt();
+            }
+        } finally {
+            secret = '';
+
+            if (requestController === controller) {
+                requestController = null;
+            }
+        }
+    }
+
     async function submitFinalSignature(): Promise<void> {
         const session = signingSession;
         const rendition = preparedRendition;
@@ -438,7 +944,9 @@
             || session === null
             || rendition === null
             || !preparedReady
-            || passphrase.length === 0) {
+            || passphrase.length === 0
+            || passphrase.length > 255
+            || submitRetryRemaining > 0) {
             return;
         }
 
@@ -451,6 +959,7 @@
         requestController = controller;
         submitIdempotencyKey = idempotencyKey;
         submitError = null;
+        clearSubmitRetry();
         closeFeedback = '';
         stage = 'submitting';
 
@@ -471,9 +980,9 @@
                 return;
             }
 
-            acceptedAttempt = attempt;
             passphrase = '';
-            stage = 'processing';
+            clearSubmitRetry();
+            startAttemptTracking(attempt);
         } catch (error: unknown) {
             if (controller.signal.aborted || sequence !== requestSequence) {
                 return;
@@ -484,6 +993,11 @@
             passphrase = '';
             acceptedAttempt = null;
             submitError = normalized;
+            scheduleSubmitRetry(
+                normalized.category === 'rate_limited'
+                    ? normalized.retry_after_seconds
+                    : null,
+            );
 
             if (outcomeIsUnclear(normalized)) {
                 stage = 'unknown';
@@ -638,6 +1152,22 @@
             modalTitleElement.focus({ preventScroll: true });
         };
 
+        const handleVisibilityChange = (): void => {
+            if (document.visibilityState === 'hidden') {
+                stopAttemptPolling();
+
+                return;
+            }
+
+            if (acceptedAttempt !== null && [
+                'processing',
+                'requires_passphrase',
+                'unknown',
+            ].includes(stage)) {
+                startAttemptPolling(acceptedAttempt.status_url);
+            }
+        };
+
         const handleHidden = (): void => {
             const closedAction = activeAction;
             const focusTarget = returnFocusTarget;
@@ -665,6 +1195,7 @@
         modalElement.addEventListener('hide.bs.modal', handleHide);
         modalElement.addEventListener('shown.bs.modal', handleShown);
         modalElement.addEventListener('hidden.bs.modal', handleHidden);
+        document.addEventListener('visibilitychange', handleVisibilityChange);
 
         if (activeAction !== null) {
             modal.show();
@@ -675,9 +1206,13 @@
             const closingStage = stage;
 
             abortActiveRequest();
+            clearSubmitRetry();
+            clearResumeRetry();
+            stopAttemptPolling();
             modalElement.removeEventListener('hide.bs.modal', handleHide);
             modalElement.removeEventListener('shown.bs.modal', handleShown);
             modalElement.removeEventListener('hidden.bs.modal', handleHidden);
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
             modal?.dispose();
             modal = null;
             forgetTemporarySession(sessionToForget, closingStage);
@@ -725,10 +1260,10 @@
 
                 <div class="esign-shell__header-actions">
                     <span
-                        class="badge {isValidation ? 'bg-gradient-info' : presentation.badgeClass}"
+                        class="badge {isValidation ? validationBadge.className : presentation.badgeClass}"
                         aria-live="polite"
                     >
-                        {isValidation ? 'Memuat validasi' : presentation.label}
+                        {isValidation ? validationBadge.label : presentation.label}
                     </span>
                     <button
                         type="button"
@@ -754,15 +1289,15 @@
 
             <main class="modal-body esign-shell__body" aria-live="polite">
                 {#if isValidation}
-                    <section class="esign-state esign-state--centered" role="status">
-                        <span class="spinner-border text-info" aria-hidden="true"></span>
-                        <div>
-                            <h3 class="h6 mb-1">Menyiapkan informasi validasi</h3>
-                            <p class="text-sm text-secondary mb-0">
-                                Endpoint validasi canonical akan dihubungkan pada tahap integrasi validasi.
-                            </p>
-                        </div>
-                    </section>
+                    {#if activeAction?.kind === 'validation'}
+                        <VerificationPanel
+                            action={activeAction.detail}
+                            result={validationResult}
+                            loading={validationLoading}
+                            error={validationError}
+                            {fetchPdf}
+                        />
+                    {/if}
                 {:else}
                     <SigningShellBody
                         {stage}
@@ -772,7 +1307,12 @@
                         {fetchPng}
                         {preparedRendition}
                         {acceptedAttempt}
+                        {attemptDetails}
+                        {pollingError}
+                        {resumeError}
+                        {resumeRetryRemaining}
                         {submitError}
+                        onResume={resumePartialAttempt}
                         bind:placements
                         bind:footerPlan
                         bind:activeEditorPage
@@ -786,7 +1326,22 @@
             </main>
 
             <footer class="modal-footer esign-shell__footer">
-                {#if isValidation || stage === 'loading' || stage === 'load_failed'}
+                {#if isValidation}
+                    {#if validationError !== null}
+                        <button
+                            type="button"
+                            class="btn btn-outline-primary mb-0"
+                            disabled={validationLoading}
+                            onclick={retryArtifactVerification}
+                        >
+                            <i class="fas fa-rotate me-2" aria-hidden="true"></i>
+                            Coba Lagi
+                        </button>
+                    {/if}
+                    <button type="button" class="btn btn-outline-secondary mb-0" onclick={requestClose}>
+                        Tutup
+                    </button>
+                {:else if stage === 'loading' || stage === 'load_failed'}
                     <button type="button" class="btn btn-outline-secondary mb-0" onclick={requestClose}>
                         {stage === 'load_failed' ? 'Tutup' : 'Batal'}
                     </button>
@@ -831,10 +1386,10 @@
                             Lanjutkan
                         </button>
                     </div>
-                {:else if stage === 'preparing_rendition' || stage === 'submitting'}
+                {:else if stage === 'preparing_rendition' || stage === 'submitting' || stage === 'resuming'}
                     <button type="button" class="btn bg-gradient-primary mb-0" disabled>
                         <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
-                        Mohon tunggu
+                        {stage === 'resuming' ? 'Melanjutkan TTE' : 'Mohon tunggu'}
                     </button>
                 {:else if stage === 'confirming_prepared'}
                     <button type="button" class="btn btn-outline-secondary mb-0" onclick={returnToEditor}>
@@ -843,19 +1398,29 @@
                     <button
                         type="button"
                         class="btn bg-gradient-primary mb-0"
-                        disabled={!preparedReady || passphrase.length === 0}
+                        disabled={!finalSubmitReady}
                         title={!preparedReady
                             ? 'Tunggu preview final selesai diverifikasi'
+                            : submitRetryRemaining > 0
+                                ? `Tunggu ${submitRetryRemaining} detik sebelum mencoba kembali`
                             : passphrase.length === 0
                                 ? 'Masukkan passphrase'
+                                : passphrase.length > 255
+                                    ? 'Passphrase maksimal 255 karakter'
                                 : `Kirim ${preparedRendition?.signature_count ?? 0} operasi TTE ke server`}
                         onclick={submitFinalSignature}
                     >
-                        Tandatangani Sekarang
+                        {submitRetryRemaining > 0
+                            ? `Tunggu ${submitRetryRemaining} detik`
+                            : 'Tandatangani Sekarang'}
                     </button>
-                {:else if stage === 'processing'}
+                {:else if stage === 'processing' || stage === 'requires_passphrase' || stage === 'unknown'}
                     <p class="esign-shell__footer-note mb-0">
-                        Proses tetap berjalan di server meskipun modal ditutup.
+                        {stage === 'processing'
+                            ? 'Proses tetap berjalan di server meskipun modal ditutup.'
+                            : stage === 'requires_passphrase'
+                                ? 'Operasi yang sudah selesai tidak akan diulang.'
+                                : 'Tidak ada retry otomatis selama status belum pasti.'}
                     </p>
                     <button type="button" class="btn btn-outline-secondary mb-0" onclick={requestClose}>
                         Tutup

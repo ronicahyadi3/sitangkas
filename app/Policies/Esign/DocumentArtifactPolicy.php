@@ -26,6 +26,11 @@ final class DocumentArtifactPolicy
         return $this->authorization->viewArtifact($user, $artifact);
     }
 
+    public function verify(User $user, DocumentArtifact $artifact): Response
+    {
+        return $this->authorization->viewArtifact($user, $artifact);
+    }
+
     public function download(User $user, DocumentArtifact $artifact): Response
     {
         return $this->authorization->downloadArtifact($user, $artifact);

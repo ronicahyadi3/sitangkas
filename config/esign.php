@@ -16,6 +16,12 @@ return [
         'enabled' => (bool) env('SIGNATURE_FRONTEND_ENABLED', false),
     ],
 
+    'verification' => [
+        'cache_store' => env('SIGNATURE_VERIFICATION_CACHE_STORE'),
+        'cache_ttl_minutes' => (int) env('SIGNATURE_VERIFICATION_CACHE_TTL_MINUTES', 60),
+        'policy_version' => 'bsre-v2-v1',
+    ],
+
     'visible_editor' => [
         'prepared_disk' => env('SIGNATURE_PREPARED_DISK', 'private'),
         'prepared_root' => env('SIGNATURE_PREPARED_ROOT', 'esign-prepared'),

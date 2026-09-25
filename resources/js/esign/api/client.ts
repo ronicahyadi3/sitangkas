@@ -1,5 +1,6 @@
 import type {
     AcceptedEsignAttempt,
+    ArtifactVerification,
     EsignAttemptDetails,
     EsignFrontendConfiguration,
     PrepareSigningRenditionRequest,
@@ -14,6 +15,7 @@ import { EsignApiError, invalidResponseError, normalizeHttpError } from './error
 import {
     isAcceptedEsignAttempt,
     isApiEnvelope,
+    isArtifactVerification,
     isEsignAttemptDetails,
     isPreparedSigningRendition,
     isSigningSession,
@@ -105,6 +107,18 @@ export class EsignApiClient {
             { method: 'POST', body: request, signal },
             isAcceptedEsignAttempt,
             [202],
+        );
+    }
+
+    public showArtifactVerification(
+        verificationUrl: string,
+        signal?: AbortSignal,
+    ): Promise<ArtifactVerification> {
+        return this.requestEnvelope(
+            verificationUrl,
+            { method: 'GET', signal },
+            isArtifactVerification,
+            [200],
         );
     }
 

@@ -35,6 +35,8 @@ function handleEsignAction(event) {
         dispatchEsignValidationOpen({
             artifact_public_id: target.dataset.esignArtifact ?? '',
             can_verify: target.dataset.esignCanVerify === 'true',
+            verification_url: target.dataset.esignVerificationUrl ?? '',
+            preview_url: target.dataset.esignPreviewUrl ?? '',
         });
     }
 }

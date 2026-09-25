@@ -498,6 +498,24 @@ class SPP extends Controller
 
                     $actions = [];
                     $esignCapabilities = $this->lsSppSigningActionResolver->capabilities($document);
+                    $verificationCapabilities = $this->lsSppSigningActionResolver
+                        ->verificationCapabilities($document);
+
+                    if ($verificationCapabilities !== null) {
+                        $artifactPublicId = $verificationCapabilities['artifact_public_id'];
+                        $actions[] = $btn(
+                            $artifactPublicId,
+                            'esign-action',
+                            'fas fa-shield-halved text-info',
+                            'Validasi Tanda Tangan Elektronik',
+                            'data-esign-action="verify" '.
+                            'data-esign-artifact="'.e($artifactPublicId).'" '.
+                            'data-esign-verification-url="'.e($verificationCapabilities['verification_url']).'" '.
+                            'data-esign-preview-url="'.e($verificationCapabilities['preview_url']).'" '.
+                            'data-esign-can-verify="true" '.
+                            'aria-label="Validasi Tanda Tangan Elektronik"',
+                        );
+                    }
 
                     if ($esignCapabilities !== null) {
                         $stepPublicId = $esignCapabilities['step_public_id'];

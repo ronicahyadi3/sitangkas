@@ -5,6 +5,7 @@ export type EsignShellStage =
     | 'preparing_rendition'
     | 'confirming_prepared'
     | 'submitting'
+    | 'resuming'
     | 'processing'
     | 'succeeded'
     | 'requires_passphrase'
@@ -50,6 +51,11 @@ const STAGE_PRESENTATIONS: Record<EsignShellStage, EsignStagePresentation> = {
         label: 'Mengirim',
         step: 'confirmation',
     },
+    resuming: {
+        badgeClass: 'bg-gradient-warning',
+        label: 'Melanjutkan',
+        step: 'process',
+    },
     processing: {
         badgeClass: 'bg-gradient-info',
         label: 'Diproses',
@@ -82,12 +88,13 @@ export function stagePresentation(stage: EsignShellStage): EsignStagePresentatio
 }
 
 export function stageBlocksClose(stage: EsignShellStage): boolean {
-    return stage === 'preparing_rendition' || stage === 'submitting';
+    return stage === 'preparing_rendition' || stage === 'submitting' || stage === 'resuming';
 }
 
 export function stageIsBusy(stage: EsignShellStage): boolean {
     return stage === 'loading'
         || stage === 'preparing_rendition'
         || stage === 'submitting'
+        || stage === 'resuming'
         || stage === 'processing';
 }

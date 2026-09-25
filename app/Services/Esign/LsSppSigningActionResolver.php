@@ -31,6 +31,7 @@ final class LsSppSigningActionResolver
     {
         $realPosition = $this->currentUserContext->realActivePosition($this->request);
         $selectedYear = $this->yearAccess->selectedYear();
+        $documents = $this->addVerifiableArtifact($documents, $selectedYear);
 
         if (! $this->frontendIsReady()
             || ! $actor->isActive()
@@ -207,6 +208,59 @@ final class LsSppSigningActionResolver
             'can_sign' => true,
             'can_verify' => false,
         ];
+    }
+
+    /**
+     * @return array{
+     *     artifact_public_id: string,
+     *     can_verify: true,
+     *     verification_url: string,
+     *     preview_url: string
+     * }|null
+     */
+    public function verificationCapabilities(object $document): ?array
+    {
+        if ($this->config->get('esign.frontend.enabled') !== true) {
+            return null;
+        }
+
+        $artifactPublicId = $document->esign_artifact_public_id ?? null;
+
+        if (! is_string($artifactPublicId) || ! Str::isUuid($artifactPublicId)) {
+            return null;
+        }
+
+        return [
+            'artifact_public_id' => $artifactPublicId,
+            'can_verify' => true,
+            'verification_url' => route(
+                'esign.internal.artifacts.verification.show',
+                ['documentArtifact' => $artifactPublicId],
+            ),
+            'preview_url' => route(
+                'esign.internal.artifacts.verification.preview',
+                ['documentArtifact' => $artifactPublicId],
+            ),
+        ];
+    }
+
+    private function addVerifiableArtifact(Builder $documents, int $selectedYear): Builder
+    {
+        if ($this->config->get('esign.frontend.enabled') !== true) {
+            return $documents->addSelect(DB::raw('NULL AS esign_artifact_public_id'));
+        }
+
+        $artifact = DB::table('document_artifacts as validation_artifact')
+            ->selectRaw('MIN(validation_artifact.public_id)')
+            ->whereColumn('validation_artifact.document_id', 'document.id')
+            ->where('validation_artifact.is_current', true)
+            ->where('validation_artifact.document_year', $selectedYear)
+            ->groupBy('validation_artifact.document_id')
+            ->havingRaw('COUNT(*) = 1');
+
+        return $documents->addSelect([
+            'esign_artifact_public_id' => $artifact,
+        ]);
     }
 
     private function withoutSignableStep(Builder $documents): Builder

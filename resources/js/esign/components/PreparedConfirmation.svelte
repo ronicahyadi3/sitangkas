@@ -1,6 +1,10 @@
 <script lang="ts">
     import { onDestroy } from 'svelte';
-    import type { PreparedSigningRendition, SigningSession } from '../types';
+    import type {
+        NormalizedEsignError,
+        PreparedSigningRendition,
+        SigningSession,
+    } from '../types';
     import PreparedPdfViewer from './PreparedPdfViewer.svelte';
 
     let {
@@ -8,6 +12,7 @@
         rendition,
         fetchPdf,
         fetchPng,
+        error,
         preparedReady = $bindable(false),
         passphrase = $bindable(''),
     }: {
@@ -15,6 +20,7 @@
         rendition: PreparedSigningRendition;
         fetchPdf: (url: string, signal?: AbortSignal) => Promise<ArrayBuffer>;
         fetchPng: (url: string, signal?: AbortSignal) => Promise<Blob>;
+        error: NormalizedEsignError | null;
         preparedReady: boolean;
         passphrase: string;
     } = $props();
@@ -127,6 +133,7 @@
                         disabled={!preparedReady}
                         autocomplete="off"
                         autocapitalize="none"
+                        maxlength="255"
                         spellcheck="false"
                         placeholder={preparedReady ? 'Masukkan passphrase' : 'Tunggu preview siap'}
                         aria-describedby="esign-confirmation-passphrase-help"
@@ -148,6 +155,25 @@
                 </p>
             </div>
         </div>
+
+        {#if error}
+            <div class="alert alert-danger esign-submit-error text-sm" role="alert" aria-live="assertive">
+                <strong class="d-block mb-1">Permintaan belum dapat diterima</strong>
+                <span>{error.message}</span>
+                {#if error.retry_after_seconds !== null}
+                    <span class="d-block mt-1">
+                        Coba kembali setelah sekitar {error.retry_after_seconds} detik.
+                    </span>
+                {/if}
+                {#if Object.values(error.field_errors).flat().length > 0}
+                    <ul class="mb-0 mt-2 ps-3">
+                        {#each Object.values(error.field_errors).flat().slice(0, 3) as message}
+                            <li>{message}</li>
+                        {/each}
+                    </ul>
+                {/if}
+            </div>
+        {/if}
 
         <div class="alert alert-light border text-sm" role="note">
             <i class="fas fa-shield-halved me-2" aria-hidden="true"></i>

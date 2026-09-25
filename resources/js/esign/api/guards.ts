@@ -1,6 +1,7 @@
 import type {
     AcceptedEsignAttempt,
     ApiEnvelope,
+    ArtifactVerification,
     EsignAttemptDetails,
     FooterEditorConfiguration,
     FooterPlan,
@@ -32,6 +33,13 @@ const OPERATION_STATUSES = new Set([
     'failed',
     'unknown',
 ]);
+const ARTIFACT_TYPES = new Set([
+    'before_sign',
+    'intermediate_sign',
+    'after_sign',
+    'failed_output',
+]);
+const VERIFICATION_STATUSES = new Set(['valid', 'invalid', 'no_signature']);
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -284,6 +292,18 @@ export function isEsignAttemptDetails(value: unknown): value is EsignAttemptDeta
 
     const progress = value.progress;
 
+    const operations: unknown[] = Array.isArray(progress.operations) ? progress.operations : [];
+    const operationsValid = operations.every((operation) => isRecord(operation)
+            && isNonNegativeInteger(operation.index)
+            && typeof operation.status === 'string'
+            && OPERATION_STATUSES.has(operation.status)
+            && typeof operation.retryable === 'boolean');
+    const orderedIndexes = operationsValid
+        ? operations
+            .map((operation) => (operation as Record<string, unknown>).index as number)
+            .sort((left, right) => left - right)
+        : [];
+
     return isUuid(value.attempt_id)
         && isPositiveInteger(value.attempt_number)
         && typeof value.status === 'string'
@@ -291,13 +311,12 @@ export function isEsignAttemptDetails(value: unknown): value is EsignAttemptDeta
         && typeof value.retryable === 'boolean'
         && isNonNegativeInteger(progress.planned)
         && isNonNegativeInteger(progress.completed)
+        && progress.completed <= progress.planned
         && isNonNegativeInteger(progress.current_index)
-        && Array.isArray(progress.operations)
-        && progress.operations.every((operation) => isRecord(operation)
-            && isNonNegativeInteger(operation.index)
-            && typeof operation.status === 'string'
-            && OPERATION_STATUSES.has(operation.status)
-            && typeof operation.retryable === 'boolean')
+        && progress.current_index <= progress.planned
+        && operationsValid
+        && operations.length === progress.planned
+        && orderedIndexes.every((operationIndex, index) => operationIndex === index)
         && typeof value.requires_passphrase === 'boolean'
         && (value.resume_url === null || isUrl(value.resume_url))
         && typeof value.requires_reconciliation === 'boolean'
@@ -306,6 +325,47 @@ export function isEsignAttemptDetails(value: unknown): value is EsignAttemptDeta
         && (value.started_at === null || isIso8601(value.started_at))
         && (value.completed_at === null || isIso8601(value.completed_at))
         && (value.next_poll_after_ms === null || isNonNegativeInteger(value.next_poll_after_ms));
+}
+
+export function isArtifactVerification(value: unknown): value is ArtifactVerification {
+    if (!isRecord(value)
+        || !isRecord(value.artifact)
+        || !isRecord(value.document)
+        || !isRecord(value.verification)
+        || !Array.isArray(value.verification.signatures)) {
+        return false;
+    }
+
+    const signaturesValid = value.verification.signatures.every((signature, index) => (
+        isRecord(signature)
+        && signature.index === index
+        && isNonEmptyString(signature.signer_name)
+        && (signature.signed_at === null || isIso8601(signature.signed_at))
+        && isNullableString(signature.reason)
+        && isNullableString(signature.location)
+        && (signature.integrity_valid === null || typeof signature.integrity_valid === 'boolean')
+        && (signature.certificate_trusted === null || typeof signature.certificate_trusted === 'boolean')
+        && (signature.long_term_validation === null || typeof signature.long_term_validation === 'boolean')
+    ));
+
+    return isUuid(value.artifact.public_id)
+        && isPositiveInteger(value.artifact.version)
+        && typeof value.artifact.type === 'string'
+        && ARTIFACT_TYPES.has(value.artifact.type)
+        && isNullableString(value.artifact.original_name)
+        && isNullableString(value.document.number)
+        && isNullableString(value.document.type)
+        && isNullableString(value.document.payment_type)
+        && typeof value.verification.status === 'string'
+        && VERIFICATION_STATUSES.has(value.verification.status)
+        && isNonEmptyString(value.verification.conclusion)
+        && isNullableString(value.verification.description)
+        && isNonNegativeInteger(value.verification.signature_count)
+        && value.verification.signatures.length === value.verification.signature_count
+        && signaturesValid
+        && isIso8601(value.verification.checked_at)
+        && typeof value.verification.cached === 'boolean'
+        && isUrl(value.preview_url);
 }
 
 export function isApiEnvelope<TData>(

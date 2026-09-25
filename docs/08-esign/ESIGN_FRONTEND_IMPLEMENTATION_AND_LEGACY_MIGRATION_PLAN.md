@@ -603,7 +603,8 @@ Realisasi source 25 September 2026:
 - kontrak dan validator runtime tersedia untuk `open`, `validation-open`,
   `completed`, dan `closed`;
 - event signing hanya menerima `step_public_id` serta capability boolean;
-- event validation hanya menerima `artifact_public_id` dan `can_verify=true`;
+- event validation menerima `artifact_public_id`, `can_verify=true`, serta
+  exact `verification_url` dan `preview_url` yang dibuat backend;
 - event completion dikunci ke hasil `succeeded` dan membawa
   `step_public_id`, `attempt_id`, serta `result_artifact_id`, semuanya UUID;
 - raw `document.id` tidak dimasukkan karena client signing-session sengaja
@@ -619,8 +620,9 @@ Realisasi source 25 September 2026:
 - adapter menggunakan API DataTable dari elemen DOM, bukan global
   `mainTable`/`tteDocumentTable`. Bila DataTable belum dibuat atau library tidak
   tersedia, event completion berakhir tanpa error;
-- `validation-open` baru merupakan boundary event. Belum ada tombol canonical
-  yang mengaktifkannya karena endpoint validasi artifact adalah pekerjaan F13;
+- pada saat F3, `validation-open` baru merupakan boundary event. Implementasi
+  F13 sekarang telah menyediakan endpoint dan tombol canonical LS SPP yang
+  mengaktifkannya ketika feature flag dinyalakan;
 - helper dispatch completion sudah tersedia untuk F11/F12, tetapi F3 tidak
   membuat completion palsu sebelum attempt benar-benar sukses.
 
@@ -987,13 +989,12 @@ Kondisi implementasi per 25 September 2026:
   kembali ke editor, modal ditutup, atau component dilepas;
 - `Kembali Edit` selalu membuang prepared revision/hash dari state sehingga
   final sign tidak dapat memakai preview lama;
-- tombol final sengaja belum mempunyai handler dan tetap disabled. Aktivasi
-  POST final, idempotency key, response `202`, serta pembersihan passphrase
-  setelah submit merupakan Tahap F11;
+- tombol final dan input passphrase yang disiapkan F10 kini telah dihubungkan
+  oleh implementasi F11 di bawah ini;
 - type-check TypeScript dan production build berhasil. Feature flag tetap
   `false`; tidak ada test suite yang dibuat atau dijalankan.
 
-### Tahap F11 - Final action dan submit asynchronous
+### Tahap F11 - Final action dan submit asynchronous — SELESAI DI SOURCE
 
 Tujuan: satu tindakan final yang aman dan idempotent.
 
@@ -1016,7 +1017,39 @@ Pekerjaan:
 
 Hasil: koneksi browser tidak perlu tetap hidup selama panggilan provider.
 
-### Tahap F12 - Progress, partial resume, dan unknown
+Kondisi implementasi per 25 September 2026:
+
+- tombol final hanya aktif setelah exact prepared preview siap, passphrase
+  berisi 1-255 karakter, dan tidak sedang berada pada masa `Retry-After`;
+- satu UUID idempotency dibuat tepat sebelum intent submit pertama. Key yang
+  sama dipertahankan untuk retry deterministik terhadap prepared revision/hash
+  yang sama dan tidak diganti diam-diam;
+- handler mengirim hanya `affirmed=true`, idempotency key, passphrase,
+  `prepared_revision`, dan `preview_sha256` ke `sign_url` authoritative;
+- tahap langsung berubah menjadi `submitting`, sehingga klik ganda, penutupan
+  modal, dan pembukaan dokumen lain diblokir sampai respons awal diketahui;
+- setelah respons `202 Accepted`, passphrase segera dikosongkan, sedangkan
+  `attempt_id`, status awal, dan `status_url` disimpan dalam memory untuk F12;
+- UI kemudian menampilkan bahwa server telah menerima request dan proses
+  beberapa QR berjalan berurutan di background. Progress bar palsu tidak
+  digunakan;
+- respons deterministik 422/429 dan konflik yang masih dapat dicoba ulang
+  kembali ke Konfirmasi dengan passphrase kosong. `Retry-After` dihormati
+  melalui countdown yang menonaktifkan tombol final;
+- prepared rendition stale mengembalikan pengguna ke editor; session/context
+  stale memaksa sesi dibuka ulang;
+- network error, 5xx, invalid response, dan idempotency payload mismatch masuk
+  state `unknown`. Frontend tidak mengirim ulang otomatis dan tidak membuat
+  idempotency key baru karena request mungkin sudah diterima server;
+- passphrase selalu dibersihkan pada jalur sukses, gagal, abort, kembali edit,
+  penutupan modal, dan component teardown. Passphrase tidak masuk event,
+  local/session storage, log, attempt state, atau URL;
+- polling, terminal result, partial resume, dan completion event telah
+  dihubungkan pada Tahap F12;
+- type-check TypeScript dan production build berhasil. Feature flag tetap
+  `false`; tidak ada test suite yang dibuat atau dijalankan.
+
+### Tahap F12 - Progress, partial resume, dan unknown — SELESAI DI SOURCE
 
 Tujuan: status background dapat dipahami dan tidak memicu duplicate sign.
 
@@ -1036,7 +1069,33 @@ Pekerjaan:
 
 Hasil: progress merepresentasikan worker nyata, bukan countdown buatan.
 
-### Tahap F13 - Modal validasi canonical
+Kondisi implementasi per 25 September 2026:
+
+- status attempt dibaca dari `status_url` authoritative dan interval mengikuti
+  `next_poll_after_ms`; browser tidak mengulang request sign;
+- kegagalan pembacaan status karena network, server, atau rate limit hanya
+  mengulang operasi read-only dengan backoff terbatas. Respons kontrak yang
+  tidak valid masuk state `unknown` dan polling dihentikan;
+- polling dihentikan saat modal ditutup, tab tersembunyi, status terminal,
+  passphrase dibutuhkan, atau rekonsiliasi diperlukan. Saat tab aktif kembali,
+  frontend mengambil status terbaru;
+- panel progress menampilkan `completed/planned`, persentase nyata, current
+  operation, status seluruh operation secara urut, waktu proses, dan attempt ID;
+- partial attempt hanya dapat dilanjutkan melalui `resume_url` dari backend.
+  Passphrase baru hanya hidup pada state komponen, segera dikosongkan setelah
+  submit, dan operation yang sudah selesai tidak dikirim ulang oleh frontend;
+- `requires_reconciliation=true`, status `unknown`, atau hasil sukses tanpa
+  result artifact diperlakukan fail-closed dan tidak menyediakan tombol retry;
+- sukses dengan result artifact menerbitkan `sitangkas:esign:completed` satu
+  kali sehingga adapter halaman dapat memperbarui DataTable;
+- attempt aktif disimpan hanya pada memory Svelte berdasarkan
+  `step_public_id`, sehingga modal yang ditutup lalu dibuka lagi pada halaman
+  yang sama dapat memulihkan status. Recovery setelah full page reload belum
+  tersedia karena backend belum menyediakan discovery endpoint active attempt;
+- type-check TypeScript dan production build berhasil. Feature flag tetap
+  `false`; tidak ada test suite yang dibuat atau dijalankan.
+
+### Tahap F13 - Modal validasi canonical — SELESAI DI SOURCE
 
 Tujuan: mengganti `/esign/validate` yang mengharuskan upload ulang blob.
 
@@ -1058,6 +1117,46 @@ Pekerjaan frontend:
 5. tidak ada upload lokal pada modal validasi workflow ini.
 
 Hasil: verifikasi tidak menggandakan transfer file browser-server.
+
+Kondisi implementasi per 25 September 2026:
+
+- tersedia endpoint authenticated
+  `GET /esign/internal/artifacts/{public_id}/verification` untuk memvalidasi
+  exact immutable artifact serta endpoint preview PDF terpisah;
+- route model binding memakai `DocumentArtifact.public_id`, seluruh akses
+  melewati `DocumentArtifactPolicy`, active position, scope organisasi, dan
+  tahun anggaran yang dipilih;
+- backend membaca file dari storage private, memeriksa ukuran, path checksum,
+  SHA-256, dan header PDF sebelum memanggil BSrE. Browser tidak mengunggah ulang
+  PDF dan tidak pernah menerima storage path;
+- hasil BSrE dinormalisasi menjadi `valid`, `invalid`, atau `no_signature`.
+  Gangguan provider ditampilkan sebagai unavailable dan tidak disamakan dengan
+  dokumen invalid;
+- response hanya membawa metadata aman, nomor/jenis dokumen, jumlah signature,
+  nama signer, waktu tanda tangan, reason, location, serta indikator integritas
+  dan trust. Detail sertifikat, correlation ID, payload provider, dan path file
+  tidak diekspos;
+- hasil verification di-cache berdasarkan SHA-256 artifact dan policy version
+  selama 60 menit secara default. Artifact tetap diperiksa integritasnya sebelum
+  cache digunakan; tombol `Coba Lagi` hanya mengulang operasi read-only;
+- event validasi membawa `artifact_public_id`, `verification_url`, dan
+  `preview_url` authoritative. Frontend menolak response dengan artifact/preview
+  yang tidak cocok;
+- preview PDF private dan request ringkasan validation dimulai paralel. Viewer
+  memakai PDF.js binary tanpa Base64/object URL dan membersihkan resource ketika
+  modal ditutup;
+- modal Bootstrap 5/Argon menampilkan status, informasi dokumen, signer table,
+  loading, unsigned, invalid, provider unavailable, cache indicator, mobile
+  layout, dan dark mode;
+- action validasi canonical tersedia pada LS SPP jika tepat satu current artifact
+  ditemukan dan `SIGNATURE_FRONTEND_ENABLED=true`. Authorization endpoint tetap
+  menjadi sumber kebenaran;
+- type-check TypeScript, syntax check PHP, route/config inspection, Pint, dan
+  production build berhasil. Tidak ada test suite yang dibuat atau dijalankan.
+
+Yang belum termasuk F13 ini adalah halaman public `/verify/{public_id}`, guest
+delivery/download, watermark/COPY-ID, durable verification history terpisah,
+dan rollout action ke payment selain LS SPP.
 
 ### Tahap F14 - Pilot manual LS SPP BP/BPP
 
@@ -1255,21 +1354,22 @@ Aturan:
 - [x] Source PDF dimuat binary tanpa Base64/upload ulang di source.
 - [x] Geometry top-left point konsisten dengan backend di source.
 - [x] Satu hingga batas maksimum QR dapat diatur di source.
-- [ ] QR final berasal dari backend dan memakai logo Malang.
+- [x] QR final berasal dari backend dan memakai logo Malang di source.
 - [x] Footer unsigned otomatis dibuat dan dapat diedit sesuai kontrak di source.
 - [x] PDF signed tidak mendapatkan footer baru di source.
-- [ ] Exact prepared rendition tampil bersama informasi signer dan passphrase
+- [x] Exact prepared rendition tampil bersama informasi signer dan passphrase
       pada tahap Konfirmasi.
-- [ ] Tidak ada checkbox afirmasi; tombol final mengirim `affirmed=true`.
-- [ ] NIK tidak ada di form; passphrase tidak dipersistensikan.
-- [ ] Final submit menerima 202 dan progress memakai status attempt.
-- [ ] Multi-QR tampil sebagai `completed/planned` dan dieksekusi serial.
-- [ ] Partial resume hanya muncul dari capability backend.
-- [ ] `unknown` melarang retry biasa.
-- [ ] Completion me-refresh halaman melalui custom event.
+- [x] Tidak ada checkbox afirmasi; tombol final mengirim `affirmed=true`.
+- [x] NIK tidak ada di form; passphrase tidak dipersistensikan.
+- [x] Final submit menerima 202 dan progress memakai status attempt di source.
+- [x] Multi-QR tampil sebagai `completed/planned`; eksekusi serial menjadi
+      tanggung jawab worker backend.
+- [x] Partial resume hanya muncul dari capability backend.
+- [x] `unknown` melarang retry biasa.
+- [x] Completion me-refresh halaman melalui custom event.
 - [x] Close modal membersihkan fetch, render task, PDF worker/document, dan
       listener; viewer tidak membuat object URL.
-- [ ] Modal validasi memakai artifact canonical tanpa upload ulang.
+- [x] Modal validasi memakai artifact canonical tanpa upload ulang di source.
 - [ ] Acceptance manual LS SPP lulus untuk BP/BPP -> PPTK -> PA/KPA.
 - [x] Tidak ada test suite otomatis yang dibuat atau dijalankan.
 
@@ -1300,10 +1400,14 @@ baru. Urutannya:
     halaman, reset/apply-all, dan collision QR-footer;
 11. [SELESAI DI SOURCE] Tahap F10: canonical prepare request, fail-closed plan
     matching, prepared PDF/QR authoritative, dan panel konfirmasi/passphrase;
-12. lanjutkan final sign dan response `202` pada Tahap F11, lalu progress pada
-    Tahap F12;
-13. tutup gap backend validasi/public delivery sebelum Tahap F13-F15;
-14. lakukan pilot manual sebelum rollout payment lain.
+12. [SELESAI DI SOURCE] Tahap F11: final sign idempotent, response `202`,
+    pembersihan secret, attempt state in-memory, dan fail-closed unknown outcome;
+13. [SELESAI DI SOURCE] Tahap F12: polling authoritative, progress operation,
+    partial resume, terminal result, dan fail-closed reconciliation;
+14. [SELESAI DI SOURCE] Tahap F13: endpoint validasi artifact, private preview,
+    cache SHA-256, modal hasil validasi, dan signer table;
+15. lanjutkan acceptance manual F14 sebelum rollout payment lain; public
+    verification/delivery tetap menjadi workstream backend terpisah.
 
 Dengan urutan ini, komponen frontend dibangun langsung di atas boundary
 canonical dan tidak perlu dirombak kedua kali untuk membuang path, upload PDF,

@@ -12,6 +12,20 @@ export const ESIGN_CLOSED_EVENT = 'sitangkas:esign:closed';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+function isUrl(value: unknown): value is string {
+    if (typeof value !== 'string' || value.trim() === '') {
+        return false;
+    }
+
+    try {
+        const url = new URL(value, window.location.origin);
+
+        return url.origin === window.location.origin;
+    } catch {
+        return false;
+    }
+}
+
 export function isEsignOpenEventDetail(value: unknown): value is EsignOpenEventDetail {
     if (typeof value !== 'object' || value === null) {
         return false;
@@ -34,7 +48,9 @@ export function isEsignValidationOpenEventDetail(value: unknown): value is Esign
 
     return typeof detail.artifact_public_id === 'string'
         && UUID_PATTERN.test(detail.artifact_public_id)
-        && detail.can_verify === true;
+        && detail.can_verify === true
+        && isUrl(detail.verification_url)
+        && isUrl(detail.preview_url);
 }
 
 export function isEsignCompletedEventDetail(value: unknown): value is EsignCompletedEventDetail {

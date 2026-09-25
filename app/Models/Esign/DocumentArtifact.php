@@ -92,6 +92,11 @@ class DocumentArtifact extends Model
         });
     }
 
+    public function getRouteKeyName(): string
+    {
+        return 'public_id';
+    }
+
     public function document(): BelongsTo
     {
         return $this->belongsTo(Document::class, 'document_id')->withTrashed();

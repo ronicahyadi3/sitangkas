@@ -16,6 +16,8 @@ use App\Http\Controllers\Data\History as DocumentHistoryController;
 use App\Http\Controllers\Data\Rekening as DocumentRekeningController;
 use App\Http\Controllers\Data\Verify as DocumentVerifyController;
 use App\Http\Controllers\Document\LsSppDocumentDeliveryController;
+use App\Http\Controllers\Esign\ArtifactVerificationController;
+use App\Http\Controllers\Esign\ArtifactVerificationPreviewController;
 use App\Http\Controllers\Esign\EsignAttemptController;
 use App\Http\Controllers\Esign\EsignAttemptResumeController;
 use App\Http\Controllers\Esign\SigningSessionController;
@@ -179,6 +181,14 @@ Route::middleware(['auth', 'account.accessible', 'single.device.session'])->grou
                 ->whereUuid('esignAttempt')
                 ->middleware('throttle:esign-sign')
                 ->name('attempts.resume');
+            Route::get('/artifacts/{documentArtifact}/verification', ArtifactVerificationController::class)
+                ->whereUuid('documentArtifact')
+                ->middleware('throttle:esign-verify')
+                ->name('artifacts.verification.show');
+            Route::get('/artifacts/{documentArtifact}/verification/preview', ArtifactVerificationPreviewController::class)
+                ->whereUuid('documentArtifact')
+                ->middleware('throttle:esign-preview')
+                ->name('artifacts.verification.preview');
         });
 
         Route::prefix('document')->name('document.')->group(function (): void {

@@ -1,5 +1,7 @@
 <script lang="ts">
     import type {
+        AcceptedEsignAttempt,
+        EsignAttemptDetails,
         FooterPlan,
         NormalizedEsignError,
         PreparedSigningRendition,
@@ -8,6 +10,7 @@
     } from '../types';
     import type { EsignShellStage } from '../ui-state';
     import PdfViewer from './PdfViewer.svelte';
+    import AttemptProgressPanel from './AttemptProgressPanel.svelte';
     import PreparedConfirmation from './PreparedConfirmation.svelte';
 
     let {
@@ -17,6 +20,13 @@
         fetchPdf,
         fetchPng,
         preparedRendition,
+        acceptedAttempt,
+        attemptDetails,
+        pollingError,
+        resumeError,
+        resumeRetryRemaining,
+        submitError,
+        onResume,
         placements = $bindable(),
         footerPlan = $bindable(null),
         activeEditorPage = $bindable(1),
@@ -32,6 +42,13 @@
         fetchPdf: (url: string, signal?: AbortSignal) => Promise<ArrayBuffer>;
         fetchPng: (url: string, signal?: AbortSignal) => Promise<Blob>;
         preparedRendition: PreparedSigningRendition | null;
+        acceptedAttempt: AcceptedEsignAttempt | null;
+        attemptDetails: EsignAttemptDetails | null;
+        pollingError: NormalizedEsignError | null;
+        resumeError: NormalizedEsignError | null;
+        resumeRetryRemaining: number;
+        submitError: NormalizedEsignError | null;
+        onResume: (passphrase: string) => void;
         placements: SignaturePlacement[];
         footerPlan: FooterPlan | null;
         activeEditorPage: number;
@@ -67,6 +84,7 @@
             ? []
             : Object.values(value.field_errors).flat().slice(0, 5);
     }
+
 </script>
 
 {#if stage === 'loading'}
@@ -142,6 +160,7 @@
             rendition={preparedRendition}
             {fetchPdf}
             {fetchPng}
+            error={submitError}
             bind:preparedReady
             bind:passphrase
         />
@@ -164,20 +183,16 @@
             </p>
         </div>
     </section>
-{:else if stage === 'processing'}
-    <section class="esign-process-shell" aria-live="polite">
-        <div class="esign-process-shell__icon">
-            <span class="spinner-border text-primary" aria-hidden="true"></span>
-        </div>
-        <h3 class="h5 mb-2">Tanda tangan sedang diproses</h3>
-        <p class="text-sm text-secondary mb-4">
-            Dokumen diproses di server. Modal boleh ditutup setelah attempt terbentuk.
-        </p>
-        <div class="progress esign-progress" role="progressbar" aria-label="Progres TTE" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
-            <div class="progress-bar bg-gradient-info" style="width: 0%"></div>
-        </div>
-        <p class="text-xs text-secondary mt-2 mb-0">Menunggu status operasi dari backend.</p>
-    </section>
+{:else if acceptedAttempt && ['processing', 'resuming', 'requires_passphrase', 'unknown', 'succeeded', 'failed'].includes(stage)}
+    <AttemptProgressPanel
+        {stage}
+        attempt={acceptedAttempt}
+        details={attemptDetails}
+        {pollingError}
+        {resumeError}
+        {resumeRetryRemaining}
+        {onResume}
+    />
 {:else}
     <section
         class:esign-result--success={stage === 'succeeded'}
@@ -207,7 +222,10 @@
             {/if}
         </h3>
         <p class="text-sm text-secondary mb-0">
-            Ringkasan hasil authoritative akan ditampilkan dari status attempt backend.
+            {submitError?.message ?? 'Ringkasan hasil authoritative akan ditampilkan dari status attempt backend.'}
         </p>
+        {#if submitError?.code}
+            <p class="text-xs text-secondary mt-2 mb-0">Kode: {submitError.code}</p>
+        {/if}
     </section>
 {/if}

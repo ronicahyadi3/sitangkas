@@ -32,6 +32,8 @@ export type EsignOpenEventDetail = EsignActionCapabilities;
 export interface EsignValidationOpenEventDetail {
     artifact_public_id: Uuid;
     can_verify: true;
+    verification_url: string;
+    preview_url: string;
 }
 
 export interface EsignCompletedEventDetail {
@@ -258,6 +260,45 @@ export interface EsignAttemptDetails {
 }
 
 export type ShowEsignAttemptResponse = ApiEnvelope<EsignAttemptDetails>;
+
+export type ArtifactVerificationStatus = 'valid' | 'invalid' | 'no_signature';
+
+export interface ArtifactVerificationSignature {
+    index: number;
+    signer_name: string;
+    signed_at: Iso8601DateTime | null;
+    reason: string | null;
+    location: string | null;
+    integrity_valid: boolean | null;
+    certificate_trusted: boolean | null;
+    long_term_validation: boolean | null;
+}
+
+export interface ArtifactVerification {
+    artifact: {
+        public_id: Uuid;
+        version: number;
+        type: 'before_sign' | 'intermediate_sign' | 'after_sign' | 'failed_output';
+        original_name: string | null;
+    };
+    document: {
+        number: string | null;
+        type: string | null;
+        payment_type: string | null;
+    };
+    verification: {
+        status: ArtifactVerificationStatus;
+        conclusion: string;
+        description: string | null;
+        signature_count: number;
+        signatures: ArtifactVerificationSignature[];
+        checked_at: Iso8601DateTime;
+        cached: boolean;
+    };
+    preview_url: string;
+}
+
+export type ShowArtifactVerificationResponse = ApiEnvelope<ArtifactVerification>;
 
 export interface ValidationErrorResponse {
     message: string;
