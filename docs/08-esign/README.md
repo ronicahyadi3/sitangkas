@@ -292,10 +292,13 @@ Jika TTE dipanggil dari payment LS, baca juga:
     checkbox afirmasi lain. Klik tombol `Tandatangani Sekarang` merupakan
     afirmasi eksplisit dan handler mengirim `affirmed=true`.
 
-Status frontend 25 September 2026: F0-F4 selesai di source. Svelte island,
+Status frontend 25 September 2026: F0-F5 selesai di source. Svelte island,
 event bridge, adapter refresh opt-in, serta shell modal Bootstrap/Argon empat
-tahap sudah tersedia. F5 typed API client/session state adalah pekerjaan
-berikutnya. Feature flag frontend tetap `false`; belum ada rollout operasional.
+tahap sudah tersedia. Typed API client dan signing-session state sudah
+terhubung. F6 PDF viewer binary dengan worker lokal, thumbnail bertahap,
+navigasi, zoom, dan cleanup resource juga selesai di source. F7 geometry
+canonical adalah pekerjaan berikutnya. Feature flag frontend tetap `false`;
+belum ada rollout operasional.
 
 ## Batas keputusan
 
@@ -407,7 +410,7 @@ publik, atau kontrak request lama dari file-file tersebut.
       diprovision melalui secret store.
 - [ ] Kontrak sign, signed/encrypted verify, timeout, limit, koordinat, dan
       multi-file v2 dibuktikan lengkap.
-- [ ] Dependency Svelte dan PDF viewer modular dipasang.
+- [x] Dependency Svelte dan PDF viewer modular dipasang.
 - [x] Fondasi backend eSign v2 diimplementasikan.
 - [ ] Test suite Pest untuk kontrak client dibuat dan dijalankan setelah izin
       eksplisit pengguna.
@@ -441,7 +444,8 @@ publik, atau kontrak request lama dari file-file tersebut.
       route `/verify/{public_id}`, dan resolver URL QR lama diimplementasikan.
 - [ ] Migration-control transition service, resumable runner, queue, command,
       dashboard, reconciliation, serta decommission tooling diimplementasikan.
-- [ ] Frontend modal Svelte diimplementasikan.
+- [x] Frontend modal Svelte F2-F6 diimplementasikan di source; geometry,
+      placement, konfirmasi, sign/progress, dan validasi masih bertahap.
 - [x] Tiga belas migration tabel canonical dibuat, lolos lint/Pint/dry-run,
       dan diterapkan pada database lokal dalam batch 9-21.
 - [ ] Dua migration indeks mapping legacy diterapkan melalui deployment wave

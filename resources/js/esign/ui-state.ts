@@ -1,5 +1,6 @@
 export type EsignShellStage =
     | 'loading'
+    | 'load_failed'
     | 'editing'
     | 'preparing_rendition'
     | 'confirming_prepared'
@@ -22,6 +23,11 @@ const STAGE_PRESENTATIONS: Record<EsignShellStage, EsignStagePresentation> = {
     loading: {
         badgeClass: 'bg-gradient-info',
         label: 'Menyiapkan',
+        step: 'placement',
+    },
+    load_failed: {
+        badgeClass: 'bg-gradient-danger',
+        label: 'Tidak dapat dimuat',
         step: 'placement',
     },
     editing: {

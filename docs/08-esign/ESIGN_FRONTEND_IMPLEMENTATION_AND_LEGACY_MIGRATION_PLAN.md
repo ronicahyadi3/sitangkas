@@ -675,7 +675,7 @@ Type-check TypeScript dan build production Vite berhasil. Tidak ada test suite
 yang dibuat atau dijalankan. `SIGNATURE_FRONTEND_ENABLED` tetap `false` sampai
 F5 selesai dan acceptance manual terkontrol dilakukan.
 
-### Tahap F5 - Typed API client dan error normalization
+### Tahap F5 - Typed API client dan error normalization — SELESAI DI SOURCE
 
 Tujuan: seluruh request melalui satu boundary.
 
@@ -694,7 +694,34 @@ Pekerjaan:
 Hasil: komponen tidak memanggil `fetch` tersebar dan tidak mempunyai endpoint
 hardcoded sendiri.
 
-### Tahap F6 - PDF viewer binary yang efisien
+Realisasi source 25 September 2026:
+
+- layout authenticated mengekspos named route create-session melalui
+  `data-esign-session-url`; URL tidak ditulis manual di JavaScript;
+- response create/show session sekarang membawa `session_url` agar GET recovery
+  dan DELETE cleanup tidak disusun frontend dari UUID;
+- `EsignApiClient` menjadi satu-satunya boundary fetch untuk create/show/close
+  session, prepare rendition, sign, polling attempt, resume, PDF, dan PNG;
+- setiap URL request diverifikasi same-origin sebelum credential atau CSRF
+  dikirim;
+- JSON request selalu memakai `Accept: application/json`, credential
+  same-origin, CSRF untuk mutasi, status sukses yang diharapkan, dan runtime
+  response guard;
+- binary client memverifikasi HTTP 200 serta media type PDF/PNG sebelum PDF
+  diteruskan sebagai `ArrayBuffer` atau PNG sebagai Blob ke consumer;
+- error 401/403/404/409/422/429/5xx/network/invalid-response dinormalisasi.
+  Konflik memakai application code; response 5xx mentah tidak ditampilkan;
+- request session memakai `AbortController`, stale response diabaikan, dan
+  temporary session dibersihkan melalui DELETE ketika modal ditutup sebelum
+  attempt berjalan;
+- modal beralih dari `loading` ke `editing` hanya setelah response session lolos
+  validasi. Kegagalan masuk `load_failed` dengan pesan aman dan field error
+  terbatas;
+- sign/resume tidak mempunyai automatic retry. Implementasi handler finalnya
+  tetap berada pada F11-F12;
+- feature flag tetap `false`. Tidak ada test suite yang dibuat atau dijalankan.
+
+### Tahap F6 - PDF viewer binary yang efisien — SELESAI DI SOURCE
 
 Tujuan: membuka PDF canonical tanpa upload ulang/Base64.
 
@@ -714,7 +741,35 @@ Pekerjaan:
 Hasil: file besar tidak diduplikasi sebagai Base64 dan memory dilepas dengan
 jelas.
 
-### Tahap F7 - Geometry canonical
+Realisasi source 25 September 2026:
+
+- source PDF diambil dari `session.preview_url` melalui typed client langsung
+  sebagai `ArrayBuffer` authorized setelah status HTTP dan `application/pdf`
+  diverifikasi;
+- `ArrayBuffer` diberikan sebagai `Uint8Array` kepada PDF.js. Viewer tidak
+  membuat Base64, Blob perantara, atau object URL;
+- `pdfjs-dist` serta worker `pdf.worker.min.mjs` dimuat dinamis dari dependency
+  lokal yang version-locked oleh package lock, bukan CDN;
+- jumlah halaman PDF diverifikasi terhadap geometry signing session sebelum
+  editor ditampilkan;
+- workspace merender maksimal halaman aktif, sebelumnya, dan berikutnya pada
+  resolusi penuh. Halaman lain tidak dirender penuh secara bersamaan;
+- thumbnail ditambahkan per batch saat browser idle dan canvas hanya dirender
+  ketika mendekati viewport melalui `IntersectionObserver`; canvas thumbnail
+  yang menjauh dibersihkan kembali;
+- zoom bersifat relatif terhadap fit-to-workspace, menggunakan
+  `ResizeObserver`, metadata rotation, dan device pixel ratio yang dibatasi
+  agar tetap tajam tanpa alokasi canvas berlebihan;
+- canvas PDF dan `<div data-esign-placement-layer>` adalah layer terpisah.
+  Perubahan overlay pada F7-F9 tidak menjadi dependency render canvas;
+- navigasi halaman, thumbnail aktif, indikator halaman, loading, dan error
+  viewer sudah mengikuti shell Bootstrap/Argon serta dark mode;
+- seluruh render task dibatalkan, page resource dibersihkan, fetch di-abort,
+  dan PDF loading task/worker di-destroy saat session berubah, modal ditutup,
+  atau komponen unmount;
+- feature flag tetap `false`. Tidak ada test suite yang dibuat atau dijalankan.
+
+### Tahap F7 - Geometry canonical — SELESAI DI SOURCE
 
 Tujuan: posisi browser sama dengan posisi backend/BSrE.
 
@@ -732,7 +787,39 @@ Pekerjaan:
 Hasil: transform adalah pure function yang dipakai drag, resize, preview, dan
 serialization.
 
-### Tahap F8 - Editor multi-QR
+Realisasi source 25 September 2026:
+
+- modul `resources/js/esign/geometry` menjadi satu-satunya fondasi transform
+  koordinat editor. Model authoritative tetap PDF point dengan origin kiri
+  atas; pixel DOM hanya dipakai sebagai representasi visual;
+- transform point dan rectangle bersifat pure serta mendukung konversi dua arah
+  antara PDF point dan bounding box DOM. Perhitungan memperhitungkan ukuran
+  halaman, bounding box aktual, scale X/Y, dan rotasi 0/90/180/270;
+- payload signature/footer diserialisasi dengan `page`, `page_width`,
+  `page_height`, `page_rotation`, origin, dan size eksplisit serta dibulatkan
+  maksimal empat desimal, sama dengan normalisasi backend;
+- helper constraint menyediakan snap 1 pt, pergerakan keyboard 1 pt atau 10 pt
+  dengan modifier, resize/move yang di-clamp ke safe area, dan tidak
+  mengizinkan hasil interaksi melewati margin halaman;
+- validasi lokal menyamakan toleransi geometry backend 0,05 pt, minimum/maximum
+  ukuran QR, jumlah dan urutan operasi, safe margin, serta rumus collision
+  signature/footer dengan `minimum_gap_pt`;
+- PDF viewer memverifikasi jumlah, urutan, ukuran, dan rotasi seluruh halaman
+  binary terhadap signing session sebelum editor ditampilkan. Geometry yang
+  berbeda gagal tertutup dan tidak diteruskan ke placement editor;
+- sesi yang mempunyai halaman berotasi ditolak bila backend mengirim
+  `rotated_pages_supported=false`. Fungsi transform rotasi tetap tersedia untuk
+  aktivasi capability mendatang, tetapi tidak dipakai untuk melewati kebijakan
+  backend saat ini;
+- setiap overlay halaman membawa metadata origin/unit dan viewer melaporkan
+  ukuran canonical, safe margin, minimum gap, serta skala render halaman aktif
+  pada inspector;
+- backend tetap validator final. Validasi lokal hanya memberikan feedback cepat
+  dan tidak menjadi dasar otorisasi maupun keabsahan rendition;
+- type-check TypeScript dan build produksi berhasil. Feature flag tetap
+  `false`; tidak ada test suite yang dibuat atau dijalankan.
+
+### Tahap F8 - Editor multi-QR — SELESAI DI SOURCE
 
 Tujuan: satu signer dapat menempatkan N QR dalam satu klik TTE.
 
@@ -752,7 +839,46 @@ Pekerjaan:
 
 Hasil: beberapa QR dapat disusun tanpa meminta passphrase berulang kali.
 
-### Tahap F9 - Footer editor bersyarat
+Realisasi source 25 September 2026:
+
+- state placement disimpan pada root modal sebagai array canonical
+  `SignaturePlacement[]`; koordinat tidak dibaca kembali dari style DOM dan
+  tetap stabil ketika zoom, halaman dirender ulang, atau viewport berubah;
+- tombol `Tambah QR` baru aktif setelah binary PDF beserta geometry seluruh
+  halaman lolos verifikasi F7. Tombol berhenti pada batas
+  `maximum_signature_count` yang dikirim backend;
+- QR baru memperoleh `crypto.randomUUID()`, ditempatkan sedekat mungkin dengan
+  pusat halaman aktif, tetap berada dalam safe margin, dan otomatis mencari
+  slot aman terdekat bila posisi pusat bertabrakan dengan QR lain;
+- setiap overlay QR dapat dipilih, di-drag memakai Pointer Events/pointer
+  capture, di-resize proporsional, dipindah dengan tombol panah 1 pt atau
+  `Shift` + panah 10 pt, dihapus dengan Delete/Backspace, serta dilepas
+  seleksinya dengan Escape;
+- drag dan resize langsung menggunakan helper canonical F7. Ukuran selalu
+  persegi, tunduk pada minimum/maksimum backend, dan tidak dapat melewati safe
+  margin;
+- `operation_index` dinormalisasi ulang menjadi `0..N-1` berdasarkan urutan
+  array setelah tambah atau hapus. Satu QR tetap satu operation, tetapi seluruh
+  operation tetap menjadi bagian dari satu attempt;
+- inspector menampilkan daftar QR, nomor operasi, halaman, ukuran, kontrol
+  perbesar/perkecil, pusatkan, hapus, serta feedback collision. Thumbnail
+  halaman menampilkan badge jumlah QR;
+- collision memberi outline merah pada kedua placement yang terlibat dan pesan
+  pada inspector. Ini feedback cepat; backend tetap validator final;
+- `Reset Posisi` mempertahankan identity dan halaman masing-masing QR lalu
+  menyusun ulang ke posisi aman. Untuk lebih dari satu QR diperlukan klik
+  konfirmasi kedua agar perubahan massal tidak terjadi tanpa sengaja;
+- safe area tampil ketika QR pada halaman dipilih. Fokus keyboard dipindahkan
+  ke QR baru agar editor dapat digunakan tanpa mouse;
+- overlay tahap F8 memakai placeholder QR yang jelas. Gambar QR berlogo Malang,
+  `verification_public_id`, dan URL berbeda untuk setiap operation tetap harus
+  berasal dari prepared rendition authoritative backend pada F10;
+- state placement dibersihkan saat session/modal ditutup dan tidak membuat
+  attempt maupun event audit;
+- type-check TypeScript dan build produksi berhasil tanpa warning Svelte.
+  Feature flag tetap `false`; tidak ada test suite yang dibuat atau dijalankan.
+
+### Tahap F9 - Footer editor bersyarat — SELESAI DI SOURCE
 
 Tujuan: footer otomatis tetapi tetap dapat disesuaikan pada PDF unsigned.
 
@@ -773,7 +899,46 @@ Pekerjaan:
 Hasil: footer baru tidak lagi berupa image statis dan kebijakan signed/unsigned
 tetap fail-closed.
 
-### Tahap F10 - Prepare dan konfirmasi authoritative terpadu
+Realisasi source 25 September 2026:
+
+- footer menjadi `FooterPlan` canonical pada state root modal bersama placement
+  QR. Style footer berlaku global, sedangkan array placement menyimpan posisi
+  berbeda untuk setiap halaman;
+- saat QR pertama ditambahkan, frontend hanya membuat footer otomatis bila
+  backend menyatakan `footer.allowed=true` dan `footer.required=true`.
+  Seluruh text, font, size, style awal, dan placement berasal dari signing
+  session; frontend tidak membuat default kebijakan sendiri;
+- konfigurasi default footer wajib divalidasi terhadap jumlah halaman, font
+  whitelist, batas ukuran, kapasitas box, serta geometry sebelum QR pertama
+  boleh dibuat. Kontrak backend yang tidak lengkap gagal tertutup;
+- dokumen `signed`, dokumen dengan footer yang sudah diterapkan, atau session
+  dengan `footer.allowed=false` tidak membuat maupun menampilkan editor footer;
+- footer dirender sebagai overlay terpisah dari canvas PDF, memakai ukuran font
+  berbasis PDF point. User dapat mengubah kalimat, font whitelist, ukuran font,
+  bold, italic, dan underline tanpa merender ulang canvas PDF;
+- setiap placement footer dapat dipilih, digeser dengan Pointer Events, atau
+  dipindah dengan tombol panah 1 pt dan `Shift` + panah 10 pt. Footer required
+  tidak mempunyai aksi hapus;
+- inspector menyediakan reset style ke default backend, reset posisi halaman
+  aktif, dan `Terapkan ke semua`. Penerapan lintas halaman mempertahankan posisi
+  relatif di dalam safe area sehingga aman untuk halaman dengan ukuran berbeda;
+- `Reset Posisi` pada footer modal mengembalikan placement footer ke seluruh
+  default backend terlebih dahulu, lalu menyusun ulang QR agar tidak menabrak
+  footer;
+- penambahan, pemusatan, dan reset QR sekarang memperhitungkan footer sebagai
+  obstacle. Collision QR-footer menandai kedua overlay dan menampilkan pesan
+  lokal; backend tetap validator final;
+- validasi lokal footer mengikuti batas request/backend: teks wajib dan maksimal
+  1000 karakter, font whitelist, range font size, tepat satu placement per
+  halaman, estimasi line wrapping, minimum box, safe margin, dan minimum gap;
+- thumbnail menampilkan indikator QR dan footer per halaman. Safe area tampil
+  ketika QR atau footer pada halaman tersebut dipilih;
+- state footer dibersihkan bersama signing session tanpa membuat attempt atau
+  audit event ketika modal dibatalkan;
+- type-check TypeScript dan build produksi berhasil tanpa warning Svelte.
+  Feature flag tetap `false`; tidak ada test suite yang dibuat atau dijalankan.
+
+### Tahap F10 - Prepare dan konfirmasi authoritative terpadu — SELESAI DI SOURCE
 
 Tujuan: backend mengunci byte/geometri lalu menampilkan prepared preview,
 informasi dokumen/signer, dan passphrase dalam satu tahap Konfirmasi.
@@ -794,6 +959,39 @@ Pekerjaan:
 9. jangan membuat layar `Tinjau prepared rendition` terpisah.
 
 Hasil: tidak ada final sign terhadap preview client yang stale.
+
+Kondisi implementasi per 25 September 2026:
+
+- tombol `Lanjutkan` hanya aktif setelah viewer siap dan validasi lokal
+  placement, footer, safe area, ukuran, urutan operasi, serta collision lulus;
+- placement diurutkan berdasarkan `operation_index`, seluruh angka geometry
+  dibulatkan canonical, footer diurutkan per halaman, dan teks footer di-trim
+  sebelum POST ke URL authoritative `prepare_rendition_url`;
+- respons `201` ditolak bila jumlah operasi, `client_id`, urutan, geometry,
+  style footer, atau placement footer tidak sama dengan plan yang dikirim;
+- validation error backend dikembalikan ke tahap editor. Bila field menunjuk
+  `placements.N` atau `footer.placements.N`, halaman dan overlay terkait dipilih
+  agar pengguna dapat langsung memperbaikinya;
+- prepared PDF dimuat sebagai binary authorized dari `preview_url`, metadata
+  seluruh halamannya diverifikasi kembali, dan QR authoritative dimuat sebagai
+  PNG dari setiap `signature_operations[*].qr_image_url`;
+- QR authoritative berlogo Kota Malang ditampilkan sebagai overlay read-only
+  pada geometry yang dikunci backend. Object URL PNG, PDF.js document, render
+  task, dan request dibersihkan secara deterministic;
+- panel konfirmasi terpadu menampilkan preview, signer, masked NIK, versi
+  artifact, jumlah tanda tangan terdahulu, jumlah/halaman operasi baru, footer,
+  masa berlaku preview, serta input passphrase tanpa input NIK dan tanpa
+  checklist afirmasi;
+- input passphrase tetap disabled sampai prepared preview exact selesai dimuat.
+  Tombol mata menutup otomatis setelah 12 detik dan passphrase dibersihkan saat
+  kembali ke editor, modal ditutup, atau component dilepas;
+- `Kembali Edit` selalu membuang prepared revision/hash dari state sehingga
+  final sign tidak dapat memakai preview lama;
+- tombol final sengaja belum mempunyai handler dan tetap disabled. Aktivasi
+  POST final, idempotency key, response `202`, serta pembersihan passphrase
+  setelah submit merupakan Tahap F11;
+- type-check TypeScript dan production build berhasil. Feature flag tetap
+  `false`; tidak ada test suite yang dibuat atau dijalankan.
 
 ### Tahap F11 - Final action dan submit asynchronous
 
@@ -1053,13 +1251,13 @@ Aturan:
 
 - [x] Action LS SPP mempunyai `step_public_id` dan capability canonical.
 - [x] Svelte island satu kali mount melalui Vite.
-- [ ] Modal Bootstrap/Argon responsif dan tidak bertumpuk.
-- [ ] Source PDF dimuat binary tanpa Base64/upload ulang.
-- [ ] Geometry top-left point konsisten dengan backend.
-- [ ] Satu hingga batas maksimum QR dapat diatur.
+- [x] Modal Bootstrap/Argon responsif dan tidak bertumpuk tersedia di source.
+- [x] Source PDF dimuat binary tanpa Base64/upload ulang di source.
+- [x] Geometry top-left point konsisten dengan backend di source.
+- [x] Satu hingga batas maksimum QR dapat diatur di source.
 - [ ] QR final berasal dari backend dan memakai logo Malang.
-- [ ] Footer unsigned otomatis dibuat dan dapat diedit sesuai kontrak.
-- [ ] PDF signed tidak mendapatkan footer baru.
+- [x] Footer unsigned otomatis dibuat dan dapat diedit sesuai kontrak di source.
+- [x] PDF signed tidak mendapatkan footer baru di source.
 - [ ] Exact prepared rendition tampil bersama informasi signer dan passphrase
       pada tahap Konfirmasi.
 - [ ] Tidak ada checkbox afirmasi; tombol final mengirim `affirmed=true`.
@@ -1069,7 +1267,8 @@ Aturan:
 - [ ] Partial resume hanya muncul dari capability backend.
 - [ ] `unknown` melarang retry biasa.
 - [ ] Completion me-refresh halaman melalui custom event.
-- [ ] Close modal membersihkan resource PDF/object URL/listener.
+- [x] Close modal membersihkan fetch, render task, PDF worker/document, dan
+      listener; viewer tidak membuat object URL.
 - [ ] Modal validasi memakai artifact canonical tanpa upload ulang.
 - [ ] Acceptance manual LS SPP lulus untuk BP/BPP -> PPTK -> PA/KPA.
 - [x] Tidak ada test suite otomatis yang dibuat atau dijalankan.
@@ -1089,12 +1288,22 @@ baru. Urutannya:
    tanpa ketergantungan pada global halaman;
 5. [SELESAI DI SOURCE] Tahap F4: shell modal lengkap, state visual, stepper,
    accessibility dasar, dan responsive layout Bootstrap/Argon;
-6. lanjutkan Tahap F5: typed API client, error normalization, dan
-   signing-session state; feature flag tetap `false` sampai rangkaian ini siap;
-7. bangun viewer/geometry/editor secara berurutan pada Tahap F6-F10;
-8. sambungkan final sign/progress pada Tahap F11-F12;
-9. tutup gap backend validasi/public delivery sebelum Tahap F13-F15;
-10. lakukan pilot manual sebelum rollout payment lain.
+6. [SELESAI DI SOURCE] Tahap F5: typed API client, error normalization, dan
+   signing-session state; feature flag tetap `false` sampai acceptance manual;
+7. [SELESAI DI SOURCE] Tahap F6: PDF viewer binary, lazy PDF.js worker,
+   virtualized thumbnail, navigasi, zoom, dan deterministic cleanup;
+8. [SELESAI DI SOURCE] Tahap F7: transform canonical, constraint, validasi
+   geometry, dan verifikasi metadata halaman PDF;
+9. [SELESAI DI SOURCE] Tahap F8: editor multi-QR, drag/resize, keyboard,
+   collision feedback, inspector, dan operation ordering;
+10. [SELESAI DI SOURCE] Tahap F9: footer bersyarat, style global, placement per
+    halaman, reset/apply-all, dan collision QR-footer;
+11. [SELESAI DI SOURCE] Tahap F10: canonical prepare request, fail-closed plan
+    matching, prepared PDF/QR authoritative, dan panel konfirmasi/passphrase;
+12. lanjutkan final sign dan response `202` pada Tahap F11, lalu progress pada
+    Tahap F12;
+13. tutup gap backend validasi/public delivery sebelum Tahap F13-F15;
+14. lakukan pilot manual sebelum rollout payment lain.
 
 Dengan urutan ini, komponen frontend dibangun langsung di atas boundary
 canonical dan tidak perlu dirombak kedua kali untuk membuang path, upload PDF,

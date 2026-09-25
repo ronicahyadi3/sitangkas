@@ -18,9 +18,10 @@ tahap ini.
    tidak boleh membawa NIK, path file, storage disk, document status, signer ID,
    workflow ID, atau destination path.
 2. Endpoint awal create session berasal dari bridge aplikasi. Setelah session
-   dibuat, frontend wajib memakai `preview_url`, `prepare_rendition_url`,
-   `sign_url`, `status_url`, `resume_url`, dan `qr_image_url` yang dikirim
-   backend. Frontend tidak menyusun URL tersebut sendiri.
+   dibuat, frontend wajib memakai `session_url`, `preview_url`,
+   `prepare_rendition_url`, `sign_url`, `status_url`, `resume_url`, dan
+   `qr_image_url` yang dikirim backend. Frontend tidak menyusun URL tersebut
+   sendiri.
 3. Semua JSON request memakai same-origin credentials, CSRF Laravel, dan header
    `Accept: application/json`.
 4. PDF dimuat dari authorized binary response `application/pdf`. Gambar QR
@@ -142,7 +143,10 @@ Field session yang tersedia untuk frontend:
 - geometry: `pages[]`;
 - masa berlaku: `expires_at`;
 - konfigurasi editor authoritative: `editor`;
-- URL: `preview_url`, `prepare_rendition_url`, `sign_url`.
+- URL: `session_url`, `preview_url`, `prepare_rendition_url`, `sign_url`.
+
+`session_url` ditambahkan pada F5 untuk GET recovery dan DELETE cleanup session
+tanpa membuat frontend merangkai path dari `session_id`.
 
 Perbedaan yang wajib dipertahankan:
 
@@ -256,7 +260,8 @@ berganti, modal ditutup, atau component unmount.
 ## 9. Normalisasi error frontend
 
 `resources/js/esign/types.ts` mengunci satu bentuk internal
-`NormalizedEsignError`. Implementasi normalizer dilakukan pada F5.
+`NormalizedEsignError`. Normalizer F5 sudah tersedia di
+`resources/js/esign/api/errors.ts`.
 
 | HTTP/kondisi | Category | Bentuk backend | Perilaku UI |
 | --- | --- | --- | --- |
@@ -334,6 +339,10 @@ F0 dinyatakan selesai karena:
   disamarkan sebagai fitur yang sudah tersedia;
 - tidak ada test suite yang dibuat atau dijalankan.
 
-Langkah berikutnya adalah F2: memasang fondasi Svelte/Vite island dan shell
-modal yang menerima event bridge F1. Feature flag frontend baru diaktifkan
-setelah listener/modal tersebut siap.
+Status 25 September 2026: F1-F5 sudah selesai di source. Layout memberikan URL
+create-session melalui named route, response session memberikan `session_url`,
+dan typed client memvalidasi JSON/binary, same-origin URL, status HTTP, CSRF,
+serta error tanpa retry otomatis sign/resume. F6 PDF viewer binary juga sudah
+selesai di source dan memverifikasi endpoint preview tanpa Base64. Tahap
+berikutnya adalah F7 geometry canonical. Feature flag frontend tetap `false`
+sampai acceptance manual.

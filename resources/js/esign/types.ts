@@ -17,6 +17,10 @@ export interface ApiEnvelope<TData> {
     data: TData;
 }
 
+export interface EsignFrontendConfiguration {
+    create_session_url: string;
+}
+
 export interface EsignActionCapabilities {
     step_public_id: Uuid;
     can_sign: boolean;
@@ -147,6 +151,7 @@ export interface PreparedSigningRendition {
 
 export interface SigningSession {
     session_id: Uuid;
+    session_url: string;
     signer_name: string;
     masked_nik: string;
     placement_required: boolean;

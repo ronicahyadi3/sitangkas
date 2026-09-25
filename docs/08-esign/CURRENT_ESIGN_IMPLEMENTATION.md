@@ -36,8 +36,10 @@ Desain visible terbaru sudah berada di source backend: editor membuka artifact
 melalui binary stream, footer editable hanya sebelum TTE pertama, prepared
 rendition exact, dan satu signer dapat mempunyai beberapa QR yang dieksekusi
 serial dalam satu attempt. Feature flag runtime masih default `false`, vertical
-slice operasional belum dijalankan, dan frontend belum dibuat. Target lengkap
-berada di `ESIGN_VISIBLE_EDITOR_AND_MULTI_QR_DESIGN.md`.
+slice operasional belum dijalankan, dan frontend Svelte F0-F10 sudah tersedia
+di source sampai prepared confirmation. Final submit/progress F11-F12 belum
+dihubungkan. Target lengkap berada di
+`ESIGN_VISIBLE_EDITOR_AND_MULTI_QR_DESIGN.md`.
 
 Dokumen ini adalah handoff kondisi kode aktual. Untuk keputusan bisnis dan
 target final tetap baca:
@@ -66,9 +68,9 @@ hanya karena class-nya tersedia di repository.
 | 3 | Schema aktif, provisioning runtime terbukti lokal | Sebanyak 13 tabel canonical, model, enum cast, transition/persistence, artifact storage, provider response, event, compatibility writer, dan job provisioning idempotent tersedia. Worker lokal dan satu upload terkontrol lulus; dua migration index mapping legacy, production process manager, mapping runner, dan reconciliation belum selesai. |
 | 4 | Kode LS SPP tersedia, belum lulus acceptance | Policy, authorization service, signer resolver, encrypted ephemeral session, context revalidation, private preview, definition registry, lazy activation BP/BPP, dan assignment PPTK/PA/KPA saat handoff tersedia. Workflow upload sengaja tetap draft sampai signing session pertama. |
 | 5 | Kode vertical slice dan multi-operation tersedia, belum lulus acceptance | Endpoint internal, encrypted secret TTL, `202 Accepted`, operation persistence, queue worker serial, final verify/promotion, partial resume, polling, aggregate legacy projection, submit gate, dan handoff canonical LS SPP tersedia. Feature flag multi-operation masih default nonaktif dan sign canonical belum diuji end-to-end. |
-| 6 | Sebagian untuk LS SPP/visible backend | Authenticated current-artifact content/download, prepared rendition, QR authoritative, footer renderer, progress, dan resume tersedia. Formula hash path sudah konsisten, tetapi acceptance runtime belum dilakukan. General delivery policy watermark/COPY-ID/cache/audit, public verify route, guest delivery, legacy QR resolver, dan frontend belum dibuat. |
+| 6 | Sebagian untuk LS SPP/visible backend | Authenticated current-artifact content/download, prepared rendition, QR authoritative, footer renderer, progress, dan resume tersedia. Formula hash path sudah konsisten, tetapi acceptance runtime belum dilakukan. Frontend F0-F10 tersedia di source; final submit/progress F11-F12 belum dihubungkan. General delivery policy watermark/COPY-ID/cache/audit, public verify route, guest delivery, dan legacy QR resolver belum dibuat. |
 | 7 | Belum lulus | Backend Ready Gate masih terhalang production process manager/shared cache, visible placement, acceptance end-to-end LS SPP, deployment index legacy, reconciliation, observability, performance proof, credential rotation, dan test yang diizinkan. |
-| 8-10 | Belum | Dependency dan komponen Svelte/Vite eSign belum dipasang. |
+| 8-10 | Sebagian di source | Dependency dan frontend Svelte/Vite sampai prepared confirmation F10 sudah dipasang; Backend Ready Gate, aktivasi feature flag, acceptance manual, dan rollout payment belum dilakukan. |
 | 11 | Belum dijalankan | Target pilot backend dipilih: LS SPP jalur BP -> PPTK -> PA. Belum diaktifkan untuk layanan operasional. |
 | 12 | Belum | Rollout, mapping legacy resumable, reporting cutover, dan decommission belum berjalan. |
 
@@ -1014,10 +1016,23 @@ dijalankan.
 - fondasi Svelte 5/plugin Vite/TypeScript dan root island global sudah dipasang;
 - shell modal Bootstrap/Argon empat tahap dimuat lazy dari event canonical,
   sudah responsive, mempunyai state body/footer, close guard, dan focus
-  restoration, tetapi belum memanggil signing-session;
-- typed API client belum dibuat;
-- isi editor signing belum terhubung ke session/PDF/placement/passphrase;
-- visible PDF editor belum dibuat;
+  restoration, serta sudah memanggil signing-session authoritative;
+- typed API client F5 sudah tersedia untuk seluruh endpoint session/rendition,
+  sign, attempt, resume, serta binary PDF/PNG. Client menegakkan same-origin,
+  CSRF, status/media type, runtime response guard, AbortController, dan error
+  normalization;
+- PDF viewer F6 sudah memuat authorized binary melalui PDF.js worker lokal,
+  merender halaman aktif dan tetangga, memvirtualisasi thumbnail, serta
+  membersihkan fetch/render/document resource secara deterministik;
+- F7-F9 sudah menghubungkan geometry canonical top-left/pt, editor multi-QR,
+  collision/safe area, urutan operasi, dan footer global yang posisi setiap
+  halamannya dapat disesuaikan;
+- F10 sudah menghubungkan canonical prepare request dan panel konfirmasi
+  terpadu: prepared PDF binary, QR PNG authoritative berlogo Kota Malang,
+  validasi plan fail-closed, ringkasan signer/dokumen/operasi/footer, serta
+  input passphrase yang baru aktif setelah exact preview siap;
+- final submit asynchronous, polling/resume, dan result state F11-F12 belum
+  dihubungkan. Tombol final tetap disabled dengan sengaja;
 - validation modal belum dibuat;
 - adapter tombol canonical baru tersedia untuk LS SPP sebagai rollout pertama;
   payment lain masih fail-closed sampai backend workflow masing-masing siap.
@@ -1048,7 +1063,18 @@ adapter opt-in pertama. F4 juga sudah selesai di source: satu modal responsive
 Bootstrap/Argon mempunyai empat tahap visual, state body/footer terpisah,
 close guard untuk request prepare/submit, focus restoration, dark mode, dan
 reduced-motion support. Kontrol aksi masih disabled dan data tidak difabrikasi
-karena F5 API client/session state adalah tahap berikutnya. Feature flag tetap
+karena F5 API client/session state sekarang juga selesai di source. Modal telah
+membuat session authoritative dan baru berpindah ke editor setelah response
+lolos validator. F6 juga sudah selesai di source: viewer memakai binary tanpa
+Base64/object URL, lazy PDF.js worker lokal, tiga-page render window, thumbnail
+idle/intersection, zoom responsive, DPR cap, dan layer canvas/placement
+terpisah. F7-F9 juga selesai: transform geometry canonical, constraint,
+verifikasi metadata PDF, editor beberapa QR, keyboard/drag/resize, ordering,
+serta footer editable per halaman telah aktif di source. F10 selesai dengan
+POST prepared rendition, pemeriksaan kesetaraan plan, prepared PDF/QR
+authoritative, dan konfirmasi/passphrase dalam modal yang sama. Kembali ke
+editor atau menutup modal membuang prepared reference dan secret dari memory.
+Tahap berikutnya adalah F11 final submit asynchronous. Feature flag tetap
 `false`.
 
 Audit lintas payment menegaskan bahwa editor/session contract bersifat generik,
@@ -1079,9 +1105,9 @@ tetap menunggu gate backend terkait. Urutan rinci berada di
 12. Policy delivery PDF + watermark/cache/audit + verify/public route + legacy resolver
 13. Backend Ready Gate operasional
 14. [SELESAI DI SOURCE] Svelte/Vite foundation dan bridge Blade
-15. [F4 SELESAI DI SOURCE] Shell signing modal responsive dan state visual;
-    lanjut F5 API client/session state, kemudian editor visible + validation
-    modal
+15. [F4-F10 SELESAI DI SOURCE] Shell signing modal, typed API/session, PDF
+    viewer, geometry/editor multi-QR/footer, serta prepared confirmation; lanjut
+    F11 final submit lalu F12 progress/resume
 16. Pilot LS SPP operasional
 17. Perluasan LS SPM/SP2D lalu rollout per payment
 18. Resumable legacy mapping + reporting cutover

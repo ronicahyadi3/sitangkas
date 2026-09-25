@@ -8,7 +8,7 @@ import type { EsignUiAction } from './types';
 
 interface EsignAppApi {
     destroy(): Promise<void>;
-    open(action: EsignUiAction): void;
+    open(action: EsignUiAction): Promise<void>;
 }
 
 type NotificationFunction = (payload: { status: number; message: string }) => void;

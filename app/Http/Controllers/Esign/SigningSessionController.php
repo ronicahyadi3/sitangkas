@@ -35,6 +35,7 @@ final class SigningSessionController extends Controller
             'data' => [
                 ...$session->toClientArray(),
                 'editor' => $editorConfiguration->forClient($session),
+                'session_url' => route('esign.internal.signing-sessions.show', $session->sessionId),
                 'preview_url' => route('esign.internal.signing-sessions.preview', $session->sessionId),
                 'prepare_rendition_url' => route('esign.internal.signing-sessions.renditions.store', $session->sessionId),
                 'sign_url' => route('esign.internal.signing-sessions.sign', $session->sessionId),
@@ -79,6 +80,7 @@ final class SigningSessionController extends Controller
             'data' => [
                 ...$context->session->toClientArray(),
                 'editor' => $editorConfiguration->forClient($context->session),
+                'session_url' => route('esign.internal.signing-sessions.show', $signingSession),
                 'preview_url' => route('esign.internal.signing-sessions.preview', $signingSession),
                 'prepare_rendition_url' => route('esign.internal.signing-sessions.renditions.store', $signingSession),
                 'prepared_rendition' => $preparedRendition,

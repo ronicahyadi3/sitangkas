@@ -173,7 +173,11 @@
     @include('inc.rightbar')
 
     @auth
-        <div id="esign-app-root" data-esign-app-root></div>
+        <div
+            id="esign-app-root"
+            data-esign-app-root
+            data-esign-session-url="{{ route('esign.internal.signing-sessions.store') }}"
+        ></div>
     @endauth
 
     <script src="https://code.jquery.com/jquery-3.7.1.js" integrity="sha256-eKhayi8LEQwp4NKxN+CfCh+3qOVUtJn3QNZ0TciWLP4=" crossorigin="anonymous"></script>

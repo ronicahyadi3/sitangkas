@@ -1,7 +1,72 @@
 <script lang="ts">
+    import type {
+        FooterPlan,
+        NormalizedEsignError,
+        PreparedSigningRendition,
+        SignaturePlacement,
+        SigningSession,
+    } from '../types';
     import type { EsignShellStage } from '../ui-state';
+    import PdfViewer from './PdfViewer.svelte';
+    import PreparedConfirmation from './PreparedConfirmation.svelte';
 
-    let { stage }: { stage: EsignShellStage } = $props();
+    let {
+        stage,
+        session,
+        error,
+        fetchPdf,
+        fetchPng,
+        preparedRendition,
+        placements = $bindable(),
+        footerPlan = $bindable(null),
+        activeEditorPage = $bindable(1),
+        selectedPlacementId = $bindable(null),
+        selectedFooterPage = $bindable(null),
+        editorReady = $bindable(false),
+        preparedReady = $bindable(false),
+        passphrase = $bindable(''),
+    }: {
+        stage: EsignShellStage;
+        session: SigningSession | null;
+        error: NormalizedEsignError | null;
+        fetchPdf: (url: string, signal?: AbortSignal) => Promise<ArrayBuffer>;
+        fetchPng: (url: string, signal?: AbortSignal) => Promise<Blob>;
+        preparedRendition: PreparedSigningRendition | null;
+        placements: SignaturePlacement[];
+        footerPlan: FooterPlan | null;
+        activeEditorPage: number;
+        selectedPlacementId: string | null;
+        selectedFooterPage: number | null;
+        editorReady: boolean;
+        preparedReady: boolean;
+        passphrase: string;
+    } = $props();
+
+    function errorTitle(category: NormalizedEsignError['category'] | undefined): string {
+        if (category === 'authentication') {
+            return 'Sesi login perlu diperbarui';
+        }
+
+        if (category === 'authorization') {
+            return 'Akses TTE tidak tersedia';
+        }
+
+        if (category === 'rate_limited') {
+            return 'Permintaan terlalu sering';
+        }
+
+        if (category === 'network') {
+            return 'Server belum dapat dijangkau';
+        }
+
+        return 'Sesi TTE tidak dapat dibuka';
+    }
+
+    function validationMessages(value: NormalizedEsignError | null): string[] {
+        return value === null
+            ? []
+            : Object.values(value.field_errors).flat().slice(0, 5);
+    }
 </script>
 
 {#if stage === 'loading'}
@@ -14,52 +79,52 @@
             </p>
         </div>
     </section>
-{:else if stage === 'editing'}
-    <section class="esign-editor-shell" aria-label="Area pengaturan posisi tanda tangan">
-        <aside class="esign-editor-shell__thumbnails" aria-label="Daftar halaman">
-            <div class="esign-panel-heading">
-                <span>Halaman</span>
-                <span class="badge bg-light text-dark">0</span>
-            </div>
-            <div class="esign-empty-panel">
-                Thumbnail PDF akan tampil setelah dokumen dimuat.
-            </div>
-        </aside>
-
-        <div class="esign-editor-shell__workspace">
-            <div class="esign-workspace-toolbar" aria-label="Toolbar PDF">
-                <div class="btn-group btn-group-sm" role="group" aria-label="Navigasi halaman">
-                    <button class="btn btn-outline-secondary" type="button" disabled aria-label="Halaman sebelumnya">
-                        <i class="fas fa-chevron-left"></i>
-                    </button>
-                    <button class="btn btn-outline-secondary" type="button" disabled aria-label="Halaman berikutnya">
-                        <i class="fas fa-chevron-right"></i>
-                    </button>
-                </div>
-                <span class="esign-workspace-toolbar__page">Halaman — dari —</span>
-                <div class="btn-group btn-group-sm ms-auto" role="group" aria-label="Pengaturan zoom">
-                    <button class="btn btn-outline-secondary" type="button" disabled aria-label="Perkecil">
-                        <i class="fas fa-minus"></i>
-                    </button>
-                    <button class="btn btn-outline-secondary" type="button" disabled>100%</button>
-                    <button class="btn btn-outline-secondary" type="button" disabled aria-label="Perbesar">
-                        <i class="fas fa-plus"></i>
-                    </button>
-                </div>
-            </div>
-            <div class="esign-pdf-placeholder">
-                <i class="far fa-file-pdf" aria-hidden="true"></i>
-                <p class="mb-0">Viewer PDF akan dimuat pada tahap F6.</p>
-            </div>
+{:else if stage === 'load_failed'}
+    <section class="esign-result esign-result--danger" role="alert">
+        <div class="esign-result__icon" aria-hidden="true">
+            <i class="fas fa-triangle-exclamation"></i>
         </div>
-
-        <aside class="esign-editor-shell__inspector" aria-label="Pengaturan QR dan footer">
-            <div class="esign-panel-heading">Pengaturan</div>
-            <div class="esign-empty-panel">
-                Pilih atau tambahkan QR untuk melihat pengaturan posisi dan footer.
-            </div>
-        </aside>
+        <h3 class="h5 mb-2">{errorTitle(error?.category)}</h3>
+        <p class="text-sm text-secondary mb-2">
+            {error?.message ?? 'Respons layanan TTE tidak dapat diverifikasi.'}
+        </p>
+        {#if error?.retry_after_seconds !== null && error?.retry_after_seconds !== undefined}
+            <p class="text-xs text-secondary mb-2">
+                Coba kembali setelah sekitar {error.retry_after_seconds} detik.
+            </p>
+        {/if}
+        {#if error?.code}
+            <p class="text-xs text-secondary mb-2">Kode: {error.code}</p>
+        {/if}
+        {#if validationMessages(error).length > 0}
+            <ul class="esign-error-list text-sm text-start mb-0">
+                {#each validationMessages(error) as message}
+                    <li>{message}</li>
+                {/each}
+            </ul>
+        {/if}
     </section>
+{:else if stage === 'editing'}
+    {#if session}
+        <PdfViewer
+            {session}
+            {fetchPdf}
+            bind:placements
+            bind:footerPlan
+            bind:activePage={activeEditorPage}
+            bind:selectedPlacementId
+            bind:selectedFooterPage
+            bind:editorReady
+        />
+    {:else}
+        <section class="esign-result esign-result--danger" role="alert">
+            <div class="esign-result__icon" aria-hidden="true">
+                <i class="fas fa-triangle-exclamation"></i>
+            </div>
+            <h3 class="h5 mb-2">Signing session tidak tersedia</h3>
+            <p class="text-sm text-secondary mb-0">Tutup modal dan buka kembali proses TTE.</p>
+        </section>
+    {/if}
 {:else if stage === 'preparing_rendition'}
     <section class="esign-state esign-state--centered" role="status">
         <span class="spinner-border text-primary" aria-hidden="true"></span>
@@ -71,26 +136,24 @@
         </div>
     </section>
 {:else if stage === 'confirming_prepared'}
-    <section class="esign-confirmation-shell" aria-label="Konfirmasi tanda tangan">
-        <div class="esign-confirmation-shell__preview">
-            <div class="esign-panel-heading">Preview final dari backend</div>
-            <div class="esign-pdf-placeholder">
-                <i class="far fa-file-pdf" aria-hidden="true"></i>
-                <p class="mb-0">Prepared rendition akan ditampilkan di area ini.</p>
+    {#if session && preparedRendition}
+        <PreparedConfirmation
+            {session}
+            rendition={preparedRendition}
+            {fetchPdf}
+            {fetchPng}
+            bind:preparedReady
+            bind:passphrase
+        />
+    {:else}
+        <section class="esign-result esign-result--danger" role="alert">
+            <div class="esign-result__icon" aria-hidden="true">
+                <i class="fas fa-triangle-exclamation"></i>
             </div>
-        </div>
-        <aside class="esign-confirmation-shell__summary">
-            <div class="esign-panel-heading">Informasi dokumen</div>
-            <dl class="esign-summary-list">
-                <div><dt>Dokumen</dt><dd>Menunggu data sesi</dd></div>
-                <div><dt>Penandatangan</dt><dd>Ditentukan backend</dd></div>
-                <div><dt>Posisi QR</dt><dd>—</dd></div>
-            </dl>
-            <div class="alert alert-light border text-sm mb-0" role="note">
-                Passphrase akan tersedia setelah prepared rendition berhasil dimuat.
-            </div>
-        </aside>
-    </section>
+            <h3 class="h5 mb-2">Prepared rendition tidak tersedia</h3>
+            <p class="text-sm text-secondary mb-0">Kembali ke editor dan siapkan ulang dokumen.</p>
+        </section>
+    {/if}
 {:else if stage === 'submitting'}
     <section class="esign-state esign-state--centered" role="status">
         <span class="spinner-border text-primary" aria-hidden="true"></span>
