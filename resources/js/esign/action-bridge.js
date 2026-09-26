@@ -3,6 +3,7 @@ import {
     dispatchEsignOpen,
     dispatchEsignValidationOpen,
 } from './events';
+import { coordinateDocumentDetailChildOpen } from '../documents/detail-modal-coordinator';
 
 export { ESIGN_OPEN_EVENT };
 
@@ -24,19 +25,33 @@ function handleEsignAction(event) {
     const action = target.dataset.esignAction;
 
     if (action === 'sign') {
-        dispatchEsignOpen({
-            step_public_id: target.dataset.esignStep ?? '',
-            can_sign: target.dataset.esignCanSign === 'true',
-            can_verify: target.dataset.esignCanVerify === 'true',
+        const stepPublicId = target.dataset.esignStep ?? '';
+
+        coordinateDocumentDetailChildOpen({
+            childKey: `sign:${stepPublicId}`,
+            childSurface: 'esign',
+            trigger: target,
+            open: () => dispatchEsignOpen({
+                step_public_id: stepPublicId,
+                can_sign: target.dataset.esignCanSign === 'true',
+                can_verify: target.dataset.esignCanVerify === 'true',
+            }),
         });
     }
 
     if (action === 'verify') {
-        dispatchEsignValidationOpen({
-            artifact_public_id: target.dataset.esignArtifact ?? '',
-            can_verify: target.dataset.esignCanVerify === 'true',
-            verification_url: target.dataset.esignVerificationUrl ?? '',
-            preview_url: target.dataset.esignPreviewUrl ?? '',
+        const artifactPublicId = target.dataset.esignArtifact ?? '';
+
+        coordinateDocumentDetailChildOpen({
+            childKey: `verify:${artifactPublicId}`,
+            childSurface: 'esign',
+            trigger: target,
+            open: () => dispatchEsignValidationOpen({
+                artifact_public_id: artifactPublicId,
+                can_verify: target.dataset.esignCanVerify === 'true',
+                verification_url: target.dataset.esignVerificationUrl ?? '',
+                preview_url: target.dataset.esignPreviewUrl ?? '',
+            }),
         });
     }
 }

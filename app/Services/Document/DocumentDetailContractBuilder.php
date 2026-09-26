@@ -8,6 +8,7 @@ use App\Contracts\Document\PdfDeliverySource;
 use App\Data\Document\DocumentDetailContractData;
 use App\Data\Document\DocumentResourceActionData;
 use App\Data\Document\ResolvedPdfDeliverySource;
+use App\Enums\Document\DocumentDetailActionMode;
 use App\Enums\Document\DocumentDetailSourceState;
 use App\Enums\Esign\DocumentArtifactType;
 use App\Models\Document;

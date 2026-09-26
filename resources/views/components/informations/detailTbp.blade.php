@@ -1,4 +1,5 @@
-<div class="modal fade" id="detailTbpModal" tabindex="-1" aria-labelledby="detailTbpModalTitle" aria-hidden="true">
+<div class="modal fade" id="detailTbpModal" tabindex="-1" aria-labelledby="detailTbpModalTitle" aria-hidden="true"
+    data-document-detail-modal data-document-detail-table="#detailTbpTable">
     <div class="modal-dialog modal-dialog-centered modal-xl" role="document">
         <div class="modal-content">
             <div class="modal-body p-0">
@@ -136,6 +137,10 @@
             detailTbpModal = bootstrap.Modal.getOrCreateInstance(modalEl);
 
             modalEl.addEventListener('hidden.bs.modal', function() {
+                if (modalEl.dataset.modalCoordinatorSuspended === 'true') {
+                    return;
+                }
+
                 detailTbpDocumentId = null;
                 if (detailTbpRequestXhr && detailTbpRequestXhr.readyState !== 4) {
                     detailTbpRequestXhr.abort();

@@ -1,5 +1,6 @@
 import {
     PDF_VIEWER_OPEN_EVENT,
+    dispatchSecurePdfViewerClosed,
     isSecurePdfViewerOpenDetail,
 } from './events';
 import type { SecurePdfViewerOpenDetail } from './types';
@@ -58,7 +59,13 @@ function handleOpen(event: Event): void {
 
     void resolveApp()
         .then((app) => app.open(Object.freeze({ ...event.detail })))
-        .catch(() => reportLoadFailure());
+        .catch(() => {
+            reportLoadFailure();
+            dispatchSecurePdfViewerClosed({
+                document_id: event.detail.document_id,
+                resource: event.detail.resource,
+            });
+        });
 }
 
 function destroyIsland(): void {

@@ -14,7 +14,9 @@ import { installEsignPageAdapter } from './esign/page-adapter';
 import { installPdfViewerIslandLoader } from './documents/pdf-viewer/island-loader';
 import { installPdfViewerActionBridge } from './documents/pdf-viewer/action-bridge';
 import { installDocumentDetailActionRenderer } from './documents/detail-action-renderer';
+import { installDocumentDetailModalCoordinator } from './documents/detail-modal-coordinator';
 
+installDocumentDetailModalCoordinator();
 installEsignIslandLoader();
 installEsignActionBridge();
 installEsignPageAdapter();

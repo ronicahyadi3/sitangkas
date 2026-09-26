@@ -2,6 +2,7 @@ import {
     dispatchSecurePdfViewerOpen,
     isSecurePdfViewerOpenDetail,
 } from './events';
+import { coordinateDocumentDetailChildOpen } from '../detail-modal-coordinator';
 
 const ACTION_SELECTOR = '[data-document-pdf-action="view"][data-pdf-viewer-payload]';
 
@@ -40,9 +41,17 @@ function handleAction(event: Event): void {
     try {
         const payload: unknown = JSON.parse(decodeURIComponent(encodedPayload));
 
-        if (!isSecurePdfViewerOpenDetail(payload) || !dispatchSecurePdfViewerOpen(payload)) {
+        if (!isSecurePdfViewerOpenDetail(payload)) {
             notifyInvalidAction();
+            return;
         }
+
+        coordinateDocumentDetailChildOpen({
+            childKey: `${payload.document_id}:${payload.resource}`,
+            childSurface: 'pdf-viewer',
+            trigger: target,
+            open: () => dispatchSecurePdfViewerOpen(payload),
+        });
     } catch {
         notifyInvalidAction();
     }

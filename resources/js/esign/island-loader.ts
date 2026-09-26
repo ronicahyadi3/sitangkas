@@ -1,6 +1,7 @@
 import {
     ESIGN_OPEN_EVENT,
     ESIGN_VALIDATION_OPEN_EVENT,
+    dispatchEsignClosed,
     isEsignOpenEventDetail,
     isEsignValidationOpenEventDetail,
 } from './events';
@@ -56,7 +57,22 @@ function reportLoadFailure(): void {
 function openIsland(action: EsignUiAction): void {
     void resolveApp()
         .then((app) => app.open(action))
-        .catch(() => reportLoadFailure());
+        .catch(() => {
+            reportLoadFailure();
+
+            if (action.kind === 'signing') {
+                dispatchEsignClosed({
+                    action: 'sign',
+                    step_public_id: action.detail.step_public_id,
+                });
+                return;
+            }
+
+            dispatchEsignClosed({
+                action: 'verify',
+                artifact_public_id: action.detail.artifact_public_id,
+            });
+        });
 }
 
 function handleSigningOpenEvent(event: Event): void {

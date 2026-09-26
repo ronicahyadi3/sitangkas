@@ -1,5 +1,5 @@
 <div class="modal fade" id="tteDocumentDetailModal" tabindex="-1" aria-labelledby="tteDocumentDetailTitle"
-    aria-hidden="true">
+    aria-hidden="true" data-document-detail-modal data-document-detail-table="#tteDocumentTable">
     <div class="modal-dialog modal-dialog-centered modal-xl" role="document">
         <div class="modal-content">
             <div class="modal-body p-0">
@@ -136,6 +136,10 @@
             tteDocumentDetailModal = bootstrap.Modal.getOrCreateInstance(modalEl);
 
             modalEl.addEventListener('hidden.bs.modal', function() {
+                if (modalEl.dataset.modalCoordinatorSuspended === 'true') {
+                    return;
+                }
+
                 currentDocumentId = null;
                 if (detailRequestXhr && detailRequestXhr.readyState !== 4) {
                     detailRequestXhr.abort();

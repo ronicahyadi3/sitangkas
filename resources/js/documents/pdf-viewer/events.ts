@@ -52,8 +52,7 @@ function isViewAction(value: unknown, resource: PdfViewerResource): boolean {
     }
 
     return value.allowed === true
-        ? controlledUrl(value.url, deliveryPath(resource, 'content'))
-        : value.url === null;
+        && controlledUrl(value.url, deliveryPath(resource, 'content'));
 }
 
 function isDownloadAction(value: unknown, resource: PdfViewerResource): boolean {
@@ -117,7 +116,6 @@ export function isSecurePdfViewerOpenDetail(value: unknown): value is SecurePdfV
     const resource = value.resource as PdfViewerResource;
 
     return isViewAction(value.actions.view, resource)
-        && value.actions.view.allowed === true
         && isDownloadAction(value.actions.download, resource)
         && isVerifyAction(value.actions.verify);
 }
@@ -132,7 +130,19 @@ export function dispatchSecurePdfViewerOpen(detail: SecurePdfViewerOpenDetail): 
     }));
 }
 
+export function isSecurePdfViewerClosedDetail(value: unknown): value is SecurePdfViewerClosedDetail {
+    return isRecord(value)
+        && typeof value.document_id === 'string'
+        && value.document_id.trim() !== ''
+        && typeof value.resource === 'string'
+        && RESOURCES.has(value.resource as PdfViewerResource);
+}
+
 export function dispatchSecurePdfViewerClosed(detail: SecurePdfViewerClosedDetail): boolean {
+    if (!isSecurePdfViewerClosedDetail(detail)) {
+        return false;
+    }
+
     return window.dispatchEvent(new CustomEvent(PDF_VIEWER_CLOSED_EVENT, {
         detail: Object.freeze({ ...detail }),
     }));

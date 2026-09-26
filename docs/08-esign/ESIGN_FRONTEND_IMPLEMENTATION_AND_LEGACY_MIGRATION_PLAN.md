@@ -1438,6 +1438,20 @@ digantikan oleh cutover R6. Aturan runtime sekarang:
 8. `legacy_transition` hanya menyatakan asal source PDF untuk view/mapping dan
    tidak pernah berarti legacy signing diizinkan.
 
+### 12.1 Status modal coordinator R7
+
+R7 selesai di source pada 26 September 2026. Satu coordinator Vite mengatur
+perpindahan dari `tteDocumentDetailModal` atau `detailTbpModal` ke secure viewer
+atau editor TTE. Parent disembunyikan sampai event `hidden.bs.modal` selesai,
+kemudian dipulihkan setelah event close child. Context parent mempertahankan
+document ID, instance DataTable, posisi scroll, dan target focus.
+
+Refresh setelah TTE sukses dilakukan hanya pada DataTable parent dan tidak
+mereset paging. Viewer close, pembatalan editor, atau penutupan tanpa perubahan
+tidak menimbulkan request reload. Bila lazy import/mount child gagal, close event
+recovery tetap diterbitkan agar parent dapat ditampilkan kembali. Coordinator
+tidak mengubah authorization, source PDF, workflow, atau state attempt.
+
 ## 13. Checklist Definition of Done frontend LS SPP
 
 - [x] Action LS SPP mempunyai `step_public_id` dan capability canonical.

@@ -1,4 +1,5 @@
 import { ESIGN_COMPLETED_EVENT, isEsignCompletedEventDetail } from './events';
+import { shouldDeferEsignCompletionRefresh } from '../documents/detail-modal-coordinator';
 
 interface DataTableAjaxApi {
     reload(callback?: ((json: unknown) => void) | null, resetPaging?: boolean): void;
@@ -36,6 +37,10 @@ function reloadOptedInTables(): void {
 
 function handleCompletion(event: Event): void {
     if (!(event instanceof CustomEvent) || !isEsignCompletedEventDetail(event.detail)) {
+        return;
+    }
+
+    if (shouldDeferEsignCompletionRefresh(event.detail.step_public_id)) {
         return;
     }
 

@@ -1330,12 +1330,25 @@ capability step canonical dari modal Detail baru lengkap untuk LS SPP. Rollout
 tipe lain harus menambah provisioning/workflow canonical, bukan mengaktifkan
 kembali editor legacy.
 
-R6 belum menjadi modal coordinator. Pada R7, modal Detail harus disembunyikan
-sebelum secure viewer/editor dibuka, context paket disimpan, lalu Detail dibuka
-kembali dan direfresh setelah surface anak ditutup atau TTE selesai. Cutover
-`.view-pdf` di luar Detail/DetailTbp tetap dilakukan bertahap setelah gate tiap
-payment lulus. `pdfview.blade.php` tetap dipertahankan sementara hanya untuk
-surface view PDF di luar Detail; ia bukan lagi jalur TTE.
+R7 modal coordinator selesai di source pada 26 September 2026. Modal Detail dan
+Detail TBP sekarang ditandai sebagai parent surface. Ketika action viewer atau
+editor berasal dari salah satu modal tersebut, coordinator menyimpan focus dan
+scroll, menandai parent sebagai suspended, menunggu event Bootstrap
+`hidden.bs.modal`, lalu baru membuka child surface. Dengan demikian backdrop,
+focus trap, dan `modal-open` tidak ditumpuk oleh dua modal aktif.
+
+Event close viewer/editor mengembalikan modal parent beserta posisi scroll dan
+focus. Event TTE sukses menandai context sebagai berubah; refresh global dari
+`EsignPageAdapter` ditunda dan hanya DataTable milik modal parent yang dimuat
+ulang tanpa reset paging setelah parent kembali. Close/cancel tanpa sukses tidak
+melakukan reload. Kegagalan lazy-load viewer/editor juga mengirim close event
+sehingga parent tidak tertinggal dalam keadaan tersembunyi. Handler Blade tidak
+menghapus document ID atau membatalkan XHR ketika hide dilakukan oleh
+coordinator, tetapi tetap melakukan cleanup tersebut pada penutupan normal.
+
+Cutover `.view-pdf` di luar Detail/DetailTbp tetap dilakukan bertahap setelah
+gate tiap payment lulus. `pdfview.blade.php` tetap dipertahankan sementara hanya
+untuk surface view PDF di luar Detail; ia bukan lagi jalur TTE.
 
 Pilot real, aktivasi feature flag operasional, public verification, dan rollout
 tetap menunggu gate backend terkait. Urutan rinci berada di
