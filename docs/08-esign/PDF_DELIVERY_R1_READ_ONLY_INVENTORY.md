@@ -409,3 +409,22 @@ Source yang belum dapat diselesaikan atau belum dapat dibuktikan penuh:
 Action HTML legacy pada Detail dan Detail TBP sengaja tidak diubah dalam tahap
 ini. Karena itu layanan lama tetap berjalan sambil contract canonical mulai
 menampilkan state source yang akurat.
+
+### Status setelah endpoint delivery ORIGINAL universal
+
+Pada 26 September 2026 resolver R3 sudah mempunyai consumer HTTP universal:
+
+- `GET /document/pdf/{opaque-document}/{resource}/content` untuk inline view;
+- `GET /document/pdf/{opaque-document}/{resource}/download` untuk attachment;
+- resource dibatasi ke `document`, `billing`, dan `spj_fungsional`;
+- ID database numerik mentah ditolak;
+- authentication, konteks posisi/tahun, organizational scope/assignment, serta
+  policy canonical diperiksa kembali pada endpoint;
+- binary response tidak memuat storage disk atau path;
+- contract Detail Dokumen menerbitkan URL delivery aman secara additive;
+- action HTML dan static URL legacy belum dicabut agar layanan yang belum
+  tercakup mapping tetap berjalan.
+
+Endpoint ini baru bridge ORIGINAL. Ia belum menggantikan desain persistent
+delivery session, audit access append-only, watermark decision/derivative,
+viewer Svelte umum, atau kontrol web-server untuk menutup `/File_*`.

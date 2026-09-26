@@ -1231,6 +1231,31 @@ pada snapshot database. `SPJ_BPP`, file hilang/tidak terbaca/bukan PDF, history
 legacy, serta static public bypass masih menjadi sumber atau surface yang belum
 diselesaikan. Tidak ada file yang dipindahkan atau dihapus pada R3 ini.
 
+Boundary delivery/viewer PDF universal untuk mode ORIGINAL selesai di source
+pada 26 September 2026. Dua endpoint authenticated
+`document.pdf.content` dan `document.pdf.download` menerima hanya opaque
+encrypted document ID dan resource key terkontrol (`document`, `billing`, atau
+`spj_fungsional`). Endpoint memuat `PdfDeliverySource`, mengotorisasi ulang
+user serta posisi/tahun aktif pada setiap request, kemudian mengalirkan binary
+PDF tanpa Base64 dan tanpa mengekspor disk/path fisik. Raw numeric document ID
+ditolak, response memakai `no-store`, `nosniff`, dan same-origin resource
+policy, sedangkan download tetap merupakan capability terpisah.
+
+Untuk canonical artifact, delivery memakai pemeriksaan integrity dan policy
+eSign yang sudah ada. Untuk fallback legacy, akses dibatasi pada dua disk
+legacy yang diizinkan, metadata size/header PDF diperiksa kembali, lalu stream
+dibuka server-side. `document_contract` versi 1 sekarang menambahkan
+`delivery.content_url` dan `delivery.download_url` pada dokumen utama dan
+attachment; URL download hanya diterbitkan ketika capability lama mengizinkan,
+tetapi endpoint tetap melakukan authorization authoritative secara mandiri.
+
+Implementasi ini adalah bridge ORIGINAL additive, belum persistent delivery
+session final. Flag `pdf_watermark_required`, keputusan ORIGINAL/WATERMARK,
+derivative watermark, access event append-only, viewer Svelte umum, Range
+request, cutover tombol legacy, dan penutupan static `/File_*` tetap tahap
+berikutnya. Karena itu route lama tidak dihapus dan enforcement watermark belum
+boleh dinyatakan aktif.
+
 Pilot real, aktivasi feature flag operasional, public verification, dan rollout
 tetap menunggu gate backend terkait. Urutan rinci berada di
 `ESIGN_FRONTEND_IMPLEMENTATION_AND_LEGACY_MIGRATION_PLAN.md`.

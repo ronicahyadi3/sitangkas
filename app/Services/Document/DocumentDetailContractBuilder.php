@@ -54,9 +54,10 @@ final class DocumentDetailContractBuilder
             && $artifactPublicId !== null
             && $this->config->get('esign.frontend.enabled') === true;
         $downloadAvailableInViewer = $canView && $canDownload;
+        $encryptedDocumentId = EncryptedId::encode((int) $document->getKey());
 
         return new DocumentDetailContractData(
-            documentId: EncryptedId::encode((int) $document->id),
+            documentId: $encryptedDocumentId,
             paymentType: Str::upper(trim((string) ($document->payment_type ?? ''))),
             documentType: Str::upper(trim((string) ($document->src_type ?? ''))),
             status: $this->status($document, $resolvedSource, $sourceState, $canSign),
@@ -66,6 +67,12 @@ final class DocumentDetailContractBuilder
                 'verify' => $canVerify,
                 'download_available_in_viewer' => $downloadAvailableInViewer,
             ],
+            delivery: $this->deliveryUrls(
+                $encryptedDocumentId,
+                PdfDeliverySource::RESOURCE_DOCUMENT,
+                $canView,
+                $downloadAvailableInViewer,
+            ),
             stepPublicId: $canSign && $actionMode === DocumentDetailActionMode::Canonical
                 ? $resolvedStepPublicId
                 : null,
@@ -151,6 +158,7 @@ final class DocumentDetailContractBuilder
                 PdfDeliverySource::RESOURCE_BILLING,
             );
             $attachments[] = $this->attachment(
+                document: $document,
                 key: 'billing',
                 label: 'Billing',
                 source: $source,
@@ -165,6 +173,7 @@ final class DocumentDetailContractBuilder
                 PdfDeliverySource::RESOURCE_SPJ_FUNCTIONAL,
             );
             $attachments[] = $this->attachment(
+                document: $document,
                 key: 'spj_fungsional',
                 label: 'SPJ Fungsional',
                 source: $source,
@@ -178,6 +187,7 @@ final class DocumentDetailContractBuilder
 
     /** @return array<string, mixed> */
     private function attachment(
+        Document $document,
         string $key,
         string $label,
         ?ResolvedPdfDeliverySource $source,
@@ -207,6 +217,12 @@ final class DocumentDetailContractBuilder
                 'verify' => $canVerify,
                 'download_available_in_viewer' => $downloadAvailableInViewer,
             ],
+            'delivery' => $this->deliveryUrls(
+                EncryptedId::encode((int) $document->getKey()),
+                $key,
+                $canView,
+                $downloadAvailableInViewer,
+            ),
             'disabled_reasons' => [
                 'view' => $canView ? null : $this->reason(
                     $resolutionFailed
@@ -226,6 +242,28 @@ final class DocumentDetailContractBuilder
                     $canDownload,
                 ),
             ],
+        ];
+    }
+
+    /** @return array{content_url: string|null, download_url: string|null} */
+    private function deliveryUrls(
+        string $encryptedDocumentId,
+        string $resourceKey,
+        bool $canView,
+        bool $canDownload,
+    ): array {
+        $parameters = [
+            'document' => $encryptedDocumentId,
+            'resource' => $resourceKey,
+        ];
+
+        return [
+            'content_url' => $canView
+                ? route('document.pdf.content', $parameters)
+                : null,
+            'download_url' => $canDownload
+                ? route('document.pdf.download', $parameters)
+                : null,
         ];
     }
 

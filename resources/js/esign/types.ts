@@ -60,6 +60,11 @@ export interface DocumentDetailDisabledReasons {
     download: DocumentDetailDisabledReason | null;
 }
 
+export interface DocumentPdfDeliveryLinks {
+    content_url: string | null;
+    download_url: string | null;
+}
+
 export interface DocumentDetailAttachmentContract {
     key: 'billing' | 'spj_fungsional';
     label: string;
@@ -67,6 +72,7 @@ export interface DocumentDetailAttachmentContract {
     source_state: DocumentDetailSourceState;
     action_mode: DocumentDetailActionMode;
     capabilities: DocumentDetailCapabilities;
+    delivery: DocumentPdfDeliveryLinks;
     disabled_reasons: DocumentDetailDisabledReasons;
 }
 
@@ -77,6 +83,7 @@ export interface DocumentDetailContract {
     document_type: string;
     status: DocumentDetailStatus;
     capabilities: DocumentDetailCapabilities;
+    delivery: DocumentPdfDeliveryLinks;
     step_public_id: Uuid | null;
     artifact_public_id: Uuid | null;
     source_state: DocumentDetailSourceState;

@@ -411,9 +411,9 @@ Production harus mengonfirmasi:
 | P1 | Inventaris seluruh PDF response, URL, viewer, download, report, attachment, guest, dan legacy consumer | Matriks repository/route/database/filesystem lokal tersedia di `PDF_DELIVERY_R1_READ_ONLY_INVENTORY.md`; filesystem public dicatat parsial, deployment/external-consumer tetap gate decommission | Selesai 26 September 2026 |
 | P2 | Migration additive flag posisi default `false`, model default/cast, dan pemeriksaan schema | Seluruh posisi lama/baru tetap `false`; behavior runtime belum berubah | Belum |
 | P3 | Schema session/copy/access-event/verification, model, enum, relation, dan transition service | Persistence canonical siap tanpa mengubah route lama | Belum |
-| P4 | Source adapter dan current artifact resolver universal | Backend memperoleh exact source tanpa menerima path browser | Belum |
-| P5 | Authorization dan delivery decision ORIGINAL/WATERMARK/DENIED | Mode ditentukan server dari policy dan posisi terbaru | Belum |
-| P6 | Delivery session, audit append-only, opaque binding, content/download/status endpoint | Authorized original delivery dapat dipilotkan tanpa path leak | Belum |
+| P4 | Source adapter dan current artifact resolver universal | Backend memperoleh exact source tanpa menerima path browser | Selesai di source 26 September 2026 |
+| P5 | Authorization dan delivery decision ORIGINAL/WATERMARK/DENIED | Authorization ORIGINAL sudah aktif pada bridge endpoint; flag posisi dan keputusan WATERMARK/DENIED belum diimplementasikan | Sebagian: bridge ORIGINAL |
+| P6 | Delivery session, audit append-only, opaque binding, content/download/status endpoint | Opaque direct content/download ORIGINAL tersedia tanpa path leak; persistent session, status, dan audit append-only belum tersedia | Sebagian: bridge ORIGINAL tanpa session |
 | P7 | Persistent asynchronous artifact verification | Viewer tidak tertahan latency BSrE | Belum |
 | P8 | Svelte secure viewer read-only dan legacy `.view-pdf` bridge | General viewer siap desktop/tablet/mobile | Belum |
 | P9 | Pilot LS original dengan seluruh posisi masih `false` | Main viewer dan delivery contract terbukti sebelum watermark | Belum |

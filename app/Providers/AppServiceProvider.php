@@ -84,6 +84,10 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('esign-verify', function (Request $request): Limit {
             return Limit::perMinute(20)->by($this->authenticatedThrottleKey($request, 'esign-verify'));
         });
+
+        RateLimiter::for('pdf-delivery', function (Request $request): Limit {
+            return Limit::perMinute(90)->by($this->authenticatedThrottleKey($request, 'pdf-delivery'));
+        });
     }
 
     private function loginThrottleKey(Request $request): string

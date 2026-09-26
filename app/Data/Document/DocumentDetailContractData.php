@@ -12,6 +12,7 @@ final readonly class DocumentDetailContractData
     /**
      * @param  array{code: string, label: string, tone: string}  $status
      * @param  array{view: bool, sign: bool, verify: bool, download_available_in_viewer: bool}  $capabilities
+     * @param  array{content_url: string|null, download_url: string|null}  $delivery
      * @param  array{view: array{code: string, message: string}|null, sign: array{code: string, message: string}|null, verify: array{code: string, message: string}|null, download: array{code: string, message: string}|null}  $disabledReasons
      * @param  list<array<string, mixed>>  $attachments
      */
@@ -21,6 +22,7 @@ final readonly class DocumentDetailContractData
         public string $documentType,
         public array $status,
         public array $capabilities,
+        public array $delivery,
         public ?string $stepPublicId,
         public ?string $artifactPublicId,
         public DocumentDetailSourceState $sourceState,
@@ -39,6 +41,7 @@ final readonly class DocumentDetailContractData
             'document_type' => $this->documentType,
             'status' => $this->status,
             'capabilities' => $this->capabilities,
+            'delivery' => $this->delivery,
             'step_public_id' => $this->stepPublicId,
             'artifact_public_id' => $this->artifactPublicId,
             'source_state' => $this->sourceState->value,

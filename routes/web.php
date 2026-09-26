@@ -19,6 +19,7 @@ use App\Http\Controllers\Document\LsBillingDocumentDeliveryController;
 use App\Http\Controllers\Document\LsBmdDocumentDeliveryController;
 use App\Http\Controllers\Document\LsSpjDocumentDeliveryController;
 use App\Http\Controllers\Document\LsSppDocumentDeliveryController;
+use App\Http\Controllers\Document\PdfDeliveryController;
 use App\Http\Controllers\Esign\ArtifactVerificationController;
 use App\Http\Controllers\Esign\ArtifactVerificationPreviewController;
 use App\Http\Controllers\Esign\EsignAttemptController;
@@ -195,6 +196,16 @@ Route::middleware(['auth', 'account.accessible', 'single.device.session'])->grou
         });
 
         Route::prefix('document')->name('document.')->group(function (): void {
+            Route::get('/pdf/{document}/{resource}/content', [PdfDeliveryController::class, 'content'])
+                ->where('document', '[A-Za-z0-9_-]+')
+                ->where('resource', 'document|billing|spj_fungsional')
+                ->middleware('throttle:pdf-delivery')
+                ->name('pdf.content');
+            Route::get('/pdf/{document}/{resource}/download', [PdfDeliveryController::class, 'download'])
+                ->where('document', '[A-Za-z0-9_-]+')
+                ->where('resource', 'document|billing|spj_fungsional')
+                ->middleware('throttle:pdf-delivery')
+                ->name('pdf.download');
             Route::get('/ls/spp/{document}/content', [LsSppDocumentDeliveryController::class, 'content'])
                 ->where('document', '[A-Za-z0-9_-]+')
                 ->name('ls.spp.content');
