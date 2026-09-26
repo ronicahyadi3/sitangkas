@@ -13,9 +13,7 @@ use App\Enums\Document\PdfDeliveryPurpose;
 use App\Exceptions\Esign\EsignInvariantViolationException;
 use App\Models\Document;
 use App\Models\User;
-use App\Models\UserPosition;
 use App\Services\Auth\CurrentUserContext;
-use App\Services\User\ActivePositionService;
 use Illuminate\Contracts\Config\Repository as ConfigRepository;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -27,8 +25,6 @@ final class DocumentActionResolver
     public function __construct(
         private readonly PdfDeliverySource $pdfDeliverySource,
         private readonly PdfDeliveryAuthorizationService $deliveryAuthorization,
-        private readonly LegacyDocumentSigningRuleRegistry $legacySigningRules,
-        private readonly ActivePositionService $activePosition,
         private readonly CurrentUserContext $currentUserContext,
         private readonly ConfigRepository $config,
         private readonly Request $request,
@@ -129,39 +125,10 @@ final class DocumentActionResolver
             return false;
         }
 
-        if ($sourceState === DocumentDetailSourceState::Canonical) {
-            return $stepPublicId !== null
-                && $this->config->get('esign.frontend.enabled') === true
-                && $this->config->get('esign.processing.multi_operation_enabled') === true;
-        }
-
-        if (! in_array($sourceState, [
-            DocumentDetailSourceState::LegacyPrivatePending,
-            DocumentDetailSourceState::LegacyPublicPending,
-        ], true)) {
-            return false;
-        }
-
-        $effectivePosition = $this->activePosition->get();
-        if (! $effectivePosition instanceof UserPosition
-            || ! in_array(
-                (int) $effectivePosition->jabatan_id,
-                $this->legacySigningRules->signerJabatanIds($document),
-                true,
-            )) {
-            return false;
-        }
-
-        $positionId = (string) $effectivePosition->jabatan_id;
-        $assignedTo = $this->legacyIdList($document->assigned_to);
-        $submittedBy = $this->legacyIdList($document->submit);
-        $signedBy = $this->legacyIdList($document->status);
-        $hasLegacyStatus = $document->status !== null;
-
-        return (! in_array($positionId, $submittedBy, true)
-                && ! in_array($positionId, $signedBy, true)
-                && in_array($positionId, $assignedTo, true))
-            || ! $hasLegacyStatus;
+        return $sourceState === DocumentDetailSourceState::Canonical
+            && $stepPublicId !== null
+            && $this->config->get('esign.frontend.enabled') === true
+            && $this->config->get('esign.processing.multi_operation_enabled') === true;
     }
 
     private function unavailable(
@@ -237,8 +204,8 @@ final class DocumentActionResolver
         }
 
         return $this->reason(
-            'legacy_sign_not_available',
-            'TTE legacy tidak tersedia untuk posisi aktif atau keadaan dokumen ini.',
+            'canonical_signing_required',
+            'TTE tersedia setelah artifact, workflow, dan langkah signer canonical aktif.',
         );
     }
 
@@ -286,19 +253,6 @@ final class DocumentActionResolver
             'code' => $code,
             'message' => $message,
         ];
-    }
-
-    /** @return list<string> */
-    private function legacyIdList(?string $value): array
-    {
-        if (! is_string($value) || trim($value) === '') {
-            return [];
-        }
-
-        return array_values(array_filter(
-            array_map('trim', explode(',', $value)),
-            static fn (string $id): bool => ctype_digit($id),
-        ));
     }
 
     private function actionMode(DocumentDetailSourceState $sourceState): DocumentDetailActionMode

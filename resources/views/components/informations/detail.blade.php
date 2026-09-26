@@ -24,7 +24,7 @@
                                         <th class="align-middle text-center">#</th>
                                         <th class="align-middle text-center">Tanggal Update</th>
                                         <th class="align-middle text-center">Tipe File</th>
-                                        <th class="align-middle text-center">Status</th>
+                                        <th class="align-middle text-center">Status dan Aksi</th>
                                     </tr>
                                 </thead>
                                 <tbody></tbody>
@@ -113,7 +113,12 @@
                     data: "status",
                     className: "text-center",
                     orderable: false,
-                    searchable: false
+                    searchable: false,
+                    render: function(data, type, row) {
+                        return typeof window.renderDocumentDetailActions === 'function'
+                            ? window.renderDocumentDetailActions(data, type, row)
+                            : data;
+                    }
                 },
             ],
             language: {

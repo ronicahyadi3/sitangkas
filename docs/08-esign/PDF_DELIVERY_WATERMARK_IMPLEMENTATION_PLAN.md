@@ -415,7 +415,7 @@ Production harus mengonfirmasi:
 | P5 | Authorization dan delivery decision ORIGINAL/WATERMARK/DENIED | Authorization ORIGINAL sudah aktif pada bridge endpoint; flag posisi dan keputusan WATERMARK/DENIED belum diimplementasikan | Sebagian: bridge ORIGINAL |
 | P6 | Delivery session, audit append-only, opaque binding, content/download/status endpoint | Opaque direct content/download ORIGINAL tersedia tanpa path leak; persistent session, status, dan audit append-only belum tersedia | Sebagian: bridge ORIGINAL tanpa session |
 | P7 | Persistent asynchronous artifact verification | Viewer tidak tertahan latency BSrE | Belum |
-| P8 | Svelte secure viewer read-only dan legacy `.view-pdf` bridge | General viewer siap desktop/tablet/mobile | Belum |
+| P8 | Svelte secure viewer read-only dan legacy `.view-pdf` bridge | General viewer siap desktop/tablet/mobile | Sebagian: R5 viewer island dan R6 contract-ready row Detail/DetailTbp selesai di source 26 September 2026; coordinator serta cutover `.view-pdf` di luar Detail masih menunggu |
 | P9 | Pilot LS original dengan seluruh posisi masih `false` | Main viewer dan delivery contract terbukti sebelum watermark | Belum |
 | P10 | COPY-ID, profile, overlay renderer, qpdf validation, private storage | Satu derivative dapat dibuat tanpa mengubah original | Belum |
 | P11 | Cache fingerprint, lock, atomic publish, job, retry, dan cleanup | Concurrent generation idempotent dan resumable | Belum |

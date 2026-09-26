@@ -16,7 +16,8 @@
                     </div>
                     <div class="card-body">
                         <div class="table-responsive">
-                            <table class="table table-flush" id="detailTbpTable">
+                            <table class="table table-flush" id="detailTbpTable"
+                                data-esign-refresh-on-complete>
                                 <thead class="thead-light">
                                     <tr>
                                         <th class="align-middle text-center">#</th>
@@ -113,6 +114,11 @@
                     orderable: false,
                     searchable: false,
                     defaultContent: '-',
+                    render: function(data, type, row) {
+                        return typeof window.renderDocumentDetailActions === 'function'
+                            ? window.renderDocumentDetailActions(data, type, row)
+                            : data;
+                    }
                 },
             ],
             language: {

@@ -252,7 +252,9 @@ final class DocumentDetailContractBuilder
             ],
             'sign' => [
                 'allowed' => $action->canSign,
-                'mode' => $action->actionMode->value,
+                'mode' => $action->canSign
+                    ? DocumentDetailActionMode::Canonical->value
+                    : DocumentDetailActionMode::None->value,
                 'step_public_id' => $action->stepPublicId,
                 'reason' => $action->signDisabledReason,
             ],

@@ -11,7 +11,13 @@ import './realtime-presence';
 import { installEsignActionBridge } from './esign/action-bridge';
 import { installEsignIslandLoader } from './esign/island-loader';
 import { installEsignPageAdapter } from './esign/page-adapter';
+import { installPdfViewerIslandLoader } from './documents/pdf-viewer/island-loader';
+import { installPdfViewerActionBridge } from './documents/pdf-viewer/action-bridge';
+import { installDocumentDetailActionRenderer } from './documents/detail-action-renderer';
 
 installEsignIslandLoader();
 installEsignActionBridge();
 installEsignPageAdapter();
+installPdfViewerIslandLoader();
+installPdfViewerActionBridge();
+installDocumentDetailActionRenderer();

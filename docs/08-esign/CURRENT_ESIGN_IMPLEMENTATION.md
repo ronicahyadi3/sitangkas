@@ -1276,9 +1276,51 @@ keputusan sendiri.
 
 R4 belum memindahkan tombol atau menghapus HTML legacy. Matriks numeric jabatan
 legacy tetap transitional di `LegacyDocumentSigningRuleRegistry`, sedangkan
-canonical signing action yang benar-benar lengkap masih LS SPP. General viewer
-Svelte, modal coordinator, pemindahan action ke row Detail, dan rollout lintas
-payment tetap R5 dan seterusnya.
+canonical signing action yang benar-benar lengkap masih LS SPP.
+
+R5 general secure PDF viewer selesai di source pada 26 September 2026 sebagai
+Svelte island read-only yang terpisah dari state machine editor TTE. Island
+dimount satu kali oleh layout dan di-load secara lazy melalui event
+`sitangkas:pdf-viewer:open`. Payload hanya diterima bila action view R4 aktif,
+URL same-origin cocok dengan route delivery universal, resource key termasuk
+allowlist, serta kontrak download/verification konsisten. Viewer mengambil PDF
+binary `application/pdf` tanpa Base64, memakai PDF.js worker lokal, lazy-render
+halaman/canvas, thumbnail, navigasi, zoom, active-page tracking, dan cleanup
+request/document ketika modal ditutup.
+
+Panel informasi memuat validasi artifact secara paralel sehingga kegagalan atau
+latensi validasi tidak menahan tampilan PDF. Hasil menampilkan status TTE,
+jumlah dan identitas signer, waktu, serta integritas; tombol download hanya
+muncul dari action `download.allowed=true`. Layout memakai Bootstrap 5/custom
+Argon, panel desktop, drawer tablet, workspace penuh mobile, dan dark-mode.
+Event `sitangkas:pdf-viewer:closed` sudah tersedia untuk modal coordinator.
+
+R5 belum mengganti tombol `.view-pdf`, direct download legacy, atau action pada
+row Detail/DetailTbp. Integrasi trigger, modal coordinator, dan cutover bertahap
+tetap R6 dan seterusnya agar layanan lama tidak terputus sebelum replacement
+terhubung.
+
+R6 integrasi action row Detail Dokumen selesai di source pada 26 September
+2026. `detail.blade.php` dan `detailTbp.blade.php` sekarang merender kolom
+status/action dari `document_contract` R4 melalui satu renderer frontend.
+Dokumen utama, Billing, dan SPJ Fungsional membuka secure viewer R5 memakai
+payload terenkode yang divalidasi ulang oleh action bridge. Tombol download
+langsung tidak lagi dirender pada row canonical/contract-ready karena download
+hanya tersedia di dalam viewer sesuai `actions.download`.
+
+Action TTE canonical hanya dirender bila backend mengirim
+`sign.allowed=true`, `mode=canonical`, dan `step_public_id`; kliknya memakai
+bridge editor TTE yang sudah ada. Untuk source `legacy_transition`, renderer
+hanya mempertahankan tombol `.signModal` lama bila action sign authoritative
+memang mengizinkan. Jika `document_contract` belum ada atau tidak dikenali,
+seluruh HTML lama dipertahankan sebagai fallback rollout agar pelayanan tidak
+terputus. Kedua tabel ikut refresh tanpa reset halaman setelah event TTE sukses.
+
+R6 belum menjadi modal coordinator. Pada R7, modal Detail harus disembunyikan
+sebelum secure viewer/editor dibuka, context paket disimpan, lalu Detail dibuka
+kembali dan direfresh setelah surface anak ditutup atau TTE selesai. Cutover
+`.view-pdf` di luar Detail/DetailTbp serta penghapusan response HTML legacy
+tetap dilakukan bertahap setelah gate tiap payment lulus.
 
 Pilot real, aktivasi feature flag operasional, public verification, dan rollout
 tetap menunggu gate backend terkait. Urutan rinci berada di
