@@ -85,10 +85,7 @@ final class PdfDeliveryAuthorizationService
         }
 
         if ($roleCode === 'ADMIN_SUPER'
-            || $this->positionIdentityResolver->contains(
-                $realPosition,
-                (int) $document->uploaded_by,
-            )
+            || $this->matchesUploader($document, $realPosition)
             || $this->organizationScope->containsUnit(
                 $effectivePosition,
                 $document->id_unit_kerja,
@@ -98,6 +95,25 @@ final class PdfDeliveryAuthorizationService
         }
 
         return $this->notFound();
+    }
+
+    private function matchesUploader(
+        Document $document,
+        UserPosition $realPosition,
+    ): bool {
+        $uploadedByPositionId = (int) ($document->uploaded_by ?? 0);
+        if ($uploadedByPositionId < 1) {
+            return false;
+        }
+
+        try {
+            return $this->positionIdentityResolver->contains(
+                $realPosition,
+                $uploadedByPositionId,
+            );
+        } catch (\LogicException|\InvalidArgumentException) {
+            return false;
+        }
     }
 
     private function matchesLegacyAssignment(

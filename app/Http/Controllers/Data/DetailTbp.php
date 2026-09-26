@@ -7,6 +7,7 @@ namespace App\Http\Controllers\Data;
 use App\Enums\Esign\DocumentArtifactType;
 use App\Http\Controllers\Controller;
 use App\Models\Document;
+use App\Models\User;
 use App\Models\UserPosition;
 use App\Services\Document\DocumentDetailContractBuilder;
 use App\Services\Document\DocumentOrganizationScope;
@@ -54,6 +55,14 @@ class DetailTbp extends Controller
         }
 
         $position = $activePosition->get();
+        $actor = $request->user();
+        if (! $actor instanceof User) {
+            return response()->json([
+                'status' => 401,
+                'message' => 'Sesi pengguna tidak valid',
+            ], 401);
+        }
+
         if (! $position || ! $position->jabatan) {
             return response()->json([
                 'status' => 403,
@@ -130,11 +139,10 @@ class DetailTbp extends Controller
 
         return DataTables::of($tbpQuery)
             ->addIndexColumn()
-            ->addColumn('document_contract', function (Document $row) use ($position): array {
+            ->addColumn('document_contract', function (Document $row) use ($actor): array {
                 return $this->documentDetailContractBuilder->build(
                     document: $row,
-                    legacyCanSign: false,
-                    canDownload: (string) $position->jabatan?->kode !== 'AUDITOR',
+                    actor: $actor,
                 )->toArray();
             })
             ->addColumn('action', function (object $row): string {

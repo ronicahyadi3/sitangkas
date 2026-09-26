@@ -1256,6 +1256,30 @@ request, cutover tombol legacy, dan penutupan static `/File_*` tetap tahap
 berikutnya. Karena itu route lama tidak dihapus dan enforcement watermark belum
 boleh dinyatakan aktif.
 
+R4 action/capability resolver universal selesai di source pada 26 September
+2026. `DocumentActionResolver` sekarang menjadi pengambil keputusan backend
+untuk `view`, `download`, `verify`, dan `sign` pada dokumen utama, Billing, serta
+SPJ Fungsional. Resolver memakai source R3, authorization delivery yang sama
+dengan endpoint binary, user/posisi/tahun aktif, status acting, feature flag,
+exact canonical `step_public_id`, dan registry aturan signer legacy. Admin Super
+dalam konteks acting selalu memperoleh `sign.allowed=false`; attachment tidak
+pernah signable.
+
+`document_contract` tetap mempertahankan `capabilities`, `delivery`, dan
+`disabled_reasons` versi transisi, tetapi sekarang juga memuat objek `actions`
+authoritative. Setiap action berisi `allowed`, URL atau canonical public ID yang
+relevan, mode `canonical|legacy_transition|none`, serta safe disabled reason.
+Tidak ada disk/path fisik yang diserialisasi. `Data\Detail` dan
+`Data\DetailTbp` tidak lagi mengirim keputusan `legacyCanSign` atau
+`canDownload` ke builder; keduanya memberikan actor dan resolver menghitung
+keputusan sendiri.
+
+R4 belum memindahkan tombol atau menghapus HTML legacy. Matriks numeric jabatan
+legacy tetap transitional di `LegacyDocumentSigningRuleRegistry`, sedangkan
+canonical signing action yang benar-benar lengkap masih LS SPP. General viewer
+Svelte, modal coordinator, pemindahan action ke row Detail, dan rollout lintas
+payment tetap R5 dan seterusnya.
+
 Pilot real, aktivasi feature flag operasional, public verification, dan rollout
 tetap menunggu gate backend terkait. Urutan rinci berada di
 `ESIGN_FRONTEND_IMPLEMENTATION_AND_LEGACY_MIGRATION_PLAN.md`.

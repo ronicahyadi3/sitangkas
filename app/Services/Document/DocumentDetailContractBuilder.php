@@ -6,99 +6,68 @@ namespace App\Services\Document;
 
 use App\Contracts\Document\PdfDeliverySource;
 use App\Data\Document\DocumentDetailContractData;
+use App\Data\Document\DocumentResourceActionData;
 use App\Data\Document\ResolvedPdfDeliverySource;
-use App\Enums\Document\DocumentDetailActionMode;
 use App\Enums\Document\DocumentDetailSourceState;
 use App\Enums\Esign\DocumentArtifactType;
-use App\Exceptions\Esign\EsignInvariantViolationException;
 use App\Models\Document;
+use App\Models\User;
 use App\Support\EncryptedId;
-use Illuminate\Contracts\Config\Repository as ConfigRepository;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
-use InvalidArgumentException;
 
 final class DocumentDetailContractBuilder
 {
     public function __construct(
-        private readonly ConfigRepository $config,
-        private readonly PdfDeliverySource $pdfDeliverySource,
+        private readonly DocumentActionResolver $actionResolver,
     ) {}
 
     public function build(
         Document $document,
-        bool $legacyCanSign,
-        bool $canDownload,
+        User $actor,
         ?string $stepPublicId = null,
     ): DocumentDetailContractData {
-        [$resolvedSource, $sourceResolutionFailed] = $this->resolveSource(
+        $action = $this->actionResolver->resolve(
             $document,
+            $actor,
             PdfDeliverySource::RESOURCE_DOCUMENT,
+            $stepPublicId,
         );
-        $artifactPublicId = $resolvedSource?->artifactPublicId;
-        $sourceState = $resolvedSource?->sourceState ?? DocumentDetailSourceState::Unavailable;
-        $actionMode = match ($sourceState) {
-            DocumentDetailSourceState::Canonical => DocumentDetailActionMode::Canonical,
-            DocumentDetailSourceState::LegacyPrivatePending,
-            DocumentDetailSourceState::LegacyPublicPending => DocumentDetailActionMode::LegacyTransition,
-            DocumentDetailSourceState::Unavailable => DocumentDetailActionMode::None,
-        };
-        $resolvedStepPublicId = $this->uuidOrNull($stepPublicId);
-        $canView = $sourceState !== DocumentDetailSourceState::Unavailable;
-        $canSign = match ($actionMode) {
-            DocumentDetailActionMode::Canonical => $resolvedStepPublicId !== null,
-            DocumentDetailActionMode::LegacyTransition => $legacyCanSign,
-            DocumentDetailActionMode::None => false,
-        };
-        $canVerify = $sourceState === DocumentDetailSourceState::Canonical
-            && $artifactPublicId !== null
-            && $this->config->get('esign.frontend.enabled') === true;
-        $downloadAvailableInViewer = $canView && $canDownload;
         $encryptedDocumentId = EncryptedId::encode((int) $document->getKey());
 
         return new DocumentDetailContractData(
             documentId: $encryptedDocumentId,
             paymentType: Str::upper(trim((string) ($document->payment_type ?? ''))),
             documentType: Str::upper(trim((string) ($document->src_type ?? ''))),
-            status: $this->status($document, $resolvedSource, $sourceState, $canSign),
+            status: $this->status(
+                $document,
+                $action->source,
+                $action->sourceState,
+                $action->canSign,
+            ),
             capabilities: [
-                'view' => $canView,
-                'sign' => $canSign,
-                'verify' => $canVerify,
-                'download_available_in_viewer' => $downloadAvailableInViewer,
+                'view' => $action->canView,
+                'sign' => $action->canSign,
+                'verify' => $action->canVerify,
+                'download_available_in_viewer' => $action->canDownload,
             ],
             delivery: $this->deliveryUrls(
                 $encryptedDocumentId,
                 PdfDeliverySource::RESOURCE_DOCUMENT,
-                $canView,
-                $downloadAvailableInViewer,
+                $action->canView,
+                $action->canDownload,
             ),
-            stepPublicId: $canSign && $actionMode === DocumentDetailActionMode::Canonical
-                ? $resolvedStepPublicId
-                : null,
-            artifactPublicId: $artifactPublicId,
-            sourceState: $sourceState,
-            actionMode: $actionMode,
+            actions: $this->actions($action, $encryptedDocumentId),
+            stepPublicId: $action->stepPublicId,
+            artifactPublicId: $action->artifactPublicId,
+            sourceState: $action->sourceState,
+            actionMode: $action->actionMode,
             disabledReasons: [
-                'view' => $canView ? null : $this->reason(
-                    $sourceResolutionFailed
-                        ? 'document_source_invalid'
-                        : 'document_source_unavailable',
-                    $sourceResolutionFailed
-                        ? 'Sumber dokumen memerlukan pemeriksaan administrator.'
-                        : 'Sumber dokumen belum tersedia untuk ditampilkan.',
-                ),
-                'sign' => $canSign ? null : $this->signDisabledReason(
-                    $sourceState,
-                    $sourceResolutionFailed,
-                ),
-                'verify' => $canVerify ? null : $this->verificationDisabledReason($sourceState),
-                'download' => $downloadAvailableInViewer ? null : $this->downloadDisabledReason(
-                    $canView,
-                    $canDownload,
-                ),
+                'view' => $action->viewDisabledReason,
+                'sign' => $action->signDisabledReason,
+                'verify' => $action->verifyDisabledReason,
+                'download' => $action->downloadDisabledReason,
             ],
-            attachments: $this->attachments($document, $canDownload),
+            attachments: $this->attachments($document, $actor),
         );
     }
 
@@ -148,37 +117,35 @@ final class DocumentDetailContractBuilder
     }
 
     /** @return list<array<string, mixed>> */
-    private function attachments(Document $document, bool $canDownload): array
+    private function attachments(Document $document, User $actor): array
     {
         $attachments = [];
 
         if (filled($document->billing ?? null)) {
-            [$source, $resolutionFailed] = $this->resolveSource(
+            $action = $this->actionResolver->resolve(
                 $document,
+                $actor,
                 PdfDeliverySource::RESOURCE_BILLING,
             );
             $attachments[] = $this->attachment(
                 document: $document,
                 key: 'billing',
                 label: 'Billing',
-                source: $source,
-                resolutionFailed: $resolutionFailed,
-                canDownload: $canDownload,
+                action: $action,
             );
         }
 
         if (filled($document->spj_fungsional ?? null)) {
-            [$source, $resolutionFailed] = $this->resolveSource(
+            $action = $this->actionResolver->resolve(
                 $document,
+                $actor,
                 PdfDeliverySource::RESOURCE_SPJ_FUNCTIONAL,
             );
             $attachments[] = $this->attachment(
                 document: $document,
                 key: 'spj_fungsional',
                 label: 'SPJ Fungsional',
-                source: $source,
-                resolutionFailed: $resolutionFailed,
-                canDownload: $canDownload,
+                action: $action,
             );
         }
 
@@ -190,57 +157,34 @@ final class DocumentDetailContractBuilder
         Document $document,
         string $key,
         string $label,
-        ?ResolvedPdfDeliverySource $source,
-        bool $resolutionFailed,
-        bool $canDownload,
+        DocumentResourceActionData $action,
     ): array {
-        $artifactPublicId = $source?->artifactPublicId;
-        $sourceState = $source?->sourceState ?? DocumentDetailSourceState::Unavailable;
-        $canView = $sourceState !== DocumentDetailSourceState::Unavailable;
-        $canVerify = $sourceState === DocumentDetailSourceState::Canonical
-            && $this->config->get('esign.frontend.enabled') === true;
-        $downloadAvailableInViewer = $canView && $canDownload;
+        $encryptedDocumentId = EncryptedId::encode((int) $document->getKey());
 
         return [
             'key' => $key,
             'label' => $label,
-            'artifact_public_id' => $artifactPublicId,
-            'source_state' => $sourceState->value,
-            'action_mode' => $sourceState === DocumentDetailSourceState::Canonical
-                ? DocumentDetailActionMode::Canonical->value
-                : ($sourceState === DocumentDetailSourceState::Unavailable
-                    ? DocumentDetailActionMode::None->value
-                    : DocumentDetailActionMode::LegacyTransition->value),
+            'artifact_public_id' => $action->artifactPublicId,
+            'source_state' => $action->sourceState->value,
+            'action_mode' => $action->actionMode->value,
             'capabilities' => [
-                'view' => $canView,
-                'sign' => false,
-                'verify' => $canVerify,
-                'download_available_in_viewer' => $downloadAvailableInViewer,
+                'view' => $action->canView,
+                'sign' => $action->canSign,
+                'verify' => $action->canVerify,
+                'download_available_in_viewer' => $action->canDownload,
             ],
             'delivery' => $this->deliveryUrls(
-                EncryptedId::encode((int) $document->getKey()),
+                $encryptedDocumentId,
                 $key,
-                $canView,
-                $downloadAvailableInViewer,
+                $action->canView,
+                $action->canDownload,
             ),
+            'actions' => $this->actions($action, $encryptedDocumentId),
             'disabled_reasons' => [
-                'view' => $canView ? null : $this->reason(
-                    $resolutionFailed
-                        ? 'document_attachment_invalid'
-                        : 'document_attachment_unavailable',
-                    $resolutionFailed
-                        ? 'Sumber lampiran memerlukan pemeriksaan administrator.'
-                        : 'Sumber lampiran belum tersedia untuk ditampilkan.',
-                ),
-                'sign' => $this->reason(
-                    'document_attachment_not_signable',
-                    'Lampiran ini tidak tersedia untuk proses TTE.',
-                ),
-                'verify' => $canVerify ? null : $this->verificationDisabledReason($sourceState),
-                'download' => $downloadAvailableInViewer ? null : $this->downloadDisabledReason(
-                    $canView,
-                    $canDownload,
-                ),
+                'view' => $action->viewDisabledReason,
+                'sign' => $action->signDisabledReason,
+                'verify' => $action->verifyDisabledReason,
+                'download' => $action->downloadDisabledReason,
             ],
         ];
     }
@@ -267,105 +211,51 @@ final class DocumentDetailContractBuilder
         ];
     }
 
-    /** @return array{code: string, message: string} */
-    private function signDisabledReason(
-        DocumentDetailSourceState $sourceState,
-        bool $sourceResolutionFailed,
+    /** @return array<string, array<string, mixed>> */
+    private function actions(
+        DocumentResourceActionData $action,
+        string $encryptedDocumentId,
     ): array {
-        if ($sourceResolutionFailed) {
-            return $this->reason(
-                'document_source_invalid',
-                'Sumber dokumen memerlukan pemeriksaan administrator.',
-            );
-        }
-
-        return match ($sourceState) {
-            DocumentDetailSourceState::Canonical => $this->reason(
-                'document_step_not_signable',
-                'Dokumen belum berada pada langkah TTE aktif pengguna ini.',
-            ),
-            DocumentDetailSourceState::LegacyPrivatePending,
-            DocumentDetailSourceState::LegacyPublicPending => $this->reason(
-                'legacy_sign_not_available',
-                'TTE legacy tidak tersedia untuk posisi aktif atau keadaan dokumen ini.',
-            ),
-            DocumentDetailSourceState::Unavailable => $this->reason(
-                'document_source_unavailable',
-                'Sumber dokumen belum tersedia untuk proses TTE.',
-            ),
-        };
-    }
-
-    /** @return array{code: string, message: string} */
-    private function verificationDisabledReason(DocumentDetailSourceState $sourceState): array
-    {
-        if ($sourceState !== DocumentDetailSourceState::Canonical) {
-            return $this->reason(
-                'canonical_artifact_required',
-                'Validasi tersedia setelah dokumen mempunyai artifact canonical.',
-            );
-        }
-
-        return $this->reason(
-            'esign_frontend_disabled',
-            'Fitur validasi dokumen belum diaktifkan.',
+        $delivery = $this->deliveryUrls(
+            $encryptedDocumentId,
+            $action->resourceKey,
+            $action->canView,
+            $action->canDownload,
         );
-    }
+        $artifactPublicId = $action->canVerify ? $action->artifactPublicId : null;
 
-    /** @return array{code: string, message: string} */
-    private function downloadDisabledReason(bool $canView, bool $canDownload): array
-    {
-        if (! $canView) {
-            return $this->reason(
-                'document_source_unavailable',
-                'Sumber dokumen belum tersedia untuk diunduh.',
-            );
-        }
-
-        if (! $canDownload) {
-            return $this->reason(
-                'document_download_not_authorized',
-                'Posisi aktif tidak diizinkan mengunduh dokumen.',
-            );
-        }
-
-        return $this->reason(
-            'document_download_unavailable',
-            'Dokumen belum tersedia untuk diunduh dari viewer.',
-        );
-    }
-
-    /** @return array{code: string, message: string} */
-    private function reason(string $code, string $message): array
-    {
         return [
-            'code' => $code,
-            'message' => $message,
+            'view' => [
+                'allowed' => $action->canView,
+                'url' => $delivery['content_url'],
+                'reason' => $action->viewDisabledReason,
+            ],
+            'download' => [
+                'allowed' => $action->canDownload,
+                'url' => $delivery['download_url'],
+                'reason' => $action->downloadDisabledReason,
+            ],
+            'verify' => [
+                'allowed' => $action->canVerify,
+                'artifact_public_id' => $artifactPublicId,
+                'verification_url' => $artifactPublicId !== null
+                    ? route('esign.internal.artifacts.verification.show', [
+                        'documentArtifact' => $artifactPublicId,
+                    ])
+                    : null,
+                'preview_url' => $artifactPublicId !== null
+                    ? route('esign.internal.artifacts.verification.preview', [
+                        'documentArtifact' => $artifactPublicId,
+                    ])
+                    : null,
+                'reason' => $action->verifyDisabledReason,
+            ],
+            'sign' => [
+                'allowed' => $action->canSign,
+                'mode' => $action->actionMode->value,
+                'step_public_id' => $action->stepPublicId,
+                'reason' => $action->signDisabledReason,
+            ],
         ];
-    }
-
-    private function uuidOrNull(mixed $value): ?string
-    {
-        return is_string($value) && Str::isUuid($value) ? $value : null;
-    }
-
-    /**
-     * @return array{0: ResolvedPdfDeliverySource|null, 1: bool}
-     */
-    private function resolveSource(Document $document, string $resourceKey): array
-    {
-        try {
-            return [$this->pdfDeliverySource->resolve($document, $resourceKey), false];
-        } catch (EsignInvariantViolationException|InvalidArgumentException $exception) {
-            Log::channel('module_document_data')->warning('Document PDF source invariant failed', [
-                'document_id' => (int) $document->getKey(),
-                'resource_key' => $resourceKey,
-                'error_code' => $exception instanceof EsignInvariantViolationException
-                    ? $exception->invariantCode
-                    : $exception->getMessage(),
-            ]);
-
-            return [null, true];
-        }
     }
 }

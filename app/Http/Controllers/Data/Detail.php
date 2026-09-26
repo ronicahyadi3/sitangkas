@@ -485,13 +485,10 @@ class Detail extends Controller
 
         return DataTables::of($dataQuery)
             ->addIndexColumn()
-            ->addColumn('document_contract', function (Document $data) use ($userLevel): array {
-                $authority = $this->findTypeFiles($data);
-
+            ->addColumn('document_contract', function (Document $data) use ($actor): array {
                 return $this->documentDetailContractBuilder->build(
                     document: $data,
-                    legacyCanSign: $this->canUseLegacySigning($userLevel, $data, $authority),
-                    canDownload: $userLevel !== 13,
+                    actor: $actor,
                     stepPublicId: is_string($data->esign_step_public_id ?? null)
                         ? $data->esign_step_public_id
                         : null,
@@ -746,26 +743,6 @@ class Detail extends Controller
         }
 
         return array_values(array_filter(explode(',', $csv), fn ($v) => $v !== ''));
-    }
-
-    /**
-     * @param  array{id_jabatan: list<int>, path: string}  $authority
-     */
-    private function canUseLegacySigning(int $positionId, object $document, array $authority): bool
-    {
-        if (! in_array($positionId, $authority['id_jabatan'], true)) {
-            return false;
-        }
-
-        $hasLegacyStatus = ($document->status ?? null) !== null;
-        $assignedTo = $this->csvToArray($document->assigned_to ?? null);
-        $submit = $this->csvToArray($document->submit ?? null);
-        $status = $this->csvToArray($document->status ?? null);
-
-        return (! in_array((string) $positionId, $submit, true)
-                && ! in_array((string) $positionId, $status, true)
-                && in_array((string) $positionId, $assignedTo, true))
-            || ! $hasLegacyStatus;
     }
 
     private function applyLsParentUnitDetailScope($query, int $userLevel, ?int $scopeUnitId): void

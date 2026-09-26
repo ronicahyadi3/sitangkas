@@ -65,6 +65,34 @@ export interface DocumentPdfDeliveryLinks {
     download_url: string | null;
 }
 
+export interface DocumentDetailUrlAction {
+    allowed: boolean;
+    url: string | null;
+    reason: DocumentDetailDisabledReason | null;
+}
+
+export interface DocumentDetailVerifyAction {
+    allowed: boolean;
+    artifact_public_id: Uuid | null;
+    verification_url: string | null;
+    preview_url: string | null;
+    reason: DocumentDetailDisabledReason | null;
+}
+
+export interface DocumentDetailSignAction {
+    allowed: boolean;
+    mode: DocumentDetailActionMode;
+    step_public_id: Uuid | null;
+    reason: DocumentDetailDisabledReason | null;
+}
+
+export interface DocumentDetailActions {
+    view: DocumentDetailUrlAction;
+    download: DocumentDetailUrlAction;
+    verify: DocumentDetailVerifyAction;
+    sign: DocumentDetailSignAction;
+}
+
 export interface DocumentDetailAttachmentContract {
     key: 'billing' | 'spj_fungsional';
     label: string;
@@ -73,6 +101,7 @@ export interface DocumentDetailAttachmentContract {
     action_mode: DocumentDetailActionMode;
     capabilities: DocumentDetailCapabilities;
     delivery: DocumentPdfDeliveryLinks;
+    actions: DocumentDetailActions;
     disabled_reasons: DocumentDetailDisabledReasons;
 }
 
@@ -84,6 +113,7 @@ export interface DocumentDetailContract {
     status: DocumentDetailStatus;
     capabilities: DocumentDetailCapabilities;
     delivery: DocumentPdfDeliveryLinks;
+    actions: DocumentDetailActions;
     step_public_id: Uuid | null;
     artifact_public_id: Uuid | null;
     source_state: DocumentDetailSourceState;
