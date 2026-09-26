@@ -93,11 +93,14 @@ export interface DocumentDetailActions {
     sign: DocumentDetailSignAction;
 }
 
+export type PdfDeliveryMode = 'original' | 'identified_watermarked' | 'public_watermarked';
+
 export interface DocumentDetailAttachmentContract {
     key: 'billing' | 'spj_fungsional';
     label: string;
     artifact_public_id: Uuid | null;
     source_state: DocumentDetailSourceState;
+    delivery_mode: PdfDeliveryMode;
     action_mode: DocumentDetailActionMode;
     capabilities: DocumentDetailCapabilities;
     delivery: DocumentPdfDeliveryLinks;
@@ -117,6 +120,7 @@ export interface DocumentDetailContract {
     step_public_id: Uuid | null;
     artifact_public_id: Uuid | null;
     source_state: DocumentDetailSourceState;
+    delivery_mode: PdfDeliveryMode;
     action_mode: DocumentDetailActionMode;
     disabled_reasons: DocumentDetailDisabledReasons;
     attachments: DocumentDetailAttachmentContract[];

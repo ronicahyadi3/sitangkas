@@ -196,7 +196,6 @@ class NPD extends Controller
                         };
 
                         return '<span type="button" class="btn btn-sm btn-danger show-document"'
-                            .' data-url="/File_NPD/'.$row->src_name_npd.'"'
                             .' data-id="'.$enc.'"'
                             .' data-wenk="'.e((string) $row->notes_npd).'"'
                             .' data-wenk-color="red"'
@@ -212,8 +211,6 @@ class NPD extends Controller
                             : '/File_NPD/'.$row->src_name_npd;
 
                         return '<span type="button" class="btn btn-sm btn-info show-document"'
-                            .' data-url="'.$fileUrl.'"'
-                            .' data-files="'.$row->src_name_npd.'"'
                             .' data-id="'.$enc.'"'
                             .' data-wenk="Tampilkan Dokumen"'
                             .' data-wenk-color="blue"'
@@ -227,8 +224,6 @@ class NPD extends Controller
                             : '/File_NPD/'.$row->src_name_npd;
 
                         return '<span type="button" class="btn btn-sm btn-primary show-document"'
-                            .' data-url="'.$fileUrl.'"'
-                            .' data-files="'.$row->src_name_npd.'"'
                             .' data-id="'.$enc.'"'
                             .' data-wenk="Telah Submit"'
                             .' data-wenk-color="blue"'
@@ -246,8 +241,6 @@ class NPD extends Controller
                     if (! $alreadySigned) {
                         return '<span type="button" class="btn btn-sm btn-warning show-document"'
                             .' data-status="0"'
-                            .' data-url="'.$fileUrl.'"'
-                            .' data-files="'.$row->src_name_npd.'"'
                             .' data-id="'.$enc.'"'
                             .' data-wenk="Belum TTE"'
                             .' data-wenk-color="orange"'
@@ -256,8 +249,6 @@ class NPD extends Controller
                     } else {
                         return '<span type="button" class="btn btn-sm btn-secondary show-document"'
                             .' data-status="1"'
-                            .' data-url="'.$fileUrl.'"'
-                            .' data-files="'.$row->src_name_npd.'"'
                             .' data-id="'.$enc.'"'
                             .' data-wenk="Sudah TTE"'
                             .' data-wenk-color="blue"'

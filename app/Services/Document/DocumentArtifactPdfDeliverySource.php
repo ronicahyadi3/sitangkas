@@ -44,8 +44,26 @@ final class DocumentArtifactPdfDeliverySource implements PdfDeliverySource
 
         $this->assertCanonicalMetadata($document, $artifact, $resourceKey);
 
+        return $this->resolvedSource($document, $artifact, $resourceKey);
+    }
+
+    public function resolveHistoricalArtifact(
+        Document $document,
+        DocumentArtifact $artifact,
+    ): ResolvedPdfDeliverySource {
+        $this->assertHistoricalCanonicalMetadata($document, $artifact);
+
+        return $this->resolvedSource($document, $artifact, 'history');
+    }
+
+    private function resolvedSource(
+        Document $document,
+        DocumentArtifact $artifact,
+        string $resourceKey,
+    ): ResolvedPdfDeliverySource {
+
         return new ResolvedPdfDeliverySource(
-            resourceType: $resourceKey === self::RESOURCE_DOCUMENT
+            resourceType: in_array($resourceKey, [self::RESOURCE_DOCUMENT, 'history'], true)
                 ? 'document_artifact'
                 : 'document_attachment_artifact',
             resourceKey: $resourceKey,
@@ -114,12 +132,36 @@ final class DocumentArtifactPdfDeliverySource implements PdfDeliverySource
         DocumentArtifact $artifact,
         string $resourceKey,
     ): void {
+        $this->assertArtifactMetadata($document, $artifact);
+
+        if (! $this->hasExpectedArtifactIdentity($artifact, $resourceKey)) {
+            throw new EsignInvariantViolationException('pdf_delivery_canonical_metadata_invalid');
+        }
+    }
+
+    private function assertHistoricalCanonicalMetadata(
+        Document $document,
+        DocumentArtifact $artifact,
+    ): void {
+        $this->assertArtifactMetadata($document, $artifact);
+
+        if (! in_array($artifact->artifact_type, [
+            DocumentArtifactType::BeforeSign,
+            DocumentArtifactType::AfterSign,
+        ], true)) {
+            throw new EsignInvariantViolationException('pdf_delivery_history_artifact_invalid');
+        }
+    }
+
+    private function assertArtifactMetadata(
+        Document $document,
+        DocumentArtifact $artifact,
+    ): void {
         $storageDisk = (string) $artifact->storage_disk;
         $filePath = (string) $artifact->file_path;
 
         if ((int) $artifact->document_id !== (int) $document->getKey()
             || ! ($artifact->artifact_type instanceof DocumentArtifactType)
-            || ! $this->hasExpectedArtifactIdentity($artifact, $resourceKey)
             || ! Str::isUuid((string) $artifact->public_id)
             || $storageDisk !== 'private'
             || $filePath === ''

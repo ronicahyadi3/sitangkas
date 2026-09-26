@@ -6,6 +6,7 @@ namespace App\Data\Document;
 
 use App\Enums\Document\DocumentDetailActionMode;
 use App\Enums\Document\DocumentDetailSourceState;
+use App\Enums\Document\PdfDeliveryMode;
 
 final readonly class DocumentDetailContractData
 {
@@ -28,6 +29,7 @@ final readonly class DocumentDetailContractData
         public ?string $stepPublicId,
         public ?string $artifactPublicId,
         public DocumentDetailSourceState $sourceState,
+        public PdfDeliveryMode $deliveryMode,
         public DocumentDetailActionMode $actionMode,
         public array $disabledReasons,
         public array $attachments,
@@ -48,6 +50,7 @@ final readonly class DocumentDetailContractData
             'step_public_id' => $this->stepPublicId,
             'artifact_public_id' => $this->artifactPublicId,
             'source_state' => $this->sourceState->value,
+            'delivery_mode' => $this->deliveryMode->value,
             'action_mode' => $this->actionMode->value,
             'disabled_reasons' => $this->disabledReasons,
             'attachments' => $this->attachments,

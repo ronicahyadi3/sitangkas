@@ -94,7 +94,6 @@
     ])
     @include('components.informations.history')
     @unless ($isAuditor)
-        @include('components.informations.pdfview')
         @include('components.confirmations.denied')
         @include('components.confirmations.delete')
         @include('components.confirmations.submit', [

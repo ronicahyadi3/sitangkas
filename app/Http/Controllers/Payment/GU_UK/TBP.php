@@ -213,7 +213,6 @@ class TBP extends Controller
                         };
 
                         return '<span type="button" class="btn btn-sm btn-danger show-document"'
-                            .' data-url="/File_TBP/'.$row->src_name.'"'
                             .' data-id="'.$encRef.'"'
                             .' data-wenk="'.e((string) $row->notes).'"'
                             .' data-wenk-color="red"'
@@ -227,8 +226,6 @@ class TBP extends Controller
 
                     if (! in_array($jabatanId, [10, 6], true)) {
                         return '<span type="button" class="btn btn-sm btn-info show-document"'
-                            .' data-url="'.$fileUrl.'"'
-                            .' data-files="'.$row->src_name.'"'
                             .' data-id="'.$encRef.'"'
                             .' data-wenk="Tampilkan Dokumen"'
                             .' data-wenk-color="blue"'
@@ -238,8 +235,6 @@ class TBP extends Controller
 
                     if ($submittedByViewer) {
                         return '<span type="button" class="btn btn-sm btn-primary show-document"'
-                            .' data-url="'.$fileUrl.'"'
-                            .' data-files="'.$row->src_name.'"'
                             .' data-id="'.$encRef.'"'
                             .' data-wenk="Telah Submit"'
                             .' data-wenk-color="blue"'
@@ -253,8 +248,6 @@ class TBP extends Controller
                     if (! $alreadySigned) {
                         return '<span type="button" class="btn btn-sm btn-warning show-document"'
                             .' data-status="0"'
-                            .' data-url="'.$fileUrl.'"'
-                            .' data-files="'.$row->src_name.'"'
                             .' data-id="'.$encRef.'"'
                             .' data-wenk="Belum TTE"'
                             .' data-wenk-color="orange"'
@@ -264,8 +257,6 @@ class TBP extends Controller
 
                     return '<span type="button" class="btn btn-sm btn-success show-document"'
                         .' data-status="1"'
-                        .' data-url="'.$fileUrl.'"'
-                        .' data-files="'.$row->src_name.'"'
                         .' data-id="'.$encRef.'"'
                         .' data-wenk="Sudah TTE"'
                         .' data-wenk-color="green"'
@@ -496,8 +487,6 @@ class TBP extends Controller
                         : '/File_NPD/'.$data->src_name;
 
                     return '<span class="btn btn-sm btn-success show-document"'
-                        .' data-url="'.$url.'"'
-                        .' data-files="'.$data->src_name.'"'
                         .' data-id="'.$id.'"'
                         .' data-wenk="Klik untuk menampilkan dokumen"'
                         .' data-wenk-color="green"'

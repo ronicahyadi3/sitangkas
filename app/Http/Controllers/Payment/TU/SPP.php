@@ -242,7 +242,6 @@ class SPP extends Controller
                         };
 
                         return '<span type="button" class="btn btn-sm btn-danger show-document"'
-                            .' data-url="/File_SPP/'.$row->src_name_spp.'"'
                             .' data-id="'.$encRef.'"'
                             .' data-wenk="'.e((string) $row->notes).'"'
                             .' data-wenk-color="red"'
@@ -253,8 +252,6 @@ class SPP extends Controller
                     if ($jabatanId === 7) {
                         if (! is_null($row->verify)) {
                             return '<span type="button" class="btn btn-sm btn-success show-document"'
-                                .' data-url="'.$fileUrl.'"'
-                                .' data-files="'.$row->src_name_spp.'"'
                                 .' data-id="'.$encRef.'"'
                                 .' data-wenk="Telah Verifikasi"'
                                 .' data-wenk-color="green"'
@@ -263,8 +260,6 @@ class SPP extends Controller
                         }
 
                         return '<span type="button" class="btn btn-sm btn-warning show-document"'
-                            .' data-url="'.$fileUrl.'"'
-                            .' data-files="'.$row->src_name_spp.'"'
                             .' data-id="'.$encRef.'"'
                             .' data-wenk="Belum Verifikasi"'
                             .' data-wenk-color="orange"'
@@ -274,8 +269,6 @@ class SPP extends Controller
 
                     if ($isAssignedToOtherPptk) {
                         return '<span type="button" class="btn btn-sm btn-info show-document"'
-                            .' data-url="'.$fileUrl.'"'
-                            .' data-files="'.$row->src_name_spp.'"'
                             .' data-id="'.$encRef.'"'
                             .' data-wenk="Tampilkan Dokumen"'
                             .' data-wenk-color="blue"'
@@ -285,8 +278,6 @@ class SPP extends Controller
 
                     if ($submittedByViewer && ! $canSubmit) {
                         return '<span type="button" class="btn btn-sm btn-primary show-document"'
-                            .' data-url="'.$fileUrl.'"'
-                            .' data-files="'.$row->src_name_spp.'"'
                             .' data-id="'.$encRef.'"'
                             .' data-wenk="Telah Submit"'
                             .' data-wenk-color="blue"'
@@ -296,8 +287,6 @@ class SPP extends Controller
 
                     if ($canSubmit) {
                         return '<span type="button" class="btn btn-sm btn-secondary show-document"'
-                            .' data-url="'.$fileUrl.'"'
-                            .' data-files="'.$row->src_name_spp.'"'
                             .' data-id="'.$encRef.'"'
                             .' data-wenk="Belum Submit"'
                             .' data-wenk-color="blue"'
@@ -308,8 +297,6 @@ class SPP extends Controller
                     if (! $signedByViewer && in_array($jabatanId, [9, 10, 8, 5, 6], true)) {
                         return '<span type="button" class="btn btn-sm btn-warning show-document"'
                             .' data-status="0"'
-                            .' data-url="'.$fileUrl.'"'
-                            .' data-files="'.$row->src_name_spp.'"'
                             .' data-id="'.$encRef.'"'
                             .' data-wenk="Belum TTE"'
                             .' data-wenk-color="orange"'
@@ -318,8 +305,6 @@ class SPP extends Controller
                     }
 
                     return '<span type="button" class="btn btn-sm btn-info show-document"'
-                        .' data-url="'.$fileUrl.'"'
-                        .' data-files="'.$row->src_name_spp.'"'
                         .' data-id="'.$encRef.'"'
                         .' data-wenk="Tampilkan Dokumen"'
                         .' data-wenk-color="blue"'
@@ -569,8 +554,6 @@ class SPP extends Controller
                         : '/File_PENGAJUAN/'.$row->src_name;
 
                     return '<span type="button" class="btn btn-sm btn-info show-document"'
-                        .' data-url="'.$url.'"'
-                        .' data-files="'.$row->src_name.'"'
                         .' data-id="'.$id.'"'
                         .' data-wenk="Klik untuk menampilkan dokumen"'
                         .' data-wenk-color="blue"'

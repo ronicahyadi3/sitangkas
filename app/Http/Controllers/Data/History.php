@@ -426,21 +426,15 @@ class History extends Controller
 
                     [$btnClass, $color, $tooltip, $label] = $statusMap[$row->action];
 
-                    $isSigned = in_array($row->action, [
-                        'SUBMIT',
-                        'VERIFY',
-                        'TTE',
-                        'REJECT',
-                        'DELETE',
-                    ], true);
+                    $viewerContractUrl = route('document.history-pdf.viewer', [
+                        'history' => EncryptedId::encode((int) $row->id),
+                    ]);
 
-                    $url = self::generateUrl(
-                        $row->src_type,
-                        $row->src_name,
-                        $isSigned
-                    );
-
-                    return '<button type="button" class="btn btn-sm '.e($btnClass).' view-pdf" data-url="'.e($url).'" data-wenk-pos="top" data-wenk="'.e($tooltip).'" data-wenk-color="'.e($color).'"> <i class="far fa-check-square"></i> '.e($row->src_type).' '.e($label).'</button>';
+                    return '<button type="button" class="btn btn-sm '.e($btnClass).'"'
+                        .' data-document-pdf-action="contract"'
+                        .' data-pdf-viewer-contract-url="'.e($viewerContractUrl).'"'
+                        .' data-wenk-pos="top" data-wenk="'.e($tooltip).'" data-wenk-color="'.e($color).'">'
+                        .' <i class="far fa-check-square"></i> '.e($row->src_type).' '.e($label).'</button>';
                 })
 
                 ->addColumn('pengirim', function ($row) {
@@ -486,13 +480,6 @@ class History extends Controller
                 'message' => 'Terjadi kesalahan sistem.',
             ], 500);
         }
-    }
-
-    public static function generateUrl(string $srcType, string $srcName, bool $isSigned = false): string
-    {
-        $basePath = $isSigned ? "/File_{$srcType}/signs/" : "/File_{$srcType}/";
-
-        return $basePath.$srcName;
     }
 
     private function resolveScopeUnitId(int $unitKerjaId): ?int

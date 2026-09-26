@@ -280,6 +280,7 @@ class UserPosition extends Model
             'ended_at' => 'date',
             'is_active' => 'boolean',
             'is_canonical' => 'boolean',
+            'pdf_watermark_required' => 'boolean',
             'last_synced_at' => 'datetime',
             'last_used_at' => 'datetime',
             'started_at' => 'date',

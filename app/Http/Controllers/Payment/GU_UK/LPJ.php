@@ -151,6 +151,7 @@ class LPJ extends Controller
                     'spp.src_name as src_name_spp',
                     'spp.status as status_spp',
                     'bmd.src_name as src_name_bmd',
+                    'lpj_bpp.id as id_lpj_bpp',
                     'lpj_bpp.nomor as nomor_lpj_bpp',
                     'lpj_bpp.src_name as src_name_lpj_bpp',
                     'lpj_bpp.status as status_lpj_bpp',
@@ -172,15 +173,21 @@ class LPJ extends Controller
                 ->addIndexColumn()
                 ->addColumn('status_button', function ($row) use ($jabatanId) {
                     $enc = EncryptedId::encode($row->id);
+                    $lpjBppViewerContractUrl = ! empty($row->id_lpj_bpp)
+                        ? route('document.pdf.viewer', [
+                            'document' => EncryptedId::encode((int) $row->id_lpj_bpp),
+                            'resource' => 'document',
+                        ])
+                        : null;
                     $lpjBppButton = ! empty($row->src_name_lpj_bpp)
-                        ? '<span type="button" class="btn btn-sm btn-info view-pdf ms-1"'
-                            .' data-url="'.(! is_null($row->status_lpj_bpp)
-                                ? '/File_LPJ_BPP/signs/'.$row->src_name_lpj_bpp
-                                : '/File_LPJ_BPP/'.$row->src_name_lpj_bpp).'"'
+                        && $lpjBppViewerContractUrl !== null
+                        ? '<button type="button" class="btn btn-sm btn-info ms-1"'
+                            .' data-document-pdf-action="contract"'
+                            .' data-pdf-viewer-contract-url="'.e($lpjBppViewerContractUrl).'"'
                             .' data-wenk="Tampilkan LPJ BPP"'
                             .' data-wenk-color="blue"'
                             .'>'
-                            .'<i class="fa-solid fa-eye"></i> Tampilkan LPJ BPP</span>'
+                            .'<i class="fa-solid fa-eye"></i> Tampilkan LPJ BPP</button>'
                         : '<span class="btn btn-sm btn-secondary ms-1"><i class="fa-solid fa-eye-slash"></i> Tampilkan LPJ BPP</span>';
 
                     if ($jabatanId === 13) {
@@ -200,8 +207,6 @@ class LPJ extends Controller
                         };
 
                         return '<span type="button" class="btn btn-sm btn-danger show-document"'
-                            .' data-url="'.$fileUrl.'"'
-                            .' data-files="'.$row->src_name_lpj.'"'
                             .' data-id="'.$enc.'"'
                             .' data-wenk="'.e((string) $row->notes).'"'
                             .' data-wenk-color="red"'
@@ -211,8 +216,6 @@ class LPJ extends Controller
 
                     if (! in_array($jabatanId, [9, 5, 7], true)) {
                         return '<span type="button" class="btn btn-sm btn-info show-document"'
-                            .' data-url="'.$fileUrl.'"'
-                            .' data-files="'.$row->src_name_lpj.'"'
                             .' data-id="'.$enc.'"'
                             .' data-wenk="Tampilkan Dokumen"'
                             .' data-wenk-color="blue"'
@@ -243,8 +246,6 @@ class LPJ extends Controller
 
                     if ($jabatanId === 7 && ! is_null($row->verify)) {
                         return '<span type="button" class="btn btn-sm btn-success show-document"'
-                            .' data-url="'.$fileUrl.'"'
-                            .' data-files="'.$row->src_name_lpj.'"'
                             .' data-id="'.$enc.'"'
                             .' data-wenk="Telah Verifikasi"'
                             .' data-wenk-color="green"'
@@ -254,8 +255,6 @@ class LPJ extends Controller
 
                     if ($jabatanId === 7) {
                         return '<span type="button" class="btn btn-sm btn-info show-document"'
-                            .' data-url="'.$fileUrl.'"'
-                            .' data-files="'.$row->src_name_lpj.'"'
                             .' data-id="'.$enc.'"'
                             .' data-wenk="Tampilkan Dokumen"'
                             .' data-wenk-color="blue"'
@@ -265,8 +264,6 @@ class LPJ extends Controller
 
                     if ($submittedByViewer && ! $canResubmit) {
                         return '<span type="button" class="btn btn-sm btn-primary show-document"'
-                            .' data-url="'.$fileUrl.'"'
-                            .' data-files="'.$row->src_name_lpj.'"'
                             .' data-id="'.$enc.'"'
                             .' data-wenk="Telah Submit"'
                             .' data-wenk-color="blue"'
@@ -276,8 +273,6 @@ class LPJ extends Controller
 
                     if ($canResubmit) {
                         return '<span type="button" class="btn btn-sm btn-secondary show-document"'
-                            .' data-url="'.$fileUrl.'"'
-                            .' data-files="'.$row->src_name_lpj.'"'
                             .' data-id="'.$enc.'"'
                             .' data-wenk="Belum Submit"'
                             .' data-wenk-color="blue"'
@@ -288,8 +283,6 @@ class LPJ extends Controller
                     if (! $alreadySigned) {
                         return '<span type="button" class="btn btn-sm btn-warning show-document"'
                             .' data-status="0"'
-                            .' data-url="'.$fileUrl.'"'
-                            .' data-files="'.$row->src_name_lpj.'"'
                             .' data-id="'.$enc.'"'
                             .' data-wenk="Belum TTE"'
                             .' data-wenk-color="orange"'
@@ -299,8 +292,6 @@ class LPJ extends Controller
 
                     return '<span type="button" class="btn btn-sm btn-success show-document"'
                         .' data-status="1"'
-                        .' data-url="'.$fileUrl.'"'
-                        .' data-files="'.$row->src_name_lpj.'"'
                         .' data-id="'.$enc.'"'
                         .' data-wenk="Sudah TTE"'
                         .' data-wenk-color="green"'
@@ -551,8 +542,6 @@ class LPJ extends Controller
                         : '/File_LPJ_BPP/'.$data->src_name;
 
                     return '<span type="button" class="btn btn-sm btn-info show-document"'
-                        .' data-url="'.$url.'"'
-                        .' data-files="'.$data->src_name.'"'
                         .' data-id="'.$id.'"'
                         .' data-wenk="Klik untuk menampilkan dokumen"'
                         .' data-wenk-color="blue"'

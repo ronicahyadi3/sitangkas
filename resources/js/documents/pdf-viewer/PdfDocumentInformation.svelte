@@ -80,6 +80,18 @@
 
         return value ? 'Valid' : 'Tidak valid';
     }
+
+    function deliveryModeLabel(): string {
+        if (action.delivery_mode === 'identified_watermarked') {
+            return 'Salinan berwatermark';
+        }
+
+        if (action.delivery_mode === 'public_watermarked') {
+            return 'Salinan publik berwatermark';
+        }
+
+        return 'Dokumen original';
+    }
 </script>
 
 <aside class="secure-pdf-information" aria-label="Informasi dan validasi dokumen">
@@ -104,6 +116,7 @@
                 <div><dt>Payment</dt><dd>{action.payment_type || '—'}</dd></div>
                 <div><dt>Halaman</dt><dd>{pageCount || '—'}</dd></div>
                 <div><dt>Sumber</dt><dd>{sourceLabel()}</dd></div>
+                <div><dt>Mode</dt><dd>{deliveryModeLabel()}</dd></div>
             </dl>
         </section>
 

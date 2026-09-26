@@ -1346,9 +1346,48 @@ sehingga parent tidak tertinggal dalam keadaan tersembunyi. Handler Blade tidak
 menghapus document ID atau membatalkan XHR ketika hide dilakukan oleh
 coordinator, tetapi tetap melakukan cleanup tersebut pada penutupan normal.
 
-Cutover `.view-pdf` di luar Detail/DetailTbp tetap dilakukan bertahap setelah
-gate tiap payment lulus. `pdfview.blade.php` tetap dipertahankan sementara hanya
-untuk surface view PDF di luar Detail; ia bukan lagi jalur TTE.
+R8 cutover viewer legacy selesai di source pada 27 September 2026. Empat surface
+langsung yang tersisa—riwayat dokumen, pemilihan DPR KKPD, LPJ BPP GU_UK, dan
+TBP GU_SKPD—sekarang meminta kontrak viewer same-origin melalui opaque encrypted
+ID ketika tombol diklik. Kontrak tersebut kembali memeriksa source dan
+authorization sebelum mengirim URL content/download terkontrol. Semua class
+`.view-pdf`, 30 include `components.informations.pdfview`, dan Blade viewer lama
+telah dicabut.
+
+Riwayat tidak diarahkan secara keliru ke versi dokumen terbaru. Resolver history
+memakai exact artifact dari `esign_attempt_legacy_links` bila event sudah
+canonical; selain itu ia membaca snapshot `document_process.src_name` secara
+read-only dari legacy-private lalu legacy-public. Event/history invalid tidak
+dihapus. Seluruh atribut `data-url`/`data-files` lama pada tombol Detail payment
+juga telah dicabut karena runtime hanya memerlukan opaque `data-id`; respons
+DataTable tidak lagi mengekspos `/File_*` untuk membuka PDF. R8 telah melewati
+lint PHP, route inspection, Blade compilation, TypeScript check, dan build;
+acceptance manual lintas payment tetap menjadi gate operasional berikutnya.
+
+R9 pilot LS SPP ORIGINAL selesai di source pada 27 September 2026. Kontrak
+viewer sekarang membawa `delivery_mode=original`, panel informasi menampilkan
+mode tersebut, response binary mengirim header
+`X-Sitangkas-Pdf-Delivery-Mode: original`, dan log authorization menyimpan mode
+tanpa path atau byte PDF. Enum delivery mode disiapkan mengikuti rancangan
+final, tetapi runtime R9 hanya boleh menerbitkan `original`.
+
+Prasyarat additive `user_positions.pdf_watermark_required` juga telah dibuat
+dengan `NOT NULL DEFAULT false`; model mempunyai cast boolean dan default row
+baru tetap berasal dari database agar deployment additive aman.
+Migration belum dijalankan otomatis. Command read-only
+`php artisan pdf-delivery:pilot-ls-original` memblokir pilot bila kolom belum
+terpasang, ada satu saja posisi bernilai `true`, route utama hilang, source bukan
+artifact canonical LS SPP, atau SHA-256 byte tidak cocok. Command tidak menulis
+database dan tidak menampilkan path fisik. R9 baru boleh disebut lulus
+operasional setelah migration direview/deploy dan acceptance manual memakai
+user/posisi nyata mencakup view, validasi, download, serta penolakan lintas
+scope; acceptance tersebut belum diklaim oleh perubahan source ini.
+
+Selama renderer watermark belum tersedia, authorization bersifat fail-closed:
+posisi bisnis nyata dengan flag `true` ditolak dan tidak pernah memperoleh
+fallback original. Admin Super acting tetap memakai override final non-watermark
+sesuai keputusan bisnis. Karena Management User belum dapat mengaktifkan flag,
+pilot R9 tetap mensyaratkan hitungan seluruh posisi `true` sama dengan nol.
 
 Pilot real, aktivasi feature flag operasional, public verification, dan rollout
 tetap menunggu gate backend terkait. Urutan rinci berada di

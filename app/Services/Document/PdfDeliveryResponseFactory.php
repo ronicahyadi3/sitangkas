@@ -6,6 +6,7 @@ namespace App\Services\Document;
 
 use App\Data\Document\ResolvedPdfDeliverySource;
 use App\Enums\Document\DocumentDetailSourceState;
+use App\Enums\Document\PdfDeliveryMode;
 use App\Exceptions\Esign\EsignArtifactStorageException;
 use App\Models\Esign\DocumentArtifact;
 use App\Services\Esign\DocumentArtifactIntegrityService;
@@ -52,6 +53,7 @@ final class PdfDeliveryResponseFactory
                 : $this->artifactIntegrity->inlineResponse($source->authorizationSubject);
 
             $response->headers->set('Cross-Origin-Resource-Policy', 'same-origin');
+            $response->headers->set('X-Sitangkas-Pdf-Delivery-Mode', PdfDeliveryMode::Original->value);
 
             return $response;
         }
@@ -153,6 +155,7 @@ final class PdfDeliveryResponseFactory
                 'Cross-Origin-Resource-Policy' => 'same-origin',
                 'Pragma' => 'no-cache',
                 'X-Content-Type-Options' => 'nosniff',
+                'X-Sitangkas-Pdf-Delivery-Mode' => PdfDeliveryMode::Original->value,
             ],
         );
     }

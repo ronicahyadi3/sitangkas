@@ -74,7 +74,6 @@
     @include('components.informations.detail')
     @include('components.informations.history')
     @unless ($isAuditor)
-        @include('components.informations.pdfview')
         @include('components.confirmations.denied')
         @include('components.confirmations.verify')
         @include('components.confirmations.delete')

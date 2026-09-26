@@ -220,7 +220,6 @@ class PENGAJUAN extends Controller
                         };
 
                         return '<span type="button" class="btn btn-sm btn-danger show-document"'
-                            .' data-url="/File_PENGAJUAN/'.$row->src_name_pengajuan.'"'
                             .' data-id="'.$enc.'"'
                             .' data-wenk="'.e((string) $row->notes).'"'
                             .' data-wenk-color="red"'
@@ -231,8 +230,6 @@ class PENGAJUAN extends Controller
                     if ($jabatanId === 8) {
                         if ($isVerifiedByBudAndForwarded) {
                             return '<span type="button" class="btn btn-sm btn-success show-document"'
-                                .' data-url="'.$fileUrl.'"'
-                                .' data-files="'.$row->src_name_pengajuan.'"'
                                 .' data-id="'.$enc.'"'
                                 .' data-wenk="Terverifikasi"'
                                 .' data-wenk-color="green"'
@@ -242,8 +239,6 @@ class PENGAJUAN extends Controller
 
                         if ($submittedByViewer) {
                             return '<span type="button" class="btn btn-sm btn-primary show-document"'
-                                .' data-url="'.$fileUrl.'"'
-                                .' data-files="'.$row->src_name_pengajuan.'"'
                                 .' data-id="'.$enc.'"'
                                 .' data-wenk="Telah Submit"'
                                 .' data-wenk-color="blue"'
@@ -253,8 +248,6 @@ class PENGAJUAN extends Controller
 
                         if ($viewerSigned) {
                             return '<span type="button" class="btn btn-sm btn-secondary show-document"'
-                                .' data-url="'.$fileUrl.'"'
-                                .' data-files="'.$row->src_name_pengajuan.'"'
                                 .' data-id="'.$enc.'"'
                                 .' data-wenk="Belum Submit"'
                                 .' data-wenk-color="blue"'
@@ -264,8 +257,6 @@ class PENGAJUAN extends Controller
 
                         return '<span type="button" class="btn btn-sm btn-warning show-document"'
                             .' data-status="0"'
-                            .' data-url="'.$fileUrl.'"'
-                            .' data-files="'.$row->src_name_pengajuan.'"'
                             .' data-id="'.$enc.'"'
                             .' data-wenk="Belum TTE"'
                             .' data-wenk-color="orange"'
@@ -276,8 +267,6 @@ class PENGAJUAN extends Controller
                     if (in_array($jabatanId, [5, 6], true)) {
                         if ($isVerifiedByBudAndForwarded) {
                             return '<span type="button" class="btn btn-sm btn-success show-document"'
-                                .' data-url="'.$fileUrl.'"'
-                                .' data-files="'.$row->src_name_pengajuan.'"'
                                 .' data-id="'.$enc.'"'
                                 .' data-wenk="Terverifikasi"'
                                 .' data-wenk-color="green"'
@@ -287,8 +276,6 @@ class PENGAJUAN extends Controller
 
                         if ($submittedByViewer) {
                             return '<span type="button" class="btn btn-sm btn-primary show-document"'
-                                .' data-url="'.$fileUrl.'"'
-                                .' data-files="'.$row->src_name_pengajuan.'"'
                                 .' data-id="'.$enc.'"'
                                 .' data-wenk="Telah Submit"'
                                 .' data-wenk-color="blue"'
@@ -298,8 +285,6 @@ class PENGAJUAN extends Controller
 
                         if ($viewerSigned) {
                             return '<span type="button" class="btn btn-sm btn-secondary show-document"'
-                                .' data-url="'.$fileUrl.'"'
-                                .' data-files="'.$row->src_name_pengajuan.'"'
                                 .' data-id="'.$enc.'"'
                                 .' data-wenk="Belum Submit"'
                                 .' data-wenk-color="blue"'
@@ -310,8 +295,6 @@ class PENGAJUAN extends Controller
                         if (in_array('8', $submitArr, true) && in_array((string) $jabatanId, $assignedArr, true)) {
                             return '<span type="button" class="btn btn-sm btn-warning show-document"'
                                 .' data-status="0"'
-                                .' data-url="'.$fileUrl.'"'
-                                .' data-files="'.$row->src_name_pengajuan.'"'
                                 .' data-id="'.$enc.'"'
                                 .' data-wenk="Belum TTE"'
                                 .' data-wenk-color="orange"'
@@ -323,8 +306,6 @@ class PENGAJUAN extends Controller
                     if ($jabatanId === 4) {
                         if ($row->verify && (($submitCount['4'] ?? 0) === 1) && in_array('2', $statusArr, true)) {
                             return '<span type="button" class="btn btn-sm btn-info show-document"'
-                                .' data-url="'.$fileUrl.'"'
-                                .' data-files="'.$row->src_name_pengajuan.'"'
                                 .' data-id="'.$enc.'"'
                                 .' data-wenk="Sudah TTE BUD"'
                                 .' data-wenk-color="green"'
@@ -334,8 +315,6 @@ class PENGAJUAN extends Controller
 
                         if ($row->verify && (($submitCount['4'] ?? 0) === 1)) {
                             return '<span type="button" class="btn btn-sm btn-secondary show-document"'
-                                .' data-url="'.$fileUrl.'"'
-                                .' data-files="'.$row->src_name_pengajuan.'"'
                                 .' data-id="'.$enc.'"'
                                 .' data-wenk="Menunggu TTE BUD"'
                                 .' data-wenk-color="blue"'
@@ -345,8 +324,6 @@ class PENGAJUAN extends Controller
 
                         if ($row->verify) {
                             return '<span type="button" class="btn btn-sm btn-success show-document"'
-                                .' data-url="'.$fileUrl.'"'
-                                .' data-files="'.$row->src_name_pengajuan.'"'
                                 .' data-id="'.$enc.'"'
                                 .' data-wenk="Terverifikasi"'
                                 .' data-wenk-color="green"'
@@ -356,8 +333,6 @@ class PENGAJUAN extends Controller
 
                         if (in_array('5', $submitArr, true) || in_array('6', $submitArr, true)) {
                             return '<span type="button" class="btn btn-sm btn-warning show-document"'
-                                .' data-url="'.$fileUrl.'"'
-                                .' data-files="'.$row->src_name_pengajuan.'"'
                                 .' data-id="'.$enc.'"'
                                 .' data-wenk="Belum Verifikasi"'
                                 .' data-wenk-color="orange"'
@@ -371,8 +346,6 @@ class PENGAJUAN extends Controller
                             if ($isForwardedToBp) {
                                 return '<span type="button" class="btn btn-sm btn-success show-document"'
                                     .' data-status="1"'
-                                    .' data-url="'.$fileUrl.'"'
-                                    .' data-files="'.$row->src_name_pengajuan.'"'
                                     .' data-id="'.$enc.'"'
                                     .' data-wenk="Terverifikasi"'
                                     .' data-wenk-color="green"'
@@ -382,8 +355,6 @@ class PENGAJUAN extends Controller
 
                             return '<span type="button" class="btn btn-sm btn-success show-document"'
                                 .' data-status="1"'
-                                .' data-url="'.$fileUrl.'"'
-                                .' data-files="'.$row->src_name_pengajuan.'"'
                                 .' data-id="'.$enc.'"'
                                 .' data-wenk="Sudah TTE"'
                                 .' data-wenk-color="green"'
@@ -394,8 +365,6 @@ class PENGAJUAN extends Controller
                         if ($row->verify && ($submitCount['4'] ?? 0) >= 1 && in_array('2', $assignedArr, true)) {
                             return '<span type="button" class="btn btn-sm btn-warning show-document"'
                                 .' data-status="0"'
-                                .' data-url="'.$fileUrl.'"'
-                                .' data-files="'.$row->src_name_pengajuan.'"'
                                 .' data-id="'.$enc.'"'
                                 .' data-wenk="Belum TTE"'
                                 .' data-wenk-color="orange"'
@@ -405,8 +374,6 @@ class PENGAJUAN extends Controller
                     }
 
                     return '<span type="button" class="btn btn-sm btn-info show-document"'
-                        .' data-url="'.$fileUrl.'"'
-                        .' data-files="'.$row->src_name_pengajuan.'"'
                         .' data-id="'.$enc.'"'
                         .' data-wenk="Tampilkan Dokumen"'
                         .' data-wenk-color="blue"'

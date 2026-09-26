@@ -1,9 +1,10 @@
 import type {
     DocumentDetailActions,
     DocumentDetailSourceState,
+    PdfDeliveryMode,
 } from '../../esign/types';
 
-export type PdfViewerResource = 'document' | 'billing' | 'spj_fungsional';
+export type PdfViewerResource = 'document' | 'billing' | 'spj_fungsional' | 'history';
 
 export interface SecurePdfViewerOpenDetail {
     document_id: string;
@@ -12,6 +13,7 @@ export interface SecurePdfViewerOpenDetail {
     document_type: string | null;
     payment_type: string | null;
     source_state: DocumentDetailSourceState;
+    delivery_mode: PdfDeliveryMode;
     actions: Pick<DocumentDetailActions, 'view' | 'download' | 'verify'>;
 }
 

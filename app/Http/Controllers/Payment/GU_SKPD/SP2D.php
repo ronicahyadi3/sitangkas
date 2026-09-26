@@ -171,22 +171,22 @@ class SP2D extends Controller
                             default => 'Ditolak',
                         };
 
-                        return '<span type="button" class="btn btn-sm btn-danger show-document" data-id="'.$encRef.'" data-url="'.$plainFileUrl.'" data-files="'.$row->src_name.'" data-wenk="'.e((string) $row->notes).'" data-wenk-color="red" data-toggle="modal" data-target="#FormTTE"><i class="far fa-file-excel"></i> '.$label.'</span>';
+                        return '<span type="button" class="btn btn-sm btn-danger show-document" data-id="'.$encRef.'" data-wenk="'.e((string) $row->notes).'" data-wenk-color="red" data-toggle="modal" data-target="#FormTTE"><i class="far fa-file-excel"></i> '.$label.'</span>';
                     }
 
                     if (! is_null($row->finished_at)) {
-                        return '<span type="button" class="btn btn-sm btn-success show-document" data-id="'.$encRef.'" data-url="'.$fileUrl.'" data-files="'.$row->src_name.'" data-wenk="File Telah Selesai Pencairan" data-wenk-color="green" data-toggle="modal" data-target="#FormTTE"><i class="fas fa-check-double"></i> Selesai</span>';
+                        return '<span type="button" class="btn btn-sm btn-success show-document" data-id="'.$encRef.'" data-wenk="File Telah Selesai Pencairan" data-wenk-color="green" data-toggle="modal" data-target="#FormTTE"><i class="fas fa-check-double"></i> Selesai</span>';
                     }
 
                     if (in_array($jabatanId, [2, 3], true)) {
                         if ($signed) {
-                            return '<span type="button" class="btn btn-sm btn-success show-document" data-status="1" data-id="'.$encRef.'" data-url="'.$signedFileUrl.'" data-files="'.$row->src_name.'" data-wenk="Sudah Tanda Tangan" data-wenk-color="green" data-toggle="modal" data-target="#FormTTE"><i class="fas fa-file-contract"></i> Sudah Tanda Tangan</span>';
+                            return '<span type="button" class="btn btn-sm btn-success show-document" data-status="1" data-id="'.$encRef.'" data-wenk="Sudah Tanda Tangan" data-wenk-color="green" data-toggle="modal" data-target="#FormTTE"><i class="fas fa-file-contract"></i> Sudah Tanda Tangan</span>';
                         }
 
-                        return '<span type="button" class="btn btn-sm btn-warning show-document" data-status="0" data-id="'.$encRef.'" data-url="'.$plainFileUrl.'" data-files="'.$row->src_name.'" data-wenk="Belum Tanda Tangan" data-wenk-color="orange" data-toggle="modal" data-target="#FormTTE"><i class="fas fa-file-signature"></i> Belum Tanda Tangan</span>';
+                        return '<span type="button" class="btn btn-sm btn-warning show-document" data-status="0" data-id="'.$encRef.'" data-wenk="Belum Tanda Tangan" data-wenk-color="orange" data-toggle="modal" data-target="#FormTTE"><i class="fas fa-file-signature"></i> Belum Tanda Tangan</span>';
                     }
 
-                    return '<span type="button" class="btn btn-sm btn-info show-document" data-id="'.$encRef.'" data-url="'.$fileUrl.'" data-files="'.$row->src_name.'" data-wenk="Tampilkan Dokumen" data-wenk-color="blue" data-toggle="modal" data-target="#FormTTE"><i class="fa-solid fa-eye"></i> Tampilkan</span>';
+                    return '<span type="button" class="btn btn-sm btn-info show-document" data-id="'.$encRef.'" data-wenk="Tampilkan Dokumen" data-wenk-color="blue" data-toggle="modal" data-target="#FormTTE"><i class="fa-solid fa-eye"></i> Tampilkan</span>';
                 })
                 ->addColumn('action', function ($row) use ($jabatanId, $btn) {
                     $enc = EncryptedId::encode($row->id);
@@ -635,7 +635,7 @@ class SP2D extends Controller
                 ->addIndexColumn()
                 ->addColumn('status', function ($row) {
                     $encRef = EncryptedId::encode($row->reference_id);
-                    $html = '<span class="btn btn-sm btn-info show-document" data-url="/File_SPM/signs/'.$row->src_name.'" data-files="'.$row->src_name.'" data-id="'.$encRef.'" data-wenk="Klik untuk menampilkan dokumen" data-wenk-color="blue" data-toggle="modal" data-target="#FormTTE"><i class="fa-solid fa-eye"></i> Tampilkan</span>';
+                    $html = '<span class="btn btn-sm btn-info show-document" data-id="'.$encRef.'" data-wenk="Klik untuk menampilkan dokumen" data-wenk-color="blue" data-toggle="modal" data-target="#FormTTE"><i class="fa-solid fa-eye"></i> Tampilkan</span>';
 
                     if ($row->rejected_by) {
                         $html .= '<span class="btn btn-sm btn-danger ms-1">Ditolak</span>';

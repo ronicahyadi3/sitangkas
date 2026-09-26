@@ -165,12 +165,12 @@ class SPP extends Controller
                             default => 'Ditolak',
                         };
 
-                        return '<span type="button" class="btn btn-sm btn-danger show-document" data-url="/File_LPJ/'.$row->src_name_lpj.'" data-id="'.$enc.'" data-wenk="'.e((string) $row->notes).'" data-wenk-color="red" data-toggle="modal" data-target="#FormTTE"><i class="far fa-file-excel"></i> '.$label.'</span>'.$tbpButton;
+                        return '<span type="button" class="btn btn-sm btn-danger show-document" data-id="'.$enc.'" data-wenk="'.e((string) $row->notes).'" data-wenk-color="red" data-toggle="modal" data-target="#FormTTE"><i class="far fa-file-excel"></i> '.$label.'</span>'.$tbpButton;
                     }
                     $fileUrl = ! is_null($row->status) ? '/File_LPJ/signs/'.$row->src_name_lpj : '/File_LPJ/'.$row->src_name_lpj;
 
                     if (! in_array($jabatanId, [9, 5, 7], true)) {
-                        return '<span type="button" class="btn btn-sm btn-info show-document" data-url="'.$fileUrl.'" data-files="'.$row->src_name_lpj.'" data-id="'.$enc.'" data-wenk="Tampilkan Dokumen" data-wenk-color="blue" data-toggle="modal" data-target="#FormTTE"><i class="fa-solid fa-eye"></i> Tampilkan</span>'.$tbpButton;
+                        return '<span type="button" class="btn btn-sm btn-info show-document" data-id="'.$enc.'" data-wenk="Tampilkan Dokumen" data-wenk-color="blue" data-toggle="modal" data-target="#FormTTE"><i class="fa-solid fa-eye"></i> Tampilkan</span>'.$tbpButton;
                     }
 
                     $statusArr = $this->csvToArray($row->status);
@@ -196,26 +196,26 @@ class SPP extends Controller
                     };
 
                     if ($jabatanId === 7 && ! is_null($row->verify)) {
-                        return '<span type="button" class="btn btn-sm btn-success show-document" data-url="'.$fileUrl.'" data-files="'.$row->src_name_lpj.'" data-id="'.$enc.'" data-wenk="Telah Verifikasi" data-wenk-color="green" data-toggle="modal" data-target="#FormTTE"><i class="fas fa-user-check"></i> Telah Verifikasi</span>'.$tbpButton;
+                        return '<span type="button" class="btn btn-sm btn-success show-document" data-id="'.$enc.'" data-wenk="Telah Verifikasi" data-wenk-color="green" data-toggle="modal" data-target="#FormTTE"><i class="fas fa-user-check"></i> Telah Verifikasi</span>'.$tbpButton;
                     }
 
                     if ($jabatanId === 7) {
-                        return '<span type="button" class="btn btn-sm btn-info show-document" data-url="'.$fileUrl.'" data-files="'.$row->src_name_lpj.'" data-id="'.$enc.'" data-wenk="Tampilkan Dokumen" data-wenk-color="blue" data-toggle="modal" data-target="#FormTTE"><i class="fa-solid fa-eye"></i> Tampilkan</span>'.$tbpButton;
+                        return '<span type="button" class="btn btn-sm btn-info show-document" data-id="'.$enc.'" data-wenk="Tampilkan Dokumen" data-wenk-color="blue" data-toggle="modal" data-target="#FormTTE"><i class="fa-solid fa-eye"></i> Tampilkan</span>'.$tbpButton;
                     }
 
                     if ($submittedByViewer && ! $canResubmit) {
-                        return '<span type="button" class="btn btn-sm btn-primary show-document" data-url="'.$fileUrl.'" data-files="'.$row->src_name_lpj.'" data-id="'.$enc.'" data-wenk="Telah Submit" data-wenk-color="blue" data-toggle="modal" data-target="#FormTTE"><i class="fas fa-paper-plane"></i> Telah Submit</span>'.$tbpButton;
+                        return '<span type="button" class="btn btn-sm btn-primary show-document" data-id="'.$enc.'" data-wenk="Telah Submit" data-wenk-color="blue" data-toggle="modal" data-target="#FormTTE"><i class="fas fa-paper-plane"></i> Telah Submit</span>'.$tbpButton;
                     }
 
                     if ($canResubmit) {
-                        return '<span type="button" class="btn btn-sm btn-secondary show-document" data-url="'.$fileUrl.'" data-files="'.$row->src_name_lpj.'" data-id="'.$enc.'" data-wenk="Belum Submit" data-wenk-color="blue" data-toggle="modal" data-target="#FormTTE"><i class="fas fa-hourglass-half"></i> Belum Submit</span>'.$tbpButton;
+                        return '<span type="button" class="btn btn-sm btn-secondary show-document" data-id="'.$enc.'" data-wenk="Belum Submit" data-wenk-color="blue" data-toggle="modal" data-target="#FormTTE"><i class="fas fa-hourglass-half"></i> Belum Submit</span>'.$tbpButton;
                     }
 
                     if (! $alreadySigned) {
-                        return '<span type="button" class="btn btn-sm btn-warning show-document" data-status="0" data-url="'.$fileUrl.'" data-files="'.$row->src_name_lpj.'" data-id="'.$enc.'" data-wenk="Belum TTE" data-wenk-color="orange" data-toggle="modal" data-target="#FormTTE"><i class="fas fa-file-signature"></i> Belum TTE</span>'.$tbpButton;
+                        return '<span type="button" class="btn btn-sm btn-warning show-document" data-status="0" data-id="'.$enc.'" data-wenk="Belum TTE" data-wenk-color="orange" data-toggle="modal" data-target="#FormTTE"><i class="fas fa-file-signature"></i> Belum TTE</span>'.$tbpButton;
                     }
 
-                    return '<span type="button" class="btn btn-sm btn-success show-document" data-status="1" data-url="'.$fileUrl.'" data-files="'.$row->src_name_lpj.'" data-id="'.$enc.'" data-wenk="Sudah TTE" data-wenk-color="green" data-toggle="modal" data-target="#FormTTE"><i class="fas fa-file-contract"></i> Sudah TTE</span>'.$tbpButton;
+                    return '<span type="button" class="btn btn-sm btn-success show-document" data-status="1" data-id="'.$enc.'" data-wenk="Sudah TTE" data-wenk-color="green" data-toggle="modal" data-target="#FormTTE"><i class="fas fa-file-contract"></i> Sudah TTE</span>'.$tbpButton;
                 })
                 ->addColumn('action', function ($row) use ($btn, $jabatanId) {
                     $enc = EncryptedId::encode($row->id);
@@ -406,9 +406,16 @@ class SPP extends Controller
             $response = DataTables::of($query)
                 ->addIndexColumn()
                 ->addColumn('status', function ($data) {
-                    $url = ! is_null($data->status) ? '/File_TBP/signs/'.$data->src_name : '/File_TBP/'.$data->src_name;
+                    $viewerContractUrl = route('document.pdf.viewer', [
+                        'document' => EncryptedId::encode((int) $data->id),
+                        'resource' => 'document',
+                    ]);
 
-                    return '<button type="button" class="btn btn-sm btn-info view-pdf" data-url="'.$url.'" data-files="'.$data->src_name.'" data-wenk="Klik untuk menampilkan dokumen" data-wenk-color="blue"><i class="fa-solid fa-eye"></i> Tampilkan</button>';
+                    return '<button type="button" class="btn btn-sm btn-info"'
+                        .' data-document-pdf-action="contract"'
+                        .' data-pdf-viewer-contract-url="'.e($viewerContractUrl).'"'
+                        .' data-wenk="Klik untuk menampilkan dokumen" data-wenk-color="blue">'
+                        .'<i class="fa-solid fa-eye"></i> Tampilkan</button>';
                 })
                 ->addColumn('action', function ($data) use ($lpjId) {
                     $id = EncryptedId::encode($data->id);

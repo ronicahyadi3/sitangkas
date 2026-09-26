@@ -214,8 +214,6 @@ class SPP extends Controller
                         $label = $this->rejectedLabel((int) $row->rejected_by);
 
                         return '<span type="button" class="btn btn-sm btn-danger show-document"'
-                            .' data-url="'.$fileUrl.'"'
-                            .' data-files="'.e((string) $row->src_name_spp).'"'
                             .' data-id="'.$enc.'"'
                             .' data-wenk="'.e((string) ($row->notes ?: 'Dokumen ditolak')).'"'
                             .' data-wenk-color="red"'
@@ -225,8 +223,6 @@ class SPP extends Controller
 
                     if ($jabatanId === 7 && ! is_null($row->verify)) {
                         return '<span type="button" class="btn btn-sm btn-success show-document"'
-                            .' data-url="'.$fileUrl.'"'
-                            .' data-files="'.e((string) $row->src_name_spp).'"'
                             .' data-id="'.$enc.'"'
                             .' data-wenk="Telah Verifikasi"'
                             .' data-wenk-color="green"'
@@ -236,8 +232,6 @@ class SPP extends Controller
 
                     if ($jabatanId === 7) {
                         return '<span type="button" class="btn btn-sm btn-info show-document"'
-                            .' data-url="'.$fileUrl.'"'
-                            .' data-files="'.e((string) $row->src_name_spp).'"'
                             .' data-id="'.$enc.'"'
                             .' data-wenk="Tampilkan Dokumen"'
                             .' data-wenk-color="blue"'
@@ -260,8 +254,6 @@ class SPP extends Controller
 
                     if ($submittedByViewer && ! $canResubmit) {
                         return '<span type="button" class="btn btn-sm btn-primary show-document"'
-                            .' data-url="'.$fileUrl.'"'
-                            .' data-files="'.e((string) $row->src_name_spp).'"'
                             .' data-id="'.$enc.'"'
                             .' data-wenk="Telah Submit"'
                             .' data-wenk-color="blue"'
@@ -271,8 +263,6 @@ class SPP extends Controller
 
                     if ($canResubmit) {
                         return '<span type="button" class="btn btn-sm btn-secondary show-document"'
-                            .' data-url="'.$fileUrl.'"'
-                            .' data-files="'.e((string) $row->src_name_spp).'"'
                             .' data-id="'.$enc.'"'
                             .' data-wenk="Belum Submit"'
                             .' data-wenk-color="blue"'
@@ -282,8 +272,6 @@ class SPP extends Controller
 
                     if ($alreadySigned) {
                         return '<span type="button" class="btn btn-sm btn-success show-document"'
-                            .' data-url="'.$fileUrl.'"'
-                            .' data-files="'.e((string) $row->src_name_spp).'"'
                             .' data-id="'.$enc.'"'
                             .' data-status="1"'
                             .' data-wenk="Sudah TTE"'
@@ -293,8 +281,6 @@ class SPP extends Controller
                     }
 
                     return '<span type="button" class="btn btn-sm btn-warning show-document"'
-                        .' data-url="'.$fileUrl.'"'
-                        .' data-files="'.e((string) $row->src_name_spp).'"'
                         .' data-id="'.$enc.'"'
                         .' data-status="0"'
                         .' data-wenk="Belum TTE"'
@@ -530,13 +516,14 @@ class SPP extends Controller
             $response = DataTables::of($query)
                 ->addIndexColumn()
                 ->addColumn('status', function ($row) {
-                    $url = ! is_null($row->status)
-                        ? '/File_DPR/signs/'.$row->src_name
-                        : '/File_DPR/'.$row->src_name;
+                    $viewerContractUrl = route('document.pdf.viewer', [
+                        'document' => EncryptedId::encode((int) $row->id),
+                        'resource' => 'document',
+                    ]);
 
-                    return '<button type="button" class="btn btn-sm btn-info view-pdf"'
-                        .' data-url="'.$url.'"'
-                        .' data-files="'.e((string) $row->src_name).'"'
+                    return '<button type="button" class="btn btn-sm btn-info"'
+                        .' data-document-pdf-action="contract"'
+                        .' data-pdf-viewer-contract-url="'.e($viewerContractUrl).'"'
                         .' data-wenk="Klik untuk menampilkan dokumen"'
                         .' data-wenk-color="blue">'
                         .'<i class="fa-solid fa-eye"></i> Tampilkan</button>';

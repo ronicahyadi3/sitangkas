@@ -15,11 +15,13 @@ use App\Http\Controllers\Data\DetailTbp as DocumentDetailTbpController;
 use App\Http\Controllers\Data\History as DocumentHistoryController;
 use App\Http\Controllers\Data\Rekening as DocumentRekeningController;
 use App\Http\Controllers\Data\Verify as DocumentVerifyController;
+use App\Http\Controllers\Document\DocumentHistoryPdfDeliveryController;
 use App\Http\Controllers\Document\LsBillingDocumentDeliveryController;
 use App\Http\Controllers\Document\LsBmdDocumentDeliveryController;
 use App\Http\Controllers\Document\LsSpjDocumentDeliveryController;
 use App\Http\Controllers\Document\LsSppDocumentDeliveryController;
 use App\Http\Controllers\Document\PdfDeliveryController;
+use App\Http\Controllers\Document\PdfViewerContractController;
 use App\Http\Controllers\Esign\ArtifactVerificationController;
 use App\Http\Controllers\Esign\ArtifactVerificationPreviewController;
 use App\Http\Controllers\Esign\EsignAttemptController;
@@ -196,6 +198,11 @@ Route::middleware(['auth', 'account.accessible', 'single.device.session'])->grou
         });
 
         Route::prefix('document')->name('document.')->group(function (): void {
+            Route::get('/pdf/{document}/{resource}/viewer', PdfViewerContractController::class)
+                ->where('document', '[A-Za-z0-9_-]+')
+                ->where('resource', 'document|billing|spj_fungsional')
+                ->middleware('throttle:pdf-delivery')
+                ->name('pdf.viewer');
             Route::get('/pdf/{document}/{resource}/content', [PdfDeliveryController::class, 'content'])
                 ->where('document', '[A-Za-z0-9_-]+')
                 ->where('resource', 'document|billing|spj_fungsional')
@@ -206,6 +213,18 @@ Route::middleware(['auth', 'account.accessible', 'single.device.session'])->grou
                 ->where('resource', 'document|billing|spj_fungsional')
                 ->middleware('throttle:pdf-delivery')
                 ->name('pdf.download');
+            Route::get('/history-pdf/{history}/viewer', [DocumentHistoryPdfDeliveryController::class, 'viewer'])
+                ->where('history', '[A-Za-z0-9_-]+')
+                ->middleware('throttle:pdf-delivery')
+                ->name('history-pdf.viewer');
+            Route::get('/history-pdf/{history}/content', [DocumentHistoryPdfDeliveryController::class, 'content'])
+                ->where('history', '[A-Za-z0-9_-]+')
+                ->middleware('throttle:pdf-delivery')
+                ->name('history-pdf.content');
+            Route::get('/history-pdf/{history}/download', [DocumentHistoryPdfDeliveryController::class, 'download'])
+                ->where('history', '[A-Za-z0-9_-]+')
+                ->middleware('throttle:pdf-delivery')
+                ->name('history-pdf.download');
             Route::get('/ls/spp/{document}/content', [LsSppDocumentDeliveryController::class, 'content'])
                 ->where('document', '[A-Za-z0-9_-]+')
                 ->name('ls.spp.content');

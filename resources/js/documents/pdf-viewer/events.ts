@@ -8,13 +8,14 @@ export const PDF_VIEWER_OPEN_EVENT = 'sitangkas:pdf-viewer:open';
 export const PDF_VIEWER_CLOSED_EVENT = 'sitangkas:pdf-viewer:closed';
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const RESOURCES = new Set<PdfViewerResource>(['document', 'billing', 'spj_fungsional']);
+const RESOURCES = new Set<PdfViewerResource>(['document', 'billing', 'spj_fungsional', 'history']);
 const SOURCE_STATES = new Set([
     'canonical',
     'legacy_private_pending',
     'legacy_public_pending',
     'unavailable',
 ]);
+const DELIVERY_MODES = new Set(['original', 'identified_watermarked', 'public_watermarked']);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -43,6 +44,10 @@ function isReason(value: unknown): boolean {
 }
 
 function deliveryPath(resource: PdfViewerResource, purpose: 'content' | 'download'): RegExp {
+    if (resource === 'history') {
+        return new RegExp(`/document/history-pdf/[^/]+/${purpose}/?$`);
+    }
+
     return new RegExp(`/document/pdf/[^/]+/${resource}/${purpose}/?$`);
 }
 
@@ -109,7 +114,9 @@ export function isSecurePdfViewerOpenDetail(value: unknown): value is SecurePdfV
         || (value.document_type !== null && typeof value.document_type !== 'string')
         || (value.payment_type !== null && typeof value.payment_type !== 'string')
         || typeof value.source_state !== 'string'
-        || !SOURCE_STATES.has(value.source_state)) {
+        || !SOURCE_STATES.has(value.source_state)
+        || typeof value.delivery_mode !== 'string'
+        || !DELIVERY_MODES.has(value.delivery_mode)) {
         return false;
     }
 

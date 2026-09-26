@@ -803,8 +803,6 @@ class SP2D extends Controller
 
                 $html = '
                 <span class="btn btn-sm btn-info show-document"
-                    data-url="/File_SPM/signs/'.$data->src_name.'"
-                    data-files="'.$data->src_name.'"
                     data-id="'.$id.'"
                     data-wenk="Klik untuk menampilan dokumen"
                     data-wenk-color="blue"

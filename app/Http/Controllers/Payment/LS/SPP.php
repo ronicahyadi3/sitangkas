@@ -150,8 +150,6 @@ class SPP extends Controller
 
             if (! is_null($data->finished_at)) {
                 return '<span type="button" class="btn btn-sm btn-success show-document"
-                         data-url="'.e($contentUrl).'"
-                         data-files="'.$data->src_name_spp.'"
                          data-wenk-pos="top"
                          data-id="'.$encript.'"
                          data-wenk="File Telah Selesai Pencairan"
@@ -164,8 +162,6 @@ class SPP extends Controller
 
             if (in_array($id, [1, 2, 3, 4])) {
                 return '<span type="button" class="btn btn-sm btn-info show-document"
-                         data-url="'.e($contentUrl).'"
-                         data-files="'.$data->src_name_spp.'"
                          data-wenk-pos="top"
                          data-id="'.$encript.'"
                          data-wenk="Tampilkan Dokumen"
@@ -194,7 +190,6 @@ class SPP extends Controller
                          data-id="'.$encript.'"
                          data-wenk="File Belum di Submit"
                          data-wenk-color="blue"
-                         data-files="'.$data->src_name_spp.'"
                          data-toggle="modal"
                          data-target="#FormTTE">
                         <i class="fas fa-hourglass-half"></i> Belum Submit
@@ -208,7 +203,6 @@ class SPP extends Controller
                          data-id="'.$encript.'"
                          data-wenk="Belum Tanda Tangan"
                          data-wenk-color="orange"
-                         data-files="'.$data->src_name_spp.'"
                          data-toggle="modal"
                          data-target="#FormTTE">
                         <i class="fas fa-file-signature"></i> Belum Tanda Tangan
@@ -222,7 +216,6 @@ class SPP extends Controller
                          data-id="'.$encript.'"
                          data-wenk="File Telah Tanda Tangan"
                          data-wenk-color="green"
-                         data-files="'.$data->src_name_spp.'"
                          data-toggle="modal"
                          data-target="#FormTTE">
                         <i class="fas fa-file-contract"></i> Sudah Tanda Tangan
@@ -232,8 +225,6 @@ class SPP extends Controller
             if ($inSubmit) {
                 if ($verify) {
                     return '<span type="button" class="btn btn-sm btn-success show-document"
-                         data-url="'.e($contentUrl).'"
-                         data-files="'.$data->src_name_spp.'"
                          data-wenk-pos="top"
                          data-id="'.$encript.'"
                          data-wenk="File Telah Terverifikasi"
@@ -245,8 +236,6 @@ class SPP extends Controller
                 }
 
                 return '<span type="button" class="btn btn-sm btn-primary show-document"
-                         data-url="'.e($contentUrl).'"
-                         data-files="'.$data->src_name_spp.'"
                          data-wenk-pos="top"
                          data-id="'.$encript.'"
                          data-wenk="File Telah Submit"

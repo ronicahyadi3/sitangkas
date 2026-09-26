@@ -44,6 +44,12 @@ final class PdfDeliveryAuthorizationService
             return $this->notFound();
         }
 
+        $isActingContext = $effectivePosition->getAttribute('is_acting_context') === true;
+        if (! $isActingContext
+            && $effectivePosition->getAttribute('pdf_watermark_required') === true) {
+            return $this->notFound();
+        }
+
         if ($source->authorizationSubject instanceof DocumentArtifact) {
             return $purpose === PdfDeliveryPurpose::Download
                 ? $this->esignAuthorization->downloadArtifact(

@@ -10,6 +10,7 @@ use App\Data\Document\DocumentResourceActionData;
 use App\Data\Document\ResolvedPdfDeliverySource;
 use App\Enums\Document\DocumentDetailActionMode;
 use App\Enums\Document\DocumentDetailSourceState;
+use App\Enums\Document\PdfDeliveryMode;
 use App\Enums\Esign\DocumentArtifactType;
 use App\Models\Document;
 use App\Models\User;
@@ -61,6 +62,7 @@ final class DocumentDetailContractBuilder
             stepPublicId: $action->stepPublicId,
             artifactPublicId: $action->artifactPublicId,
             sourceState: $action->sourceState,
+            deliveryMode: PdfDeliveryMode::Original,
             actionMode: $action->actionMode,
             disabledReasons: [
                 'view' => $action->viewDisabledReason,
@@ -167,6 +169,7 @@ final class DocumentDetailContractBuilder
             'label' => $label,
             'artifact_public_id' => $action->artifactPublicId,
             'source_state' => $action->sourceState->value,
+            'delivery_mode' => PdfDeliveryMode::Original->value,
             'action_mode' => $action->actionMode->value,
             'capabilities' => [
                 'view' => $action->canView,

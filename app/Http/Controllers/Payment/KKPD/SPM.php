@@ -202,15 +202,15 @@ class SPM extends Controller
                         : '/File_SPM/'.$row->src_name_spm;
 
                     if (! is_null($row->rejected_by)) {
-                        return '<span type="button" class="btn btn-sm btn-danger show-document" data-url="/File_SPM/'.$row->src_name_spm.'" data-files="'.e((string) $row->src_name_spm).'" data-id="'.$enc.'" data-wenk="'.e((string) $row->notes).'" data-wenk-color="red" data-toggle="modal" data-target="#FormTTE"><i class="far fa-file-excel"></i> '.$this->rejectedLabel((int) $row->rejected_by).'</span>';
+                        return '<span type="button" class="btn btn-sm btn-danger show-document" data-id="'.$enc.'" data-wenk="'.e((string) $row->notes).'" data-wenk-color="red" data-toggle="modal" data-target="#FormTTE"><i class="far fa-file-excel"></i> '.$this->rejectedLabel((int) $row->rejected_by).'</span>';
                     }
 
                     if (! is_null($row->verify)) {
-                        return '<span type="button" class="btn btn-sm btn-success show-document" data-url="'.$fileUrl.'" data-files="'.$row->src_name_spm.'" data-id="'.$enc.'" data-wenk="Telah Verifikasi" data-wenk-color="green" data-toggle="modal" data-target="#FormTTE"><i class="fas fa-user-check"></i> Telah Verifikasi</span>';
+                        return '<span type="button" class="btn btn-sm btn-success show-document" data-id="'.$enc.'" data-wenk="Telah Verifikasi" data-wenk-color="green" data-toggle="modal" data-target="#FormTTE"><i class="fas fa-user-check"></i> Telah Verifikasi</span>';
                     }
 
                     if ($jabatanId === 4) {
-                        return '<span type="button" class="btn btn-sm btn-warning show-document" data-url="'.$fileUrl.'" data-files="'.$row->src_name_spm.'" data-id="'.$enc.'" data-wenk="Belum Verifikasi" data-wenk-color="orange" data-toggle="modal" data-target="#FormTTE"><i class="fa-solid fa-triangle-exclamation"></i> Belum Verifikasi</span>';
+                        return '<span type="button" class="btn btn-sm btn-warning show-document" data-id="'.$enc.'" data-wenk="Belum Verifikasi" data-wenk-color="orange" data-toggle="modal" data-target="#FormTTE"><i class="fa-solid fa-triangle-exclamation"></i> Belum Verifikasi</span>';
                     }
 
                     if ($jabatanId === 7) {
@@ -219,14 +219,14 @@ class SPM extends Controller
                             : '/File_SP/'.$row->src_name_sp;
 
                         if (in_array('7', $submitArr, true)) {
-                            return '<span type="button" class="btn btn-sm btn-primary show-document" data-url="'.$spFileUrl.'" data-files="'.$row->src_name_sp.'" data-id="'.$enc.'" data-wenk="Telah Submit" data-wenk-color="blue" data-toggle="modal" data-target="#FormTTE"><i class="fas fa-paper-plane"></i> Telah Submit</span>';
+                            return '<span type="button" class="btn btn-sm btn-primary show-document" data-id="'.$enc.'" data-wenk="Telah Submit" data-wenk-color="blue" data-toggle="modal" data-target="#FormTTE"><i class="fas fa-paper-plane"></i> Telah Submit</span>';
                         }
 
                         if (in_array('7', $statusSp, true)) {
-                            return '<span type="button" class="btn btn-sm btn-secondary show-document" data-url="'.$spFileUrl.'" data-files="'.$row->src_name_sp.'" data-id="'.$enc.'" data-wenk="Belum Submit" data-wenk-color="blue" data-toggle="modal" data-target="#FormTTE"><i class="fas fa-hourglass-half"></i> Belum Submit</span>';
+                            return '<span type="button" class="btn btn-sm btn-secondary show-document" data-id="'.$enc.'" data-wenk="Belum Submit" data-wenk-color="blue" data-toggle="modal" data-target="#FormTTE"><i class="fas fa-hourglass-half"></i> Belum Submit</span>';
                         }
 
-                        return '<span type="button" class="btn btn-sm btn-warning show-document" data-status="0" data-url="'.$spFileUrl.'" data-files="'.$row->src_name_sp.'" data-id="'.$enc.'" data-wenk="Belum TTE" data-wenk-color="orange" data-toggle="modal" data-target="#FormTTE"><i class="fas fa-file-signature"></i> Belum TTE</span>';
+                        return '<span type="button" class="btn btn-sm btn-warning show-document" data-status="0" data-id="'.$enc.'" data-wenk="Belum TTE" data-wenk-color="orange" data-toggle="modal" data-target="#FormTTE"><i class="fas fa-file-signature"></i> Belum TTE</span>';
                     }
 
                     if ($jabatanId === 5) {
@@ -235,21 +235,21 @@ class SPM extends Controller
                             && in_array('5', $statusSpPengajuan, true);
 
                         if (in_array('5', $submitArr, true)) {
-                            return '<span type="button" class="btn btn-sm btn-primary show-document" data-url="'.$fileUrl.'" data-files="'.$row->src_name_spm.'" data-id="'.$enc.'" data-wenk="Telah Submit" data-wenk-color="blue" data-toggle="modal" data-target="#FormTTE"><i class="fas fa-paper-plane"></i> Telah Submit</span>';
+                            return '<span type="button" class="btn btn-sm btn-primary show-document" data-id="'.$enc.'" data-wenk="Telah Submit" data-wenk-color="blue" data-toggle="modal" data-target="#FormTTE"><i class="fas fa-paper-plane"></i> Telah Submit</span>';
                         }
 
                         if ($signedAll) {
-                            return '<span type="button" class="btn btn-sm btn-secondary show-document" data-url="'.$fileUrl.'" data-files="'.$row->src_name_spm.'" data-id="'.$enc.'" data-wenk="Belum Submit" data-wenk-color="blue" data-toggle="modal" data-target="#FormTTE"><i class="fas fa-hourglass-half"></i> Belum Submit</span>';
+                            return '<span type="button" class="btn btn-sm btn-secondary show-document" data-id="'.$enc.'" data-wenk="Belum Submit" data-wenk-color="blue" data-toggle="modal" data-target="#FormTTE"><i class="fas fa-hourglass-half"></i> Belum Submit</span>';
                         }
 
-                        return '<span type="button" class="btn btn-sm btn-warning show-document" data-status="0" data-url="'.$fileUrl.'" data-files="'.$row->src_name_spm.'" data-id="'.$enc.'" data-wenk="Belum TTE" data-wenk-color="orange" data-toggle="modal" data-target="#FormTTE"><i class="fas fa-file-signature"></i> Belum TTE</span>';
+                        return '<span type="button" class="btn btn-sm btn-warning show-document" data-status="0" data-id="'.$enc.'" data-wenk="Belum TTE" data-wenk-color="orange" data-toggle="modal" data-target="#FormTTE"><i class="fas fa-file-signature"></i> Belum TTE</span>';
                     }
 
                     if (! in_array($jabatanId, [4, 5, 7], true)) {
-                        return '<span type="button" class="btn btn-sm btn-info show-document" data-url="'.$fileUrl.'" data-files="'.$row->src_name_spm.'" data-id="'.$enc.'" data-wenk="Tampilkan Dokumen" data-wenk-color="blue" data-toggle="modal" data-target="#FormTTE"><i class="fa-solid fa-eye"></i> Tampilkan</span>';
+                        return '<span type="button" class="btn btn-sm btn-info show-document" data-id="'.$enc.'" data-wenk="Tampilkan Dokumen" data-wenk-color="blue" data-toggle="modal" data-target="#FormTTE"><i class="fa-solid fa-eye"></i> Tampilkan</span>';
                     }
 
-                    return '<span type="button" class="btn btn-sm btn-info show-document" data-url="'.$fileUrl.'" data-files="'.$row->src_name_spm.'" data-id="'.$enc.'" data-wenk="Tampilkan Dokumen" data-wenk-color="blue" data-toggle="modal" data-target="#FormTTE"><i class="fa-solid fa-eye"></i> Tampilkan</span>';
+                    return '<span type="button" class="btn btn-sm btn-info show-document" data-id="'.$enc.'" data-wenk="Tampilkan Dokumen" data-wenk-color="blue" data-toggle="modal" data-target="#FormTTE"><i class="fa-solid fa-eye"></i> Tampilkan</span>';
                 })
                 ->addColumn('action', function ($row) use ($btn, $jabatanId) {
                     $enc = EncryptedId::encode($row->id);
@@ -623,7 +623,7 @@ class SPM extends Controller
                 ->addColumn('status', function ($data) {
                     $url = '/File_SPP/signs/'.$data->src_name_spp;
 
-                    return '<button type="button" class="btn btn-sm btn-info show-document" data-url="'.$url.'" data-id="'.EncryptedId::encode($data->id).'" data-files="'.e((string) $data->src_name_spp).'" data-wenk="Klik untuk menampilkan dokumen" data-wenk-color="blue" data-toggle="modal" data-target="#FormTTE"><i class="fa-solid fa-eye"></i> Tampilkan</button>';
+                    return '<button type="button" class="btn btn-sm btn-info show-document" data-id="'.EncryptedId::encode($data->id).'" data-wenk="Klik untuk menampilkan dokumen" data-wenk-color="blue" data-toggle="modal" data-target="#FormTTE"><i class="fa-solid fa-eye"></i> Tampilkan</button>';
                 })
                 ->addColumn('action', function ($data) use ($currentSppId) {
                     $id = EncryptedId::encode($data->id);

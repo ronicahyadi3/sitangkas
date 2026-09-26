@@ -696,8 +696,6 @@ class SPP extends Controller
 
         if (! is_null($row->rejected_by)) {
             return '<span type="button" class="btn btn-sm btn-danger show-document"'
-                .' data-url="'.$fileUrl.'"'
-                .' data-files="'.e((string) $row->src_name_spp).'"'
                 .' data-id="'.$enc.'"'
                 .' data-wenk="'.e((string) ($row->notes ?: 'Dokumen ditolak')).'"'
                 .' data-wenk-color="red"'
@@ -708,8 +706,6 @@ class SPP extends Controller
         if ($jabatanId === 7) {
             if (! is_null($row->verify)) {
                 return '<span type="button" class="btn btn-sm btn-success show-document"'
-                    .' data-url="'.$fileUrl.'"'
-                    .' data-files="'.e((string) $row->src_name_spp).'"'
                     .' data-id="'.$enc.'"'
                     .' data-wenk="Telah Verifikasi"'
                     .' data-wenk-color="green"'
@@ -718,8 +714,6 @@ class SPP extends Controller
             }
 
             return '<span type="button" class="btn btn-sm btn-warning show-document"'
-                .' data-url="'.$fileUrl.'"'
-                .' data-files="'.e((string) $row->src_name_spp).'"'
                 .' data-id="'.$enc.'"'
                 .' data-wenk="Belum Verifikasi"'
                 .' data-wenk-color="orange"'
@@ -729,8 +723,6 @@ class SPP extends Controller
 
         if (! is_null($row->verify)) {
             return '<span type="button" class="btn btn-sm btn-success show-document"'
-                .' data-url="'.$fileUrl.'"'
-                .' data-files="'.e((string) $row->src_name_spp).'"'
                 .' data-id="'.$enc.'"'
                 .' data-wenk="Telah Verifikasi"'
                 .' data-wenk-color="green"'
@@ -747,8 +739,6 @@ class SPP extends Controller
 
         if ($canSubmit) {
             return '<span type="button" class="btn btn-sm btn-secondary show-document"'
-                .' data-url="'.$fileUrl.'"'
-                .' data-files="'.e((string) $row->src_name_spp).'"'
                 .' data-id="'.$enc.'"'
                 .' data-wenk="Belum Submit"'
                 .' data-wenk-color="blue"'
@@ -758,8 +748,6 @@ class SPP extends Controller
 
         if ($submittedByViewer) {
             return '<span type="button" class="btn btn-sm btn-primary show-document"'
-                .' data-url="'.$fileUrl.'"'
-                .' data-files="'.e((string) $row->src_name_spp).'"'
                 .' data-id="'.$enc.'"'
                 .' data-wenk="Telah Submit"'
                 .' data-wenk-color="blue"'
@@ -769,8 +757,6 @@ class SPP extends Controller
 
         if ($signedByViewer) {
             return '<span type="button" class="btn btn-sm btn-success show-document"'
-                .' data-url="'.$fileUrl.'"'
-                .' data-files="'.e((string) $row->src_name_spp).'"'
                 .' data-id="'.$enc.'"'
                 .' data-status="1"'
                 .' data-wenk="Sudah TTE"'
@@ -780,8 +766,6 @@ class SPP extends Controller
         }
 
         return '<span type="button" class="btn btn-sm btn-warning show-document"'
-            .' data-url="'.$fileUrl.'"'
-            .' data-files="'.e((string) $row->src_name_spp).'"'
             .' data-id="'.$enc.'"'
             .' data-status="0"'
             .' data-wenk="Belum TTE"'

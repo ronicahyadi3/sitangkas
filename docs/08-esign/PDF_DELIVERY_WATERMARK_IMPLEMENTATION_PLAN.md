@@ -366,9 +366,10 @@ ditutup.
 
 ## 10. Bridge dan migrasi viewer legacy
 
-Class `.view-pdf` dapat dipertahankan sebagai trigger sementara, tetapi
-`data-url` diganti `data-document-id`/controlled resource identifier. Viewer
-baru tidak mengambil arbitrary URL, tidak menyimpan global Blob Map, tidak
+Cutover R8 telah mencabut class `.view-pdf` dan arbitrary `data-url`. Trigger
+di luar Detail sekarang hanya membawa URL kontrak same-origin yang berisi opaque
+encrypted ID; setelah authorization berhasil, kontrak mengembalikan controlled
+content/download URL. Viewer baru tidak menyimpan global Blob Map, tidak
 mengunggah ulang Blob untuk validasi, dan tidak memakai native `<embed>` sebagai
 kontrak akhir.
 
@@ -409,14 +410,14 @@ Production harus mengonfirmasi:
 |---:|---|---|---|
 | P0 | Kunci kontrak bisnis, default opt-in, invariant original/watermark, dan urutan rollout | Keputusan tidak ambigu dan konsisten lintas dokumentasi | Selesai 26 September 2026 |
 | P1 | Inventaris seluruh PDF response, URL, viewer, download, report, attachment, guest, dan legacy consumer | Matriks repository/route/database/filesystem lokal tersedia di `PDF_DELIVERY_R1_READ_ONLY_INVENTORY.md`; filesystem public dicatat parsial, deployment/external-consumer tetap gate decommission | Selesai 26 September 2026 |
-| P2 | Migration additive flag posisi default `false`, model default/cast, dan pemeriksaan schema | Seluruh posisi lama/baru tetap `false`; behavior runtime belum berubah | Belum |
+| P2 | Migration additive flag posisi default `false`, model cast, dan pemeriksaan schema | Seluruh posisi lama/baru tetap `false` dari default database; behavior watermark belum diaktifkan | Selesai di source 27 September 2026; migration belum dijalankan/deploy |
 | P3 | Schema session/copy/access-event/verification, model, enum, relation, dan transition service | Persistence canonical siap tanpa mengubah route lama | Belum |
 | P4 | Source adapter dan current artifact resolver universal | Backend memperoleh exact source tanpa menerima path browser | Selesai di source 26 September 2026 |
 | P5 | Authorization dan delivery decision ORIGINAL/WATERMARK/DENIED | Authorization ORIGINAL sudah aktif pada bridge endpoint; flag posisi dan keputusan WATERMARK/DENIED belum diimplementasikan | Sebagian: bridge ORIGINAL |
 | P6 | Delivery session, audit append-only, opaque binding, content/download/status endpoint | Opaque direct content/download ORIGINAL tersedia tanpa path leak; persistent session, status, dan audit append-only belum tersedia | Sebagian: bridge ORIGINAL tanpa session |
 | P7 | Persistent asynchronous artifact verification | Viewer tidak tertahan latency BSrE | Belum |
-| P8 | Svelte secure viewer read-only dan legacy `.view-pdf` bridge | General viewer siap desktop/tablet/mobile | Sebagian: R5 viewer island, R6 canonical-only row, dan R7 modal coordinator Detail/DetailTbp selesai di source 26 September 2026; TTE legacy sudah dicabut, sedangkan cutover `.view-pdf` di luar Detail masih menunggu |
-| P9 | Pilot LS original dengan seluruh posisi masih `false` | Main viewer dan delivery contract terbukti sebelum watermark | Belum |
+| P8 | Svelte secure viewer read-only dan cutover legacy `.view-pdf` | General viewer siap desktop/tablet/mobile | Selesai di source 27 September 2026: R5 viewer island, R6 row Detail/DetailTbp, R7 modal coordinator, dan R8 empat direct surface/history telah memakai opaque viewer contract; 30 include serta Blade viewer lama dicabut. Acceptance manual lintas payment masih menjadi gate operasional |
+| P9 | Pilot LS original dengan seluruh posisi masih `false` | Main viewer dan delivery contract terbukti sebelum watermark | Siap di source 27 September 2026: contract/header/log mode ORIGINAL dan command preflight canonical tersedia; migration serta acceptance manual user/posisi nyata belum dijalankan |
 | P10 | COPY-ID, profile, overlay renderer, qpdf validation, private storage | Satu derivative dapat dibuat tanpa mengubah original | Belum |
 | P11 | Cache fingerprint, lock, atomic publish, job, retry, dan cleanup | Concurrent generation idempotent dan resumable | Belum |
 | P12 | Management User toggle dan audit before/after | Posisi pilot dapat diaktifkan manual menjadi `true` | Belum |

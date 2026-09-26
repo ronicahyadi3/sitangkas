@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Actions\Document;
 
 use App\Contracts\Document\PdfDeliverySource;
+use App\Enums\Document\PdfDeliveryMode;
 use App\Enums\Document\PdfDeliveryPurpose;
 use App\Exceptions\Esign\EsignInvariantViolationException;
 use App\Models\Document;
@@ -56,6 +57,7 @@ final class ServeResolvedPdf
 
         Log::channel('module_document_data')->info('Document PDF delivery authorized', [
             'document_id' => (int) $document->getKey(),
+            'delivery_mode' => PdfDeliveryMode::Original->value,
             'purpose' => $purpose->value,
             'resource_key' => $resourceKey,
             'source_state' => $source->sourceState->value,

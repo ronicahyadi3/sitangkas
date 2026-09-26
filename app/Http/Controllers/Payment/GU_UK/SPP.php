@@ -210,7 +210,6 @@ class SPP extends Controller
                             : '/File_LPJ_BPP/'.$row->src_name;
 
                         return '<span type="button" class="btn btn-sm btn-danger show-document"'
-                            .' data-url="'.$rejectedFileUrl.'"'
                             .' data-id="'.$enc.'"'
                             .' data-wenk="'.e((string) $row->notes).'"'
                             .' data-wenk-color="red"'
@@ -224,8 +223,6 @@ class SPP extends Controller
                             : '/File_LPJ_BPP/'.$row->src_name;
 
                         return '<span type="button" class="btn btn-sm btn-info show-document"'
-                            .' data-url="'.$fileUrl.'"'
-                            .' data-files="'.$row->src_name.'"'
                             .' data-id="'.$enc.'"'
                             .' data-wenk="Tampilkan Dokumen"'
                             .' data-wenk-color="blue"'
@@ -242,8 +239,6 @@ class SPP extends Controller
 
                     if ($submittedByViewer) {
                         $lpjButton = '<span type="button" class="btn btn-sm btn-primary show-document"'
-                            .' data-url="'.$fileUrl.'"'
-                            .' data-files="'.$row->src_name.'"'
                             .' data-id="'.$enc.'"'
                             .' data-wenk="Telah Submit"'
                             .' data-wenk-color="blue"'
@@ -252,8 +247,6 @@ class SPP extends Controller
                     } elseif (! $alreadySigned) {
                         $lpjButton = '<span type="button" class="btn btn-sm btn-warning show-document"'
                             .' data-status="0"'
-                            .' data-url="'.$fileUrl.'"'
-                            .' data-files="'.$row->src_name.'"'
                             .' data-id="'.$enc.'"'
                             .' data-wenk="Belum TTE"'
                             .' data-wenk-color="orange"'
@@ -262,8 +255,6 @@ class SPP extends Controller
                     } else {
                         $lpjButton = '<span type="button" class="btn btn-sm btn-success show-document"'
                             .' data-status="1"'
-                            .' data-url="'.$fileUrl.'"'
-                            .' data-files="'.$row->src_name.'"'
                             .' data-id="'.$enc.'"'
                             .' data-wenk="Sudah TTE"'
                             .' data-wenk-color="green"'
@@ -461,8 +452,6 @@ class SPP extends Controller
                         : '/File_TBP/'.$data->src_name;
 
                     return '<span type="button" class="btn btn-sm btn-info show-document"'
-                        .' data-url="'.$url.'"'
-                        .' data-files="'.$data->src_name.'"'
                         .' data-id="'.$id.'"'
                         .' data-wenk="Klik untuk menampilkan dokumen"'
                         .' data-wenk-color="blue"'

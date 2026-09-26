@@ -20,6 +20,7 @@ declare global {
 }
 
 const STATUS_TONES = new Set(['success', 'warning', 'secondary', 'danger']);
+const DELIVERY_MODES = new Set(['original', 'identified_watermarked', 'public_watermarked']);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
     return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -63,6 +64,8 @@ function isAttachment(value: unknown): value is DocumentDetailAttachmentContract
         && (value.key === 'billing' || value.key === 'spj_fungsional')
         && typeof value.label === 'string'
         && typeof value.source_state === 'string'
+        && typeof value.delivery_mode === 'string'
+        && DELIVERY_MODES.has(value.delivery_mode)
         && isActions(value.actions);
 }
 
@@ -73,6 +76,8 @@ function isContract(value: unknown): value is DocumentDetailContract {
         && typeof value.payment_type === 'string'
         && typeof value.document_type === 'string'
         && typeof value.source_state === 'string'
+        && typeof value.delivery_mode === 'string'
+        && DELIVERY_MODES.has(value.delivery_mode)
         && isStatus(value.status)
         && isActions(value.actions)
         && Array.isArray(value.attachments)
@@ -85,6 +90,7 @@ function viewerPayload(
     title: string,
     actions: DocumentDetailActions,
     sourceState: DocumentDetailContract['source_state'],
+    deliveryMode: DocumentDetailContract['delivery_mode'],
 ): SecurePdfViewerOpenDetail | null {
     const payload: SecurePdfViewerOpenDetail = {
         document_id: contract.document_id,
@@ -93,6 +99,7 @@ function viewerPayload(
         document_type: resource === 'document' ? contract.document_type : title,
         payment_type: contract.payment_type,
         source_state: sourceState,
+        delivery_mode: deliveryMode,
         actions: {
             view: actions.view,
             download: actions.download,
@@ -162,6 +169,7 @@ function renderActions(_legacyHtml: unknown, type: string, row: unknown): string
         `${contractValue.document_type} ${contractValue.payment_type}`.trim(),
         contractValue.actions,
         contractValue.source_state,
+        contractValue.delivery_mode,
     );
 
     if (mainPayload !== null) {
@@ -175,6 +183,7 @@ function renderActions(_legacyHtml: unknown, type: string, row: unknown): string
             attachment.label,
             attachment.actions,
             attachment.source_state,
+            attachment.delivery_mode,
         );
 
         if (attachmentPayload !== null) {

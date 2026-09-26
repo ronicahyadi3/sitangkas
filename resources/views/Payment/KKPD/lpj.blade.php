@@ -137,7 +137,6 @@
 @endsection
 
 @section('additionals')
-    @include('components.informations.pdfview')
     @include('components.informations.detail')
     @include('components.informations.history')
     @unless ($isAuditor)

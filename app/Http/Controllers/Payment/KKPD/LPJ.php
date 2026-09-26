@@ -285,7 +285,7 @@ class LPJ extends Controller
                             'show-document',
                             'fa-solid fa-eye text-primary',
                             'Detail Dokumen',
-                            'data-id="'.$hash.'" data-url="'.e($url).'" data-files="'.e((string) $row->src_name).'"'
+                            'data-id="'.$hash.'"'
                         );
                         $actions[] = $btn($hash, 'history_data', 'ni ni-collection text-info', 'History');
 
@@ -854,8 +854,6 @@ class LPJ extends Controller
         if ($this->packageHasRejectedDocument($row)) {
             return '<span type="button" class="btn btn-sm btn-danger show-document"'
                 .' data-id="'.$referenceHash.'"'
-                .' data-url="'.$previewUrl.'"'
-                .' data-files="'.e($previewName).'"'
                 .' data-wenk="'.e($notes ?: 'Dokumen LPJ ditolak').'"'
                 .' data-wenk-color="red"'
                 .' data-toggle="modal" data-target="#FormTTE">'
@@ -865,8 +863,6 @@ class LPJ extends Controller
         if ($this->packageIsFinished($row)) {
             return '<span type="button" class="btn btn-sm btn-success show-document"'
                 .' data-id="'.$referenceHash.'"'
-                .' data-url="'.$previewUrl.'"'
-                .' data-files="'.e($previewName).'"'
                 .' data-wenk="Paket LPJ telah selesai"'
                 .' data-wenk-color="green"'
                 .' data-toggle="modal" data-target="#FormTTE">'
@@ -876,8 +872,6 @@ class LPJ extends Controller
         if (! $this->packageHasDocuments($row)) {
             return '<span type="button" class="btn btn-sm btn-secondary show-document"'
                 .' data-id="'.$referenceHash.'"'
-                .' data-url="'.$previewUrl.'"'
-                .' data-files="'.e($previewName).'"'
                 .' data-wenk="Belum ada dokumen LPJ pada paket ini"'
                 .' data-wenk-color="blue"'
                 .' data-toggle="modal" data-target="#FormTTE">'
@@ -892,8 +886,6 @@ class LPJ extends Controller
 
             return '<span type="button" class="btn btn-sm '.$class.' show-document"'
                 .' data-id="'.$referenceHash.'"'
-                .' data-url="'.$previewUrl.'"'
-                .' data-files="'.e($previewName).'"'
                 .' data-wenk="'.$label.'"'
                 .' data-wenk-color="'.($signed ? 'green' : 'orange').'"'
                 .' data-toggle="modal" data-target="#FormTTE">'
@@ -907,8 +899,6 @@ class LPJ extends Controller
             if ($submitted) {
                 return '<span type="button" class="btn btn-sm btn-primary show-document"'
                     .' data-id="'.$referenceHash.'"'
-                    .' data-url="'.$previewUrl.'"'
-                    .' data-files="'.e($previewName).'"'
                     .' data-wenk="Telah Submit"'
                     .' data-wenk-color="blue"'
                     .' data-toggle="modal" data-target="#FormTTE">'
@@ -921,8 +911,6 @@ class LPJ extends Controller
 
             return '<span type="button" class="btn btn-sm '.$class.' show-document"'
                 .' data-id="'.$referenceHash.'"'
-                .' data-url="'.$previewUrl.'"'
-                .' data-files="'.e($previewName).'"'
                 .' data-wenk="'.$label.'"'
                 .' data-wenk-color="'.($signed ? 'green' : 'orange').'"'
                 .' data-toggle="modal" data-target="#FormTTE">'
@@ -931,8 +919,6 @@ class LPJ extends Controller
 
         return '<span type="button" class="btn btn-sm btn-info show-document"'
             .' data-id="'.$referenceHash.'"'
-            .' data-url="'.$previewUrl.'"'
-            .' data-files="'.e($previewName).'"'
             .' data-wenk="Tampilkan Dokumen"'
             .' data-wenk-color="blue"'
             .' data-toggle="modal" data-target="#FormTTE">'
@@ -950,8 +936,6 @@ class LPJ extends Controller
         if (! is_null($row->rejected_by)) {
             return '<span type="button" class="btn btn-sm btn-danger show-document"'
                 .' data-id="'.$sp2dHash.'"'
-                .' data-url="'.$url.'"'
-                .' data-files="'.e((string) $row->src_name).'"'
                 .' data-wenk="'.e((string) ($row->notes ?: 'Dokumen ditolak')).'"'
                 .' data-wenk-color="red"'
                 .' data-toggle="modal" data-target="#FormTTE">'
@@ -961,8 +945,6 @@ class LPJ extends Controller
         if (! is_null($row->finished_at)) {
             return '<span type="button" class="btn btn-sm btn-success show-document"'
                 .' data-id="'.$sp2dHash.'"'
-                .' data-url="'.$url.'"'
-                .' data-files="'.e((string) $row->src_name).'"'
                 .' data-wenk="Dokumen selesai"'
                 .' data-wenk-color="green">'
                 .'<i class="fas fa-check-double"></i> Selesai</span>';
@@ -971,8 +953,6 @@ class LPJ extends Controller
         if (! is_null($row->status)) {
             return '<span type="button" class="btn btn-sm btn-success show-document"'
                 .' data-id="'.$sp2dHash.'"'
-                .' data-url="'.$url.'"'
-                .' data-files="'.e((string) $row->src_name).'"'
                 .' data-wenk="Dokumen sudah ditandatangani"'
                 .' data-wenk-color="green">'
                 .'<i class="fas fa-file-contract"></i> Sudah TTE</span>';
@@ -980,8 +960,6 @@ class LPJ extends Controller
 
         return '<span type="button" class="btn btn-sm btn-warning show-document"'
             .' data-id="'.$sp2dHash.'"'
-            .' data-url="'.$url.'"'
-            .' data-files="'.e((string) $row->src_name).'"'
             .' data-wenk="Dokumen belum ditandatangani"'
             .' data-wenk-color="orange">'
             .'<i class="fas fa-file-signature"></i> Belum TTE</span>';
