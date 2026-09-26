@@ -21,12 +21,10 @@ use App\Models\Esign\DocumentSigningWorkflow;
 use App\Models\Jabatan;
 use App\Models\Payment\LS;
 use App\Models\UnitKerja;
-use App\Models\User;
 use App\Models\UserPosition;
 use App\Services\Document\DocumentHistoryService;
 use App\Services\Document\DocumentOrganizationScope;
 use App\Services\Esign\Authorization\LsSppSubmitGate;
-use App\Services\Esign\LsSppSigningActionResolver;
 use App\Services\Esign\LsSppWorkflowHandoffService;
 use App\Services\Esign\Persistence\DocumentArtifactPersistenceService;
 use App\Services\User\ActivePositionService;
@@ -53,7 +51,6 @@ class SPP extends Controller
         private readonly PositionIdentityResolver $positionIdentityResolver,
         private readonly DocumentOrganizationScope $documentOrganizationScope,
         private readonly LsSppSubmitGate $lsSppSubmitGate,
-        private readonly LsSppSigningActionResolver $lsSppSigningActionResolver,
         private readonly LsSppWorkflowHandoffService $lsSppWorkflowHandoff,
     ) {}
 
@@ -319,11 +316,8 @@ class SPP extends Controller
         return view('Payment.LS.spp');
     }
 
-    public function json(Request $request, ActivePositionService $activePosition)
+    public function json(ActivePositionService $activePosition)
     {
-        $actor = $request->user();
-        abort_unless($actor instanceof User, 401);
-
         $start = microtime(true);
         try {
             $user = $activePosition->get();
@@ -405,8 +399,6 @@ class SPP extends Controller
                     break;
             }
 
-            $dataQuery = $this->lsSppSigningActionResolver->addSignableStep($dataQuery, $actor);
-
             $btn = static function (
                 string $value,
                 string $class,
@@ -428,10 +420,6 @@ class SPP extends Controller
 
             $response = DataTables::of($dataQuery)
                 ->addIndexColumn()
-                ->addColumn(
-                    'esign',
-                    fn (object $document): ?array => $this->lsSppSigningActionResolver->capabilities($document),
-                )
                 ->addColumn('status', function ($data) use ($userJabatan, $allJabatan, $start) {
                     if ((int) $userJabatan === 13) {
                         return $this->auditorStatusBadge($data, $allJabatan);
@@ -478,41 +466,6 @@ class SPP extends Controller
                     $assignedArr = $document->assigned_to_spp ? explode(',', $document->assigned_to_spp) : [];
 
                     $actions = [];
-                    $esignCapabilities = $this->lsSppSigningActionResolver->capabilities($document);
-                    $verificationCapabilities = $this->lsSppSigningActionResolver
-                        ->verificationCapabilities($document);
-
-                    if ($verificationCapabilities !== null) {
-                        $artifactPublicId = $verificationCapabilities['artifact_public_id'];
-                        $actions[] = $btn(
-                            $artifactPublicId,
-                            'esign-action',
-                            'fas fa-shield-halved text-info',
-                            'Validasi Tanda Tangan Elektronik',
-                            'data-esign-action="verify" '.
-                            'data-esign-artifact="'.e($artifactPublicId).'" '.
-                            'data-esign-verification-url="'.e($verificationCapabilities['verification_url']).'" '.
-                            'data-esign-preview-url="'.e($verificationCapabilities['preview_url']).'" '.
-                            'data-esign-can-verify="true" '.
-                            'aria-label="Validasi Tanda Tangan Elektronik"',
-                        );
-                    }
-
-                    if ($esignCapabilities !== null) {
-                        $stepPublicId = $esignCapabilities['step_public_id'];
-                        $actions[] = $btn(
-                            $stepPublicId,
-                            'esign-action',
-                            'fas fa-file-signature text-success',
-                            'Tanda Tangan Elektronik',
-                            'data-esign-action="sign" '.
-                            'data-esign-step="'.e($stepPublicId).'" '.
-                            'data-esign-can-sign="true" '.
-                            'data-esign-can-verify="false" '.
-                            'aria-label="Tanda Tangan Elektronik"',
-                        );
-                    }
-
                     switch ($userJabatan) {
                         case 13:
                             $actions[] = $btn(

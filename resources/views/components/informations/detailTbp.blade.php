@@ -24,6 +24,7 @@
                                         <th class="align-middle text-center">#</th>
                                         <th class="align-middle text-center">Tanggal</th>
                                         <th class="align-middle text-center">Nomor TBP</th>
+                                        <th class="align-middle text-center">Status</th>
                                         <th class="align-middle text-center">Aksi</th>
                                     </tr>
                                 </thead>
@@ -116,9 +117,21 @@
                     searchable: false,
                     defaultContent: '-',
                     render: function(data, type, row) {
+                        return typeof window.renderDocumentDetailStatus === 'function'
+                            ? window.renderDocumentDetailStatus(data, type, row)
+                            : '-';
+                    }
+                },
+                {
+                    data: 'document_contract',
+                    className: 'text-center',
+                    orderable: false,
+                    searchable: false,
+                    defaultContent: '-',
+                    render: function(data, type, row) {
                         return typeof window.renderDocumentDetailActions === 'function'
                             ? window.renderDocumentDetailActions(data, type, row)
-                            : data;
+                            : '-';
                     }
                 },
             ],

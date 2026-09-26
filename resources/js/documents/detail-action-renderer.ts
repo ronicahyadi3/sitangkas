@@ -11,11 +11,12 @@ import type {
 } from './pdf-viewer/types';
 import '../../css/documents/detail-actions.css';
 
-type DetailActionRenderer = (legacyHtml: unknown, type: string, row: unknown) => string;
+type DetailCellRenderer = (value: unknown, type: string, row: unknown) => string;
 
 declare global {
     interface Window {
-        renderDocumentDetailActions?: DetailActionRenderer;
+        renderDocumentDetailStatus?: DetailCellRenderer;
+        renderDocumentDetailActions?: DetailCellRenderer;
     }
 }
 
@@ -151,15 +152,37 @@ function disabledMessage(contract: DocumentDetailContract): string {
     return `<small class="document-detail-action__reason"><i class="fas fa-lock" aria-hidden="true"></i>${escapeHtml(reason)}</small>`;
 }
 
-function renderActions(_legacyHtml: unknown, type: string, row: unknown): string {
+function contractFromRow(row: unknown): DocumentDetailContract | null {
     const contractValue = isRecord(row) ? row.document_contract : null;
 
-    if (!isContract(contractValue)) {
-        return '<span class="badge bg-gradient-danger document-detail-action__status">Kontrak dokumen tidak tersedia</span>';
+    return isContract(contractValue) ? contractValue : null;
+}
+
+function renderStatus(_value: unknown, type: string, row: unknown): string {
+    const contract = contractFromRow(row);
+
+    if (contract === null) {
+        return type === 'display'
+            ? '<span class="badge bg-gradient-danger document-detail-action__status">Kontrak dokumen tidak tersedia</span>'
+            : 'Kontrak dokumen tidak tersedia';
     }
 
     if (type !== 'display') {
-        return contractValue.status.label;
+        return contract.status.label;
+    }
+
+    const badgeTone = STATUS_TONES.has(contract.status.tone)
+        ? contract.status.tone
+        : 'secondary';
+
+    return `<span class="badge bg-gradient-${badgeTone} document-detail-action__status">${escapeHtml(contract.status.label)}</span>`;
+}
+
+function renderActions(_value: unknown, type: string, row: unknown): string {
+    const contractValue = contractFromRow(row);
+
+    if (contractValue === null || type !== 'display') {
+        return '';
     }
 
     const buttons: string[] = [];
@@ -197,23 +220,22 @@ function renderActions(_legacyHtml: unknown, type: string, row: unknown): string
         buttons.push(signButton);
     }
 
-    const badgeTone = STATUS_TONES.has(contractValue.status.tone)
-        ? contractValue.status.tone
-        : 'secondary';
     const buttonsHtml = buttons.length > 0
         ? `<div class="document-detail-action__buttons">${buttons.join('')}</div>`
-        : disabledMessage(contractValue);
+        : disabledMessage(contractValue) || '<span class="text-muted">—</span>';
 
-    return '<div class="document-detail-action">'
-        + `<span class="badge bg-gradient-${badgeTone} document-detail-action__status">${escapeHtml(contractValue.status.label)}</span>`
-        + buttonsHtml
-        + '</div>';
+    return `<div class="document-detail-action">${buttonsHtml}</div>`;
 }
 
 export function installDocumentDetailActionRenderer(): () => void {
+    window.renderDocumentDetailStatus = renderStatus;
     window.renderDocumentDetailActions = renderActions;
 
     return () => {
+        if (window.renderDocumentDetailStatus === renderStatus) {
+            delete window.renderDocumentDetailStatus;
+        }
+
         if (window.renderDocumentDetailActions === renderActions) {
             delete window.renderDocumentDetailActions;
         }

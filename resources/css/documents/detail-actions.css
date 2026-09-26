@@ -1,8 +1,6 @@
 .document-detail-action {
     align-items: center;
     display: flex;
-    flex-direction: column;
-    gap: 0.42rem;
     justify-content: center;
     min-width: 10rem;
 }
