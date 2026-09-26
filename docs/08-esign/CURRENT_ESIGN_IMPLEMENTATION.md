@@ -308,11 +308,11 @@ Yang sudah tersedia untuk upload baru:
   dari uploader/`users_to` dipakai bila role cocok, dan sisanya disimpan
   `unresolved`/`partial` tanpa tebakan;
 - `SPJ` dan `BMD` LS sudah direct private upload tanpa workflow TTE dan memakai
-  authenticated delivery route dengan cutover per row. Billing tetap berada
-  pada field row SPJ dan folder
-  `public/File_Billing`; kontrak `document` melarang pembuatan row atau
-  `src_type=BILLING`, sehingga private Billing memerlukan mapping attachment
-  additive;
+  authenticated delivery route dengan cutover per row;
+- Billing LS tetap berada pada field row SPJ dan tidak membuat row atau
+  `src_type=BILLING`. Upload/replacement baru memakai artifact type `attachment`
+  di private storage serta route `document.ls.billing.content`/`download`.
+  `/File_Billing` hanya menjadi fallback data historis sebelum backfill;
 - job memakai queue `signatures`, unique per document, row locking, retry
   terbatas, dan dapat diulang secara idempotent.
 

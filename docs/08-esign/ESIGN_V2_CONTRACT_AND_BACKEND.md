@@ -423,7 +423,7 @@ reconciliation.
 
 | Enum | Nilai database |
 |---|---|
-| `DocumentArtifactType` | `before_sign`, `after_sign`, `failed_output` |
+| `DocumentArtifactType` | `before_sign`, `attachment`, `intermediate_sign`, `after_sign`, `failed_output` |
 | `EsignProviderOperation` | `check_user_status`, `sign`, `verify` |
 | `EsignProviderOutcome` | `success`, `business_failure`, `technical_failure`, `invalid_response`, `unknown` |
 | `EsignMigrationRunStatus` | `pending`, `running`, `paused`, `completed`, `completed_with_exceptions`, `failed` |

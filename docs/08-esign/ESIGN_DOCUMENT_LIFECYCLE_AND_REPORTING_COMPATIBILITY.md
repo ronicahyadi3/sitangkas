@@ -465,7 +465,7 @@ public_id
 document_id
 parent_artifact_id
 produced_by_attempt_id
-artifact_type                 source|signed|failed_output
+artifact_type                 source|attachment|intermediate_sign|signed|failed_output
 version
 signature_sequence
 document_type

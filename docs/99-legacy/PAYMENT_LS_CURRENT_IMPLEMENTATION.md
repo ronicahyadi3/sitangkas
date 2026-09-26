@@ -136,6 +136,12 @@ Route LS yang saat ini terdaftar:
 - delivery SPJ LS:
   - `document.ls.spj.content`;
   - `document.ls.spj.download`.
+- delivery BMD LS:
+  - `document.ls.bmd.content`;
+  - `document.ls.bmd.download`.
+- delivery Billing LS:
+  - `document.ls.billing.content`;
+  - `document.ls.billing.download`.
 
 Sidebar mempunyai grup **Pencairan Langsung** dan memetakan SPP/SPM/SP2D sesuai
 kode jabatan. Keberadaan route/menu SPM dan SP2D tidak berarti kedua tahap itu
@@ -221,7 +227,11 @@ Pada create SPP saat ini:
 - row `document` SPJ tetap memakai pola lama: `src_type=SPJ`, `reference_id`
   menunjuk SPP, dan `src_name` berisi UUID filename artifact current;
 - tidak ada file SPJ baru yang dibuat di `public/File_SPJ`;
-- Billing masih ditulis ke `public/File_Billing`;
+- Billing opsional langsung di-stage sebagai artifact private bertipe
+  `attachment`, dengan `source_reference_type=document_attachment` dan
+  `source_reference_id=billing`;
+- `document.billing` tetap berisi UUID filename attachment terbaru; tidak ada
+  file Billing baru yang dibuat di `public/File_Billing`;
 - BMD opsional langsung di-stage dan difinalisasi sebagai current canonical
   `before_sign` artifact pada private storage;
 - row BMD tetap memakai pola lama: `src_type=BMD`, `reference_id` menunjuk SPP,
@@ -233,8 +243,10 @@ Pada create SPP saat ini:
 
 Kontrak data masif `document` tidak diubah. Billing tetap merupakan nama file
 pada kolom `document.billing` milik row SPJ; tidak dibuat row baru atau
-`src_type=BILLING`. Migrasi private Billing nanti harus memakai mapping
-attachment additive di luar pola row `document` yang sudah ada.
+`src_type=BILLING`. Mapping additive memakai `document_artifacts` bertipe
+`attachment`. Artifact Billing tidak diberi `is_current`, sehingga tidak
+mengganggu current source artifact SPJ. Resolver memilih versi Billing terbaru
+dari lineage attachment khusus Billing.
 
 Snapshot database read-only 26 September 2026 menemukan 51.945 row SPJ LS
 aktif: 4 mempunyai tepat satu current artifact, 51.941 belum mempunyai current
@@ -246,6 +258,12 @@ Snapshot yang sama menemukan 8.911 row BMD LS aktif: 2 mempunyai tepat satu
 current artifact, 8.909 belum mempunyai current artifact, dan tidak ada row
 dengan current artifact ambigu. Delivery BMD juga memakai cutover per row;
 historis tetap memakai URL legacy sampai mempunyai current artifact.
+
+Snapshot database menemukan 31.927 row SPJ LS aktif yang mempunyai nilai
+`document.billing`; seluruhnya masih legacy-only sebelum implementasi ini dan
+belum mempunyai attachment Billing private. Karena itu delivery Billing memakai
+cutover per row dan tetap memakai `/File_Billing` hanya untuk data historis yang
+belum dibackfill.
 
 ### 6.4 Anggaran dan transaksi
 
@@ -271,7 +289,7 @@ historis tetap memakai URL legacy sampai mempunyai current artifact.
   menghasilkan `ValidationException`, transaksi rollback, dan respons validasi
   `422`.
 - Jika transaksi gagal, file pendamping public yang baru dibuat dibersihkan.
-- Source SPP, SPJ, dan BMD private dibersihkan melalui
+- Source SPP, SPJ, BMD, dan attachment Billing private dibersihkan melalui
   `discardUnpersistedSourceArtifact()` hanya jika tidak ada row
   `document_artifacts` untuk public ID tersebut.
 - Cleanup memeriksa integritas staging/final sebelum menghapus sehingga tidak
@@ -299,6 +317,12 @@ terpisah setelah review kapasitas dan metadata lock.
 4. meminta `CurrentDocumentArtifactResolver` memilih artifact current;
 5. menjalankan policy `view` atau `download` melalui Gate;
 6. mengirim stream melalui `DocumentArtifactIntegrityService`.
+
+`LsSpjDocumentDeliveryController` dan `LsBmdDocumentDeliveryController` memakai
+alur yang sama serta memastikan `reference_id` menunjuk SPP LS. Billing memakai
+`LsBillingDocumentDeliveryController`: parameter route adalah encrypted ID row
+SPJ, lalu controller memilih artifact `attachment` terbaru dengan mapping
+`document_attachment/billing`.
 
 ### 7.2 Resolve artifact
 
@@ -349,6 +373,7 @@ Nama tabel legacy dan tipe artifact canonical mirip, tetapi fungsinya berbeda:
 | Komponen | Waktu dibuat | Isi/fungsi |
 |---|---|---|
 | `document_artifacts.before_sign` | Saat upload/provision source PDF | File PDF asli/belum TTE di private storage |
+| `document_artifacts.attachment` | Saat Billing di-upload/diprovisikan | Attachment PDF private; tidak menjadi current source dokumen |
 | `before_signs` | Saat user menekan sign final dan attempt persisten dibuat | Ledger metadata input attempt: NIK masked, document ID, source name, MD5, size |
 | `document_artifacts.after_sign` | Setelah provider memberi output dan verifikasi valid | File PDF hasil TTE yang valid di private storage |
 | `document_artifacts.failed_output` | Provider memberi output tetapi verifikasi gagal | Evidence output gagal, tidak current |
@@ -504,8 +529,10 @@ dengan `parent_artifact_id` menunjuk current artifact lama. Pola penulisan row
 dan `document.src_name` tetap sama. Artifact lama dipertahankan sebagai histori
 dan current pointer berpindah ke versi baru. Bila SPJ/BMD lama belum mempunyai
 artifact, update terlebih dahulu memprovisikan file legacy sebagai versi awal,
-lalu membuat replacement sebagai versi berikutnya. Billing replacement masih
-memakai folder public. SPP historis yang belum mempunyai current canonical
+lalu membuat replacement sebagai versi berikutnya. Replacement Billing juga
+memprovisikan `/File_Billing` lama sebagai attachment awal, lalu membuat versi
+attachment berikutnya tanpa mengubah pola kolom `document.billing`. SPP historis
+yang belum mempunyai current canonical
 artifact harus melalui provisioning atau backfill sebelum file utamanya dapat
 diganti. Replacement SPJ/BMD lama melakukan provisioning awal secara otomatis
 bila source legacy masih tersedia.
@@ -544,9 +571,8 @@ Urutan prioritas blocker saat snapshot:
    setiap batas transaksi.
 3. Siapkan worker `signatures` production dan shared cache sesuai topology
    server; worker lokal bukan bukti availability production.
-4. Migrasikan Billing create/update dari public storage melalui mapping
-   attachment additive. Billing wajib tetap memakai kolom `document.billing`;
-   jangan membuat `src_type=BILLING`.
+4. Backfill 31.927 Billing LS historis ke mapping attachment private, lalu
+   verifikasi coverage dan integritas sebelum menutup `/File_Billing`.
 5. Tutup seluruh URL langsung `public/File_*` untuk LS setelah setiap tipe
    mempunyai delivery resolver/policy canonical.
 6. Review kebutuhan indeks komposit anggaran berdasarkan query plan dan volume
@@ -572,12 +598,11 @@ Risiko tambahan:
    submit gate, assignment event, legacy projection, dan current artifact.
 3. Konfigurasikan shared cache, production process manager, health/heartbeat,
    dan recovery worker `signatures`.
-4. Rancang mapping attachment additive untuk Billing sambil mempertahankan
+4. Backfill Billing, SPJ, dan BMD historis; hentikan URL public per tipe setelah
+   coverage canonical serta integritas file terverifikasi.
+5. Pertahankan mapping Billing pada artifact type `attachment` dan kolom
    `document.billing`; jangan membuat row document/`src_type` baru.
-5. Tambahkan resolver dan delivery route untuk Billing setelah private artifact
-   tersedia, lalu hentikan URL public untuk attachment itu.
-6. Backfill SPJ/BMD historis dan hentikan URL public per tipe setelah coverage
-   canonical terverifikasi.
+6. Validasi runtime delivery SPP/SPJ/BMD/Billing dengan policy dan scope tahun.
 7. Selesaikan delivery policy LS SPP/SPJ/BMD, termasuk watermark/audit bila scope fase
    tersebut sudah diaktifkan.
 8. Baru lanjutkan SPM dan SP2D, lalu bank/penyelesaian LS.

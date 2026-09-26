@@ -54,7 +54,7 @@ Kondisi kode dan blocker terbaru wajib dibaca pada
 - [x] Migrasikan create/replacement BMD ke canonical private artifact dan
   tambahkan authenticated content/download route tanpa mengubah pola row
   `document`.
-- [ ] Migrasikan Billing dari public storage melalui mapping attachment
+- [x] Migrasikan create/replacement Billing dari public storage melalui mapping attachment
   additive tanpa row atau `src_type` baru.
 - [ ] Validasi runtime upload, rollback, delivery, provisioning, dan TTE LS.
 - [ ] Review dan selesaikan SPM, SP2D, bank, serta penyelesaian LS.
@@ -89,17 +89,18 @@ diaktifkan atau direfaktor.
 Fondasi awal, create/upload SPP, kontrak `storage_path_sha256`, request update,
 replacement canonical SPP, locking pagu, lazy activation, submit gate, serta
 assignment signer pada handoff sudah dikerjakan. Direct private create,
-replacement, dan delivery SPJ/BMD juga sudah tersedia dengan cutover per row
-untuk data historis. Hasil berikutnya adalah backend visible
-placement/controlled signing LS SPP atau private Billing sesuai prioritas aktif;
-Billing tetap memerlukan mapping attachment additive tanpa row/`src_type` baru.
+replacement, dan delivery SPJ/BMD/Billing juga sudah tersedia dengan cutover per
+row untuk data historis. Billing memakai artifact type `attachment` tanpa row
+atau `src_type` baru. Hasil berikutnya adalah backend visible
+placement/controlled signing LS SPP atau backfill attachment historis sesuai
+prioritas aktif.
 
 ## 3. Keputusan yang belum ditetapkan
 
 | Topik | Yang sudah diketahui | Yang perlu dipastikan sebelum pekerjaan terkait |
 |---|---|---|
 | Data awal | Tabel operasional `document`, `document_process`, anggaran, `before_signs`, dan `after_signs` sudah disediakan; model bersama tersedia | Apakah histori LS juga diimpor; periode, sumber, dan high-watermark bila dibutuhkan |
-| Struktur dokumen | `document` tetap projection bersama dan `document_artifacts` menyimpan version chain; keluarga LS tetap beranchor SPP; SPJ tetap row `src_type=SPJ`; Billing tetap kolom row SPJ | Constraint kardinalitas keluarga dan bentuk mapping attachment additive Billing tanpa row/`src_type` baru |
+| Struktur dokumen | `document` tetap projection bersama dan `document_artifacts` menyimpan version chain; keluarga LS tetap beranchor SPP; SPJ tetap row `src_type=SPJ`; Billing tetap kolom row SPJ dan dimapping sebagai artifact type `attachment` | Constraint kardinalitas keluarga dan strategi backfill attachment Billing historis |
 | Sumber anggaran | SPP wajib mempunyai rekening/pagu dan rincian penggunaan | Sumber resmi, tahun/unit, cara pemuatan, serta aturan perubahan pagu |
 | Scope organisasi | `skpd_id` telah dihapus; master memakai instansi/parent/jenis/kode | Pemetaan kewenangan PA/KPA/PPK terhadap sekolah, kesehatan, Setda, kecamatan, dan unit terkait |
 | Tahap/revisi | Legacy memakai CSV dan BP/BPP mengajukan lebih dari sekali | Matriks action-stage, kapan revisi/tolak/hapus boleh, serta dampak terhadap persetujuan dan dokumen turunan |
@@ -273,7 +274,7 @@ berlaku; jangan meminta ulang bila izin tersebut sudah diberikan.
 - [ ] Controlled signing/handoff LS SPP end-to-end.
 - [x] Private artifact create/replacement dan delivery SPJ LS.
 - [x] Private artifact create/replacement dan delivery BMD LS.
-- [ ] Private artifact dan delivery Billing melalui mapping attachment additive.
+- [x] Private artifact dan delivery Billing melalui mapping attachment additive.
 - [ ] Implementasi SPP lengkap.
 - [ ] Implementasi SPM lengkap.
 - [ ] Implementasi SP2D, TTE, billing, dan penyelesaian bank khusus LS.

@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Data;
 
+use App\Enums\Esign\DocumentArtifactType;
 use App\Http\Controllers\Controller;
 use App\Models\Document;
+use App\Models\Esign\DocumentArtifact;
 use App\Services\Document\DocumentOrganizationScope;
 use App\Services\User\ActivePositionService;
 use App\Services\User\PositionIdentityResolver;
@@ -376,6 +378,18 @@ class Detail extends Controller
                 WHERE current_artifact.document_id = document.id
                   AND current_artifact.is_current = 1
             ) AS has_current_artifact')
+            ->selectRaw('EXISTS (
+                SELECT 1
+                FROM document_artifacts AS billing_attachment
+                WHERE billing_attachment.document_id = document.id
+                  AND billing_attachment.artifact_type = ?
+                  AND billing_attachment.source_reference_type = ?
+                  AND billing_attachment.source_reference_id = ?
+            ) AS has_billing_attachment', [
+                DocumentArtifactType::Attachment->value,
+                DocumentArtifact::SOURCE_REFERENCE_DOCUMENT_ATTACHMENT,
+                DocumentArtifact::ATTACHMENT_BILLING,
+            ])
             ->get();
 
         if ($dataQuery->isEmpty()) {
@@ -427,6 +441,13 @@ class Detail extends Controller
         $downloadUrl = $encryptedDocumentId === null
             ? null
             : route("document.ls.{$lsDeliveryType}.download", ['document' => $encryptedDocumentId]);
+        $billingDeliveryUrl = $data->payment_type === 'LS'
+            && $data->src_type === Document::TYPE_SPJ
+            && (bool) $data->has_billing_attachment
+                ? route('document.ls.billing.content', [
+                    'document' => EncryptedId::encode($data->id),
+                ])
+                : null;
         $fileUrl = $downloadUrl ?? $this->generateUrl($data->src_type, $data->src_name, $status);
         $documentDate = optional($data->created_at)->format('Y-m-d') ?? 'tanggal-tidak-tersedia';
         $downloadName = $data->unit_kerja.' - '.str_replace('/', '|', (string) $data->nomor).' - '.$documentDate.'.pdf';
@@ -484,7 +505,16 @@ class Detail extends Controller
             }
         } else {
             if ($data->billing) {
-                $result .= $this->generateButton('success', 'Billing', 'green', '/File_Billing/', $data->billing, false, true);
+                $result .= $this->generateButton(
+                    'success',
+                    'Billing',
+                    'green',
+                    '/File_Billing/',
+                    $data->billing,
+                    false,
+                    true,
+                    $billingDeliveryUrl,
+                );
                 $result .= $this->generateButton('success', 'Tampilkan', 'green', $authority['path'], $data->src_name, $status, true, $contentUrl);
             } else {
                 $result .= $this->generateButton('success', 'Tampilkan', 'green', $authority['path'], $data->src_name, $status, true, $contentUrl);

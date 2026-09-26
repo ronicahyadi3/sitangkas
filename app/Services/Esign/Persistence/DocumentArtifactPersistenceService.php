@@ -101,6 +101,18 @@ final class DocumentArtifactPersistenceService
 
     public function discardUnpersistedSourceArtifact(StagedDocumentArtifact $stagedArtifact): void
     {
+        $this->discardUnpersistedArtifact($stagedArtifact, DocumentArtifactType::BeforeSign);
+    }
+
+    public function discardUnpersistedAttachmentArtifact(StagedDocumentArtifact $stagedArtifact): void
+    {
+        $this->discardUnpersistedArtifact($stagedArtifact, DocumentArtifactType::Attachment);
+    }
+
+    private function discardUnpersistedArtifact(
+        StagedDocumentArtifact $stagedArtifact,
+        DocumentArtifactType $artifactType,
+    ): void {
         $this->assertStagedArtifact($stagedArtifact);
 
         if (DocumentArtifact::query()
@@ -112,7 +124,7 @@ final class DocumentArtifactPersistenceService
         $disk = $this->disk();
         $paths = [
             $stagedArtifact->stagingPath,
-            $this->finalPath($stagedArtifact, DocumentArtifactType::BeforeSign),
+            $this->finalPath($stagedArtifact, $artifactType),
         ];
         $existingPaths = [];
 
@@ -179,6 +191,47 @@ final class DocumentArtifactPersistenceService
             replaceableDraftWorkflowId: $replaceableDraftWorkflow?->getKey(),
             actorUserPositionId: $actorUserPositionId,
             actorIsActing: $actorIsActing,
+        );
+    }
+
+    /** @param array<string, mixed>|null $metadata */
+    public function finalizeDocumentAttachment(
+        StagedDocumentArtifact $stagedArtifact,
+        Document|int $document,
+        DocumentArtifact|int $parentArtifact,
+        string $attachmentType,
+        ?string $originalName = null,
+        ?int $createdByUserId = null,
+        ?array $metadata = null,
+    ): DocumentArtifact {
+        $normalizedAttachmentType = Str::lower(trim($attachmentType));
+
+        if (! $stagedArtifact->hasPdfHeader
+            || $stagedArtifact->sizeBytes === 0
+            || preg_match('/\A[a-z0-9_]{1,50}\z/', $normalizedAttachmentType) !== 1) {
+            throw new EsignArtifactStorageException(
+                'document_attachment_invalid',
+                $stagedArtifact->publicId,
+            );
+        }
+
+        return $this->finalizeArtifact(
+            stagedArtifact: $stagedArtifact,
+            documentId: $document instanceof Document ? (int) $document->getKey() : $document,
+            artifactType: DocumentArtifactType::Attachment,
+            parentArtifactId: $parentArtifact instanceof DocumentArtifact
+                ? (int) $parentArtifact->getKey()
+                : $parentArtifact,
+            makeCurrent: false,
+            originalName: $originalName,
+            createdByUserId: $createdByUserId,
+            sourceSystem: 'application',
+            sourceReferenceType: DocumentArtifact::SOURCE_REFERENCE_DOCUMENT_ATTACHMENT,
+            sourceReferenceId: $normalizedAttachmentType,
+            metadata: [
+                'attachment_type' => $normalizedAttachmentType,
+            ] + ($metadata ?? []),
+            allowNonCurrentParent: true,
         );
     }
 
@@ -1042,6 +1095,7 @@ final class DocumentArtifactPersistenceService
 
         if ($allowNonCurrentParent) {
             if (! in_array($artifactType, [
+                DocumentArtifactType::Attachment,
                 DocumentArtifactType::IntermediateSign,
                 DocumentArtifactType::AfterSign,
                 DocumentArtifactType::FailedOutput,
@@ -1250,6 +1304,7 @@ final class DocumentArtifactPersistenceService
     ): string {
         $directory = match ($artifactType) {
             DocumentArtifactType::BeforeSign => 'source',
+            DocumentArtifactType::Attachment => 'attachment',
             DocumentArtifactType::IntermediateSign => 'intermediate',
             DocumentArtifactType::AfterSign => 'signed',
             DocumentArtifactType::FailedOutput => 'failed-output',

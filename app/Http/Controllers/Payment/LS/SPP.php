@@ -38,7 +38,6 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use RuntimeException;
 use Throwable;
@@ -58,32 +57,6 @@ class SPP extends Controller
         private readonly LsSppWorkflowHandoffService $lsSppWorkflowHandoff,
     ) {}
 
-    protected function storeFile($file, $directory, ?array &$storedFiles = null)
-    {
-        $filename = Str::uuid()->toString().'.pdf';
-        $targetDir = public_path($directory);
-        $file->move($targetDir, $filename);
-
-        if (is_array($storedFiles)) {
-            $storedFiles[] = $targetDir.DIRECTORY_SEPARATOR.$filename;
-        }
-
-        return $filename;
-    }
-
-    protected function cleanupStoredFiles(array $storedFiles): void
-    {
-        foreach ($storedFiles as $path) {
-            if (! $path || ! is_string($path)) {
-                continue;
-            }
-
-            if (is_file($path)) {
-                @unlink($path);
-            }
-        }
-    }
-
     protected function cleanupUnpersistedSourceArtifact(
         ?StagedDocumentArtifact $stagedArtifact,
         DocumentArtifactPersistenceService $artifactPersistence,
@@ -96,6 +69,25 @@ class SPP extends Controller
             $artifactPersistence->discardUnpersistedSourceArtifact($stagedArtifact);
         } catch (Throwable $cleanupException) {
             Log::channel('payment_ls')->critical('SPP LS private artifact cleanup failed', [
+                'artifact_public_id' => $stagedArtifact->publicId,
+                'exception' => class_basename($cleanupException),
+            ]);
+            report($cleanupException);
+        }
+    }
+
+    protected function cleanupUnpersistedAttachmentArtifact(
+        ?StagedDocumentArtifact $stagedArtifact,
+        DocumentArtifactPersistenceService $artifactPersistence,
+    ): void {
+        if (! $stagedArtifact instanceof StagedDocumentArtifact) {
+            return;
+        }
+
+        try {
+            $artifactPersistence->discardUnpersistedAttachmentArtifact($stagedArtifact);
+        } catch (Throwable $cleanupException) {
+            Log::channel('payment_ls')->critical('SPP LS private attachment cleanup failed', [
                 'artifact_public_id' => $stagedArtifact->publicId,
                 'exception' => class_basename($cleanupException),
             ]);
@@ -754,13 +746,14 @@ class SPP extends Controller
         $unitKerja = (int) $user->unitKerja->id;
         $selectedYear = $yearAccess->selectedYear();
         $targetBudgetUnitId = $this->resolveSppBudgetUnitId($user);
-        $storedFiles = [];
         $stagedSppArtifact = null;
         $stagedSpjArtifact = null;
         $stagedBmdArtifact = null;
+        $stagedBillingArtifact = null;
         $uploadedSpp = $request->file('file_spp');
         $uploadedSpj = $request->file('file_spj');
         $uploadedBmd = $request->file('file_bmd');
+        $uploadedBilling = $request->file('file_billing');
 
         try {
             $sppStream = fopen($uploadedSpp->getPathname(), 'rb');
@@ -789,9 +782,23 @@ class SPP extends Controller
             }
 
             $filename_spj = $stagedSpjArtifact->publicId.'.pdf';
-            $filename_billing = $request->hasFile('file_billing')
-                ? $this->storeFile($request->file('file_billing'), '/File_Billing', $storedFiles)
-                : null;
+            $filename_billing = null;
+
+            if ($uploadedBilling !== null) {
+                $billingStream = fopen($uploadedBilling->getPathname(), 'rb');
+
+                if (! is_resource($billingStream)) {
+                    throw new RuntimeException('billing_upload_stream_unreadable');
+                }
+
+                try {
+                    $stagedBillingArtifact = $artifactPersistence->stagePdfStream($billingStream);
+                } finally {
+                    fclose($billingStream);
+                }
+
+                $filename_billing = $stagedBillingArtifact->publicId.'.pdf';
+            }
             $filename_bmd = null;
 
             if ($uploadedBmd !== null) {
@@ -810,10 +817,10 @@ class SPP extends Controller
                 $filename_bmd = $stagedBmdArtifact->publicId.'.pdf';
             }
         } catch (Throwable $e) {
-            $this->cleanupStoredFiles($storedFiles);
             $this->cleanupUnpersistedSourceArtifact($stagedSppArtifact, $artifactPersistence);
             $this->cleanupUnpersistedSourceArtifact($stagedSpjArtifact, $artifactPersistence);
             $this->cleanupUnpersistedSourceArtifact($stagedBmdArtifact, $artifactPersistence);
+            $this->cleanupUnpersistedAttachmentArtifact($stagedBillingArtifact, $artifactPersistence);
             Log::channel('payment_ls')->warning('SPP LS Store file upload failed', [
                 'error' => $e->getMessage(),
                 'duration_ms' => round((microtime(true) - $start) * 1000, 2),
@@ -843,9 +850,11 @@ class SPP extends Controller
                 $stagedSppArtifact,
                 $stagedSpjArtifact,
                 $stagedBmdArtifact,
+                $stagedBillingArtifact,
                 $uploadedSpp,
                 $uploadedSpj,
                 $uploadedBmd,
+                $uploadedBilling,
                 $artifactCreatorUserId,
                 $artifactCreatorPositionId,
                 $artifactCreatorIsActing,
@@ -920,7 +929,7 @@ class SPP extends Controller
                     'billing' => $filename_billing,
                 ]);
 
-                $artifactPersistence->finalizeSourceArtifact(
+                $spjSourceArtifact = $artifactPersistence->finalizeSourceArtifact(
                     stagedArtifact: $stagedSpjArtifact,
                     document: $spj,
                     originalName: $uploadedSpj->getClientOriginalName(),
@@ -936,6 +945,24 @@ class SPP extends Controller
                         'storage_strategy' => 'canonical_private_upload',
                     ],
                 );
+
+                if ($stagedBillingArtifact instanceof StagedDocumentArtifact) {
+                    $artifactPersistence->finalizeDocumentAttachment(
+                        stagedArtifact: $stagedBillingArtifact,
+                        document: $spj,
+                        parentArtifact: $spjSourceArtifact,
+                        attachmentType: DocumentArtifact::ATTACHMENT_BILLING,
+                        originalName: $uploadedBilling?->getClientOriginalName(),
+                        createdByUserId: $artifactCreatorUserId === null
+                            ? null
+                            : (int) $artifactCreatorUserId,
+                        metadata: [
+                            'document_type' => Document::TYPE_SPJ,
+                            'payment_type' => 'LS',
+                            'storage_strategy' => 'canonical_private_upload',
+                        ],
+                    );
+                }
 
                 $documentHistoryService->upload($spj->id, $filename_spj, $unitKerja);
                 if ($filename_bmd) {
@@ -1014,17 +1041,17 @@ class SPP extends Controller
                 'message' => 'Data Tersimpan...',
             ]);
         } catch (ValidationException $e) {
-            $this->cleanupStoredFiles($storedFiles);
             $this->cleanupUnpersistedSourceArtifact($stagedSppArtifact, $artifactPersistence);
             $this->cleanupUnpersistedSourceArtifact($stagedSpjArtifact, $artifactPersistence);
             $this->cleanupUnpersistedSourceArtifact($stagedBmdArtifact, $artifactPersistence);
+            $this->cleanupUnpersistedAttachmentArtifact($stagedBillingArtifact, $artifactPersistence);
 
             throw $e;
         } catch (Throwable $e) {
-            $this->cleanupStoredFiles($storedFiles);
             $this->cleanupUnpersistedSourceArtifact($stagedSppArtifact, $artifactPersistence);
             $this->cleanupUnpersistedSourceArtifact($stagedSpjArtifact, $artifactPersistence);
             $this->cleanupUnpersistedSourceArtifact($stagedBmdArtifact, $artifactPersistence);
+            $this->cleanupUnpersistedAttachmentArtifact($stagedBillingArtifact, $artifactPersistence);
             Log::channel('payment_ls')->error('SPP LS Store failed', [
                 'id_spp' => $sppId,
                 'error' => $e->getMessage(),
@@ -1209,12 +1236,13 @@ class SPP extends Controller
             ], 400);
         }
 
-        $storedFiles = [];
         $stagedSppArtifact = null;
         $stagedSpjArtifact = null;
         $stagedBmdArtifact = null;
+        $stagedBillingArtifact = null;
         $uploadedSpp = $request->file('file_spp');
         $uploadedSpj = $request->file('file_spj');
+        $uploadedBilling = $request->file('file_billing');
         $requiresBmdDocument = count(array_intersect(
             array_map('intval', explode(',', (string) $validated['belanja'])),
             [1, 2],
@@ -1223,9 +1251,10 @@ class SPP extends Controller
         $sppReplacementOriginalName = $uploadedSpp?->getClientOriginalName();
         $spjReplacementOriginalName = $uploadedSpj?->getClientOriginalName();
         $bmdReplacementOriginalName = $uploadedBmd?->getClientOriginalName();
+        $billingReplacementOriginalName = $uploadedBilling?->getClientOriginalName();
 
         try {
-            if ($uploadedSpj !== null) {
+            if ($uploadedSpj !== null || $uploadedBilling !== null) {
                 $this->provisionLegacyRelatedDocumentBeforeReplacement(
                     sppId: $decryptedId,
                     documentType: Document::TYPE_SPJ,
@@ -1239,6 +1268,18 @@ class SPP extends Controller
                         ? null
                         : (int) $artifactCreatorPositionId,
                     actorIsActing: $artifactCreatorIsActing,
+                );
+            }
+
+            if ($uploadedBilling !== null) {
+                $this->provisionLegacyBillingBeforeReplacement(
+                    sppId: $decryptedId,
+                    unitKerjaId: $unitKerjaId,
+                    selectedYear: $selectedYear,
+                    artifactPersistence: $artifactPersistence,
+                    actorUserId: $artifactCreatorUserId === null
+                        ? null
+                        : (int) $artifactCreatorUserId,
                 );
             }
 
@@ -1273,6 +1314,20 @@ class SPP extends Controller
                 }
             }
 
+            if ($uploadedBilling !== null) {
+                $billingStream = fopen($uploadedBilling->getPathname(), 'rb');
+
+                if (! is_resource($billingStream)) {
+                    throw new RuntimeException('billing_replacement_stream_unreadable');
+                }
+
+                try {
+                    $stagedBillingArtifact = $artifactPersistence->stagePdfStream($billingStream);
+                } finally {
+                    fclose($billingStream);
+                }
+            }
+
             if ($uploadedSpj !== null) {
                 $spjStream = fopen($uploadedSpj->getPathname(), 'rb');
 
@@ -1302,7 +1357,6 @@ class SPP extends Controller
             }
 
             DB::transaction(function () use (
-                $request,
                 $validated,
                 $decryptedId,
                 $unitKerjaId,
@@ -1317,11 +1371,12 @@ class SPP extends Controller
                 $sppReplacementOriginalName,
                 $spjReplacementOriginalName,
                 $bmdReplacementOriginalName,
+                $billingReplacementOriginalName,
                 $start,
-                &$storedFiles,
                 $stagedSppArtifact,
                 $stagedSpjArtifact,
                 $stagedBmdArtifact,
+                $stagedBillingArtifact,
             ): void {
                 Log::channel('payment_ls')->debug('SPP LS Update transaction start', [
                     'id_spp' => $decryptedId,
@@ -1452,8 +1507,8 @@ class SPP extends Controller
                         label: 'SPJ',
                     );
                 }
-                $billing = $request->hasFile('file_billing')
-                    ? $this->storeFile($request->file('file_billing'), '/File_Billing', $storedFiles)
+                $billing = $stagedBillingArtifact instanceof StagedDocumentArtifact
+                    ? $stagedBillingArtifact->publicId.'.pdf'
                     : $spj?->billing;
 
                 $dataSpj = [
@@ -1481,8 +1536,10 @@ class SPP extends Controller
                 $spj->fill($dataSpj);
                 $spj->save();
 
+                $spjReplacementArtifact = null;
+
                 if ($stagedSpjArtifact instanceof StagedDocumentArtifact) {
-                    $artifactPersistence->finalizeSourceArtifact(
+                    $spjReplacementArtifact = $artifactPersistence->finalizeSourceArtifact(
                         stagedArtifact: $stagedSpjArtifact,
                         document: $spj,
                         parentArtifact: $spjParentArtifact,
@@ -1501,6 +1558,38 @@ class SPP extends Controller
                                 : 'canonical_private_upload',
                             'operation' => 'update',
                             'replaced_artifact_public_id' => $spjParentArtifact?->public_id,
+                        ],
+                    );
+                }
+
+                if ($stagedBillingArtifact instanceof StagedDocumentArtifact) {
+                    $billingParentArtifact = $this->lockedLatestBillingAttachment($spj)
+                        ?? $spjReplacementArtifact
+                        ?? $this->lockedCurrentSourceArtifact(
+                            document: $spj,
+                            field: 'file_billing',
+                            label: 'SPJ',
+                        );
+
+                    $artifactPersistence->finalizeDocumentAttachment(
+                        stagedArtifact: $stagedBillingArtifact,
+                        document: $spj,
+                        parentArtifact: $billingParentArtifact,
+                        attachmentType: DocumentArtifact::ATTACHMENT_BILLING,
+                        originalName: $billingReplacementOriginalName,
+                        createdByUserId: $artifactCreatorUserId === null
+                            ? null
+                            : (int) $artifactCreatorUserId,
+                        metadata: [
+                            'document_type' => Document::TYPE_SPJ,
+                            'payment_type' => 'LS',
+                            'storage_strategy' => $billingParentArtifact->artifact_type === DocumentArtifactType::Attachment
+                                ? 'canonical_private_replacement'
+                                : 'canonical_private_upload',
+                            'operation' => 'update',
+                            'replaced_artifact_public_id' => $billingParentArtifact->artifact_type === DocumentArtifactType::Attachment
+                                ? $billingParentArtifact->public_id
+                                : null,
                         ],
                     );
                 }
@@ -1659,17 +1748,17 @@ class SPP extends Controller
                 'message' => 'Update SPP Berhasil',
             ]);
         } catch (ValidationException $e) {
-            $this->cleanupStoredFiles($storedFiles);
             $this->cleanupUnpersistedSourceArtifact($stagedSppArtifact, $artifactPersistence);
             $this->cleanupUnpersistedSourceArtifact($stagedSpjArtifact, $artifactPersistence);
             $this->cleanupUnpersistedSourceArtifact($stagedBmdArtifact, $artifactPersistence);
+            $this->cleanupUnpersistedAttachmentArtifact($stagedBillingArtifact, $artifactPersistence);
 
             throw $e;
         } catch (Throwable $e) {
-            $this->cleanupStoredFiles($storedFiles);
             $this->cleanupUnpersistedSourceArtifact($stagedSppArtifact, $artifactPersistence);
             $this->cleanupUnpersistedSourceArtifact($stagedSpjArtifact, $artifactPersistence);
             $this->cleanupUnpersistedSourceArtifact($stagedBmdArtifact, $artifactPersistence);
+            $this->cleanupUnpersistedAttachmentArtifact($stagedBillingArtifact, $artifactPersistence);
 
             Log::channel('payment_ls')->error('SPP LS Update failed', [
                 'id_spp' => $decryptedId ?? null,
@@ -1865,6 +1954,120 @@ class SPP extends Controller
         }
 
         return $currentArtifact;
+    }
+
+    private function lockedLatestBillingAttachment(Document $spj): ?DocumentArtifact
+    {
+        /** @var DocumentArtifact|null $attachment */
+        $attachment = DocumentArtifact::query()
+            ->where('document_id', $spj->getKey())
+            ->where('artifact_type', DocumentArtifactType::Attachment->value)
+            ->where('source_reference_type', DocumentArtifact::SOURCE_REFERENCE_DOCUMENT_ATTACHMENT)
+            ->where('source_reference_id', DocumentArtifact::ATTACHMENT_BILLING)
+            ->orderByDesc('version')
+            ->orderByDesc('id')
+            ->lockForUpdate()
+            ->first();
+
+        return $attachment;
+    }
+
+    private function provisionLegacyBillingBeforeReplacement(
+        int $sppId,
+        int $unitKerjaId,
+        int $selectedYear,
+        DocumentArtifactPersistenceService $artifactPersistence,
+        ?int $actorUserId,
+    ): void {
+        $stagedArtifact = null;
+
+        try {
+            DB::transaction(function () use (
+                $sppId,
+                $unitKerjaId,
+                $selectedYear,
+                $artifactPersistence,
+                $actorUserId,
+                &$stagedArtifact,
+            ): void {
+                /** @var Document|null $spj */
+                $spj = Document::query()
+                    ->forPaymentType('LS')
+                    ->ofType(Document::TYPE_SPJ)
+                    ->where('reference_id', $sppId)
+                    ->where('id_unit_kerja', $unitKerjaId)
+                    ->whereYear('created_at', $selectedYear)
+                    ->lockForUpdate()
+                    ->first();
+
+                if (! $spj instanceof Document || blank($spj->billing)) {
+                    return;
+                }
+
+                if ($this->lockedLatestBillingAttachment($spj) instanceof DocumentArtifact) {
+                    return;
+                }
+
+                $parentArtifact = $this->lockedCurrentSourceArtifact(
+                    document: $spj,
+                    field: 'file_billing',
+                    label: 'SPJ',
+                );
+                $legacyBillingName = trim((string) $spj->billing);
+
+                if (basename(str_replace('\\', '/', $legacyBillingName)) !== $legacyBillingName
+                    || preg_match('/\.pdf\z/i', $legacyBillingName) !== 1) {
+                    throw ValidationException::withMessages([
+                        'file_billing' => 'Identitas file Billing lama tidak valid untuk diprovisikan.',
+                    ]);
+                }
+
+                $legacyBillingPath = public_path('File_Billing'.DIRECTORY_SEPARATOR.$legacyBillingName);
+
+                if (! is_file($legacyBillingPath) || ! is_readable($legacyBillingPath)) {
+                    throw ValidationException::withMessages([
+                        'file_billing' => 'File Billing lama tidak ditemukan. Pulihkan file legacy sebelum melakukan replacement.',
+                    ]);
+                }
+
+                $billingStream = fopen($legacyBillingPath, 'rb');
+
+                if (! is_resource($billingStream)) {
+                    throw ValidationException::withMessages([
+                        'file_billing' => 'File Billing lama tidak dapat dibaca untuk diprovisikan.',
+                    ]);
+                }
+
+                try {
+                    $stagedArtifact = $artifactPersistence->stagePdfStream(
+                        $billingStream,
+                        $spj->created_at,
+                    );
+                } finally {
+                    fclose($billingStream);
+                }
+
+                $artifactPersistence->finalizeDocumentAttachment(
+                    stagedArtifact: $stagedArtifact,
+                    document: $spj,
+                    parentArtifact: $parentArtifact,
+                    attachmentType: DocumentArtifact::ATTACHMENT_BILLING,
+                    originalName: null,
+                    createdByUserId: $actorUserId,
+                    metadata: [
+                        'document_type' => Document::TYPE_SPJ,
+                        'payment_type' => 'LS',
+                        'storage_strategy' => 'canonical_private_legacy_provisioning',
+                        'legacy_stored_name' => $legacyBillingName,
+                        'original_name_available' => false,
+                    ],
+                );
+            });
+        } catch (Throwable $exception) {
+            $this->cleanupUnpersistedAttachmentArtifact($stagedArtifact, $artifactPersistence);
+
+            throw $exception;
+        }
     }
 
     private function provisionLegacyRelatedDocumentBeforeReplacement(

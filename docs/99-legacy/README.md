@@ -97,9 +97,9 @@ tetapi vertical slice belum dijalankan sukses end-to-end. TTE sukses sengaja
 tidak mengaktifkan step berikutnya; activation berikutnya terjadi saat handoff.
 SPJ dan BMD create/replacement sudah memakai canonical private artifact dan
 named delivery route tanpa mengubah pola row `document`. Billing tetap pada
-kolom `document.billing`, tidak boleh dibuat sebagai `src_type` baru, dan masih
-menuju storage public sampai mapping attachment additive tersedia. Validasi
-runtime belum dilakukan.
+kolom `document.billing`, tidak dibuat sebagai `src_type` baru, dan dimapping
+sebagai artifact type `attachment` dengan private delivery route. Data historis
+tetap memakai storage public sampai dibackfill. Validasi runtime belum dilakukan.
 `UpdateSppRequest`, replacement version chain,
 draft-workflow rebind/revision cycle, serta blocker formula integrity hash sudah
 diselesaikan.

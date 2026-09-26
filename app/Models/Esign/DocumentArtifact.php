@@ -15,6 +15,10 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 #[UsePolicy(DocumentArtifactPolicy::class)]
 class DocumentArtifact extends Model
 {
+    public const ATTACHMENT_BILLING = 'billing';
+
+    public const SOURCE_REFERENCE_DOCUMENT_ATTACHMENT = 'document_attachment';
+
     /** @var array<string, mixed> */
     protected $attributes = [
         'extension' => 'pdf',
