@@ -14,11 +14,31 @@ final class CurrentDocumentArtifactResolver
 {
     public function resolve(Document $document): DocumentArtifact
     {
-        $artifacts = $document->artifacts()
-            ->where('is_current', true)
-            ->orderByDesc('version')
-            ->limit(2)
-            ->get();
+        $artifacts = $document->relationLoaded('pdfDeliveryArtifacts')
+            ? $document->pdfDeliveryArtifacts
+                ->filter(static fn (DocumentArtifact $artifact): bool => $artifact->is_current
+                    && in_array($artifact->artifact_type, [
+                        DocumentArtifactType::BeforeSign,
+                        DocumentArtifactType::AfterSign,
+                    ], true))
+                ->sort(static fn (DocumentArtifact $left, DocumentArtifact $right): int => [
+                    (int) $right->version,
+                    (int) $right->getKey(),
+                ] <=> [
+                    (int) $left->version,
+                    (int) $left->getKey(),
+                ])
+                ->take(2)
+                ->values()
+            : $document->artifacts()
+                ->where('is_current', true)
+                ->whereIn('artifact_type', [
+                    DocumentArtifactType::BeforeSign->value,
+                    DocumentArtifactType::AfterSign->value,
+                ])
+                ->orderByDesc('version')
+                ->limit(2)
+                ->get();
 
         if ($artifacts->isEmpty()) {
             throw (new ModelNotFoundException)->setModel(

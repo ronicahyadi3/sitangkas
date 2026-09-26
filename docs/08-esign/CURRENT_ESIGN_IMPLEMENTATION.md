@@ -1175,6 +1175,62 @@ bersama setelah resolver digeneralisasi secara batch; `Data\DetailTbp` juga
 harus ikut ditangani. Rollout tidak boleh menjadi global dan wajib memakai
 allowlist per `payment_type:src_type` setelah backend workflow masing-masing
 siap.
+
+R0 relokasi entry point dokumen dikunci pada 26 September 2026 sebagai kontrak
+dokumentasi tanpa perubahan runtime. Main table payment adalah surface
+paket/alur; modal Detail Dokumen adalah surface action per dokumen; general
+secure viewer adalah surface tunggal view/validasi BSrE/download; editor TTE
+adalah surface placement/prepare/passphrase/sign. Tombol canonical LS SPP yang
+masih berada di main table merupakan adapter transisi dan baru dipindahkan
+setelah resolver detail, action row, modal coordinator, dan replacement viewer
+lulus gate. Direct download lama juga tidak dicabut pada R0 agar layanan tipe
+dokumen yang belum mempunyai delivery canonical tidak terputus. Tahap berikutnya
+R1/P1 audit read-only lintas seluruh payment, `Data\Detail`, `Data\DetailTbp`,
+history, attachment, report/export, route, database, serta snapshot
+public/private juga selesai pada 26 September 2026 dan dicatat di
+`PDF_DELIVERY_R1_READ_ONLY_INVENTORY.md`. Snapshot `public/File_*` sengaja hanya
+sebagian dan tidak boleh dipakai sebagai parity report. Audit menemukan raw
+public path masih luas, viewer/editor legacy menunjuk endpoint yang tidak lagi
+terdaftar, serta canonical artifact baru mencakup 11 dokumen.
+
+R2 contract data per row Detail Dokumen selesai di source pada 26 September
+2026. `Data\Detail` dan `Data\DetailTbp` menambahkan `document_contract` versi 1
+secara additive. Contract memakai opaque document ID, status/capability
+terstruktur, source state, action mode, canonical public ID, disabled reason,
+dan attachment terstruktur tanpa nama/path file. Exact signable step LS SPP
+diproyeksikan secara batch. UI lama masih membaca HTML `status`/`action`; belum
+ada runtime cutover atau pencabutan direct download.
+
+Fondasi R3 source resolver selesai di source pada 26 September 2026. Kontrak
+`PdfDeliverySource`, DTO internal immutable `ResolvedPdfDeliverySource`,
+registry mapping legacy terkontrol, serta resolver artifact canonical telah
+dibuat. Resolver canonical hanya menerima current artifact PDF pada disk
+private, memvalidasi invariant metadata/path, dan fail-closed jika current
+artifact ambigu atau rusak. Dokumen tanpa artifact menghasilkan `null` agar
+composite resolver pada lanjutan R3 dapat mencoba adapter legacy yang
+terotorisasi; ini bukan fallback raw path dari browser. `SPJ_BPP` tidak
+diaktifkan dalam registry karena sumber aktifnya masih perlu review. Belum ada
+runtime cutover ke resolver ini, adapter legacy, atau perubahan UI. R2/R3
+relokasi ini berbeda dari P2 workstream watermark yang menambahkan flag
+posisi.
+
+Lanjutan R3 source fallback selesai di source pada 26 September 2026. Binding
+`PdfDeliverySource` sekarang menggunakan composite resolver dengan urutan
+canonical artifact, legacy-private, lalu legacy-public. Resolver canonical
+juga mendukung attachment Billing dan SPJ Fungsional melalui resource key
+terkontrol. `Data\Detail` dan `Data\DetailTbp` memakai resolver tersebut sebagai
+sumber `source_state`, termasuk TBP, sementara kolom HTML action/download lama
+tetap dipertahankan agar UI legacy belum terputus. Contract baru tidak
+mengekspor disk atau path fisik.
+
+Acceptance read-only membuktikan canonical, legacy-public, TBP, Billing, dan
+SPJ Fungsional dapat di-resolve pada snapshot lokal. Cabang legacy-private
+belum mempunyai sampel layout `File_*` pada storage lokal ini, walaupun disk
+dan resolvernya sudah aktif. Artifact attachment canonical belum mempunyai row
+pada snapshot database. `SPJ_BPP`, file hilang/tidak terbaca/bukan PDF, history
+legacy, serta static public bypass masih menjadi sumber atau surface yang belum
+diselesaikan. Tidak ada file yang dipindahkan atau dihapus pada R3 ini.
+
 Pilot real, aktivasi feature flag operasional, public verification, dan rollout
 tetap menunggu gate backend terkait. Urutan rinci berada di
 `ESIGN_FRONTEND_IMPLEMENTATION_AND_LEGACY_MIGRATION_PLAN.md`.

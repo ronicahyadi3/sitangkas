@@ -17,6 +17,8 @@ class DocumentArtifact extends Model
 {
     public const ATTACHMENT_BILLING = 'billing';
 
+    public const ATTACHMENT_SPJ_FUNCTIONAL = 'spj_fungsional';
+
     public const SOURCE_REFERENCE_DOCUMENT_ATTACHMENT = 'document_attachment';
 
     /** @var array<string, mixed> */

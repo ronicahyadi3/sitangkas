@@ -27,6 +27,64 @@ export interface EsignActionCapabilities {
     can_verify: boolean;
 }
 
+export type DocumentDetailSourceState =
+    | 'canonical'
+    | 'legacy_private_pending'
+    | 'legacy_public_pending'
+    | 'unavailable';
+
+export type DocumentDetailActionMode = 'canonical' | 'legacy_transition' | 'none';
+
+export interface DocumentDetailStatus {
+    code: 'signed' | 'ready_to_sign' | 'waiting_for_signature' | 'unavailable';
+    label: string;
+    tone: 'success' | 'warning' | 'secondary' | 'danger';
+}
+
+export interface DocumentDetailCapabilities {
+    view: boolean;
+    sign: boolean;
+    verify: boolean;
+    download_available_in_viewer: boolean;
+}
+
+export interface DocumentDetailDisabledReason {
+    code: string;
+    message: string;
+}
+
+export interface DocumentDetailDisabledReasons {
+    view: DocumentDetailDisabledReason | null;
+    sign: DocumentDetailDisabledReason | null;
+    verify: DocumentDetailDisabledReason | null;
+    download: DocumentDetailDisabledReason | null;
+}
+
+export interface DocumentDetailAttachmentContract {
+    key: 'billing' | 'spj_fungsional';
+    label: string;
+    artifact_public_id: Uuid | null;
+    source_state: DocumentDetailSourceState;
+    action_mode: DocumentDetailActionMode;
+    capabilities: DocumentDetailCapabilities;
+    disabled_reasons: DocumentDetailDisabledReasons;
+}
+
+export interface DocumentDetailContract {
+    contract_version: 1;
+    document_id: string;
+    payment_type: string;
+    document_type: string;
+    status: DocumentDetailStatus;
+    capabilities: DocumentDetailCapabilities;
+    step_public_id: Uuid | null;
+    artifact_public_id: Uuid | null;
+    source_state: DocumentDetailSourceState;
+    action_mode: DocumentDetailActionMode;
+    disabled_reasons: DocumentDetailDisabledReasons;
+    attachments: DocumentDetailAttachmentContract[];
+}
+
 export type EsignOpenEventDetail = EsignActionCapabilities;
 
 export interface EsignValidationOpenEventDetail {

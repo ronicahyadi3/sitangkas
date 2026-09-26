@@ -193,6 +193,45 @@ final class LsSppSigningActionResolver
     }
 
     /**
+     * @param  list<int>  $documentIds
+     * @return array<int, array{step_public_id: ?string, artifact_public_id: ?string}>
+     */
+    public function capabilitiesForDocumentIds(array $documentIds, User $actor): array
+    {
+        $documentIds = array_values(array_unique(array_filter(
+            array_map(static fn (mixed $id): int => (int) $id, $documentIds),
+            static fn (int $id): bool => $id > 0,
+        )));
+
+        if ($documentIds === []) {
+            return [];
+        }
+
+        $documents = DB::table((new Document)->getTable())
+            ->select('document.id')
+            ->whereIn('document.id', $documentIds)
+            ->whereNull('document.deleted_at');
+
+        return $this->addSignableStep($documents, $actor)
+            ->get()
+            ->mapWithKeys(static function (object $document): array {
+                $documentId = (int) $document->id;
+                $stepPublicId = $document->esign_step_public_id ?? null;
+                $artifactPublicId = $document->esign_artifact_public_id ?? null;
+
+                return [
+                    $documentId => [
+                        'step_public_id' => is_string($stepPublicId) ? $stepPublicId : null,
+                        'artifact_public_id' => is_string($artifactPublicId)
+                            ? $artifactPublicId
+                            : null,
+                    ],
+                ];
+            })
+            ->all();
+    }
+
+    /**
      * @return array{step_public_id: string, can_sign: true, can_verify: false}|null
      */
     public function capabilities(object $document): ?array

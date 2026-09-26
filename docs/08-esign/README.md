@@ -69,7 +69,10 @@ integrasi BSrE wajib membaca berurutan:
    untuk implementasi lanjutkan ke
    [rencana secure PDF viewer/watermark](PDF_DELIVERY_WATERMARK_IMPLEMENTATION_PLAN.md)
    dan
-   [lampiran teknisnya](PDF_DELIVERY_WATERMARK_IMPLEMENTATION_APPENDICES.md);
+   [lampiran teknisnya](PDF_DELIVERY_WATERMARK_IMPLEMENTATION_APPENDICES.md),
+   serta baca
+   [inventaris read-only R1](PDF_DELIVERY_R1_READ_ONLY_INVENTORY.md) sebelum
+   mengubah entry point, route, source resolver, atau fallback legacy;
 5. [kontrak dan arsitektur backend](ESIGN_V2_CONTRACT_AND_BACKEND.md);
 6. [desain editor visible dan multi-QR satu signer](ESIGN_VISIBLE_EDITOR_AND_MULTI_QR_DESIGN.md)
    bila menyentuh source PDF editor, binary preview, placement, footer,
@@ -303,6 +306,21 @@ Jika TTE dipanggil dari payment LS, baca juga:
 54. Frontend tidak menampilkan checkbox `Saya telah memeriksa dokumen` atau
     checkbox afirmasi lain. Klik tombol `Tandatangani Sekarang` merupakan
     afirmasi eksplisit dan handler mengirim `affirmed=true`.
+55. Main table payment hanya menangani status/action paket dan satu pintu
+    `Detail Dokumen`. TTE, validasi tanda tangan BSrE, dan Tampilkan PDF berada
+    pada row jenis dokumen di modal detail; tombol `verify_data` proses bisnis
+    tidak boleh disamakan dengan validasi kriptografis BSrE.
+56. General secure PDF viewer menjadi satu-satunya surface view, verification
+    summary, dan download terotorisasi. Editor TTE tetap menjadi surface
+    placement QR/footer, prepared confirmation, passphrase, attempt, progress,
+    resume, dan result.
+57. Entry point canonical dipindahkan per `payment_type:src_type`, dimulai dari
+    LS SPP. Legacy dan canonical tidak boleh menangani row yang sama; action dan
+    direct download lama baru dilepas setelah replacement terkait lulus gate dan
+    rollback path tersedia.
+58. Viewer/editor yang dibuka dari modal detail dikoordinasikan tanpa tumpukan
+    Bootstrap modal pasif. Detail disembunyikan sementara, lalu dibuka kembali
+    dan read model terkait di-refresh setelah child surface ditutup/selesai.
 
 Status frontend 25 September 2026: F0-F5 selesai di source. Svelte island,
 event bridge, adapter refresh opt-in, serta shell modal Bootstrap/Argon empat

@@ -40,6 +40,31 @@ ditampilkan atau diunduh manusia melalui SITANGKAS. Boundary tersebut harus:
 
 ## 2. Batas domain yang tidak boleh dicampur
 
+### 2.0 Entry point paket dan dokumen
+
+Keputusan R0 tanggal 26 September 2026 mengunci ownership UI berikut:
+
+| Surface | Tanggung jawab | Bukan tanggung jawab |
+|---|---|---|
+| Main table payment | Status dan action paket: Detail Dokumen, history, edit/hapus sesuai workflow, submit/handoff, reject, dan verifikasi proses bisnis | TTE dokumen, validasi tanda tangan BSrE, view PDF tertentu, atau download PDF tertentu |
+| Modal Detail Dokumen | Daftar anggota keluarga dokumen, status TTE per dokumen, serta trigger Tampilkan/TTE sesuai capability backend | Menentukan authorization dari tombol/role numeric atau melayani byte PDF langsung |
+| General secure PDF viewer | View PDF, verification summary/signer, dan download bila `can_download=true` | Placement QR/footer, passphrase, atau perintah sign |
+| Editor TTE | Placement QR/footer, prepared confirmation, passphrase, attempt/progress/resume, dan result | General download atau menjadi viewer arsip utama |
+
+`app/Http/Controllers/Data/Detail.php` dan adapter detail khusus tetap menjadi
+read boundary keluarga dokumen. Keputusan capability nantinya diekstrak ke
+resolver/policy backend universal; Blade/JavaScript tidak boleh menebak hak TTE
+dari `src_type`, warna status, CSV legacy, atau ID jabatan saja.
+
+Modal detail tidak ditumpuk pasif di bawah viewer/editor. Modal coordinator
+menyimpan context paket, menyembunyikan detail ketika surface anak dibuka, lalu
+membuka kembali dan me-refresh read model setelah anak ditutup/selesai.
+
+R0 hanya mengunci kontrak dan tidak mengubah runtime. Pemindahan tombol,
+penghapusan direct download, serta cutover main table dilakukan per
+`payment_type:src_type` setelah replacement lulus gate. Ini mencegah hilangnya
+layanan untuk dokumen yang workflow/artifact/delivery canonical-nya belum siap.
+
 ### 2.1 General secure PDF viewer
 
 Viewer umum dipakai untuk melihat, memeriksa status verifikasi, melihat signer,
@@ -189,6 +214,15 @@ Contract `PdfDeliverySource` mengembalikan controlled resource key, subject
 authorization, private storage reference, safe filename, MIME, SHA-256, ukuran,
 dan metadata. Implementasi pertama menggunakan `document_artifacts` melalui
 `CurrentDocumentArtifactResolver`.
+
+Status 26 September 2026: kontrak, DTO hasil immutable, registry legacy
+terkontrol, dan adapter current canonical artifact telah selesai di source.
+Binding container sekarang menunjuk composite resolver dengan urutan canonical
+artifact, legacy-private, lalu legacy-public. Billing dan SPJ Fungsional
+memakai resource key attachment yang terkontrol; TBP memakai resource dokumen
+yang sama. `Data\Detail` dan `Data\DetailTbp` telah memakai hasil resolver untuk
+`source_state`, tetapi action HTML legacy belum dicabut. Belum ada content
+session universal atau cutover viewer pada tahap ini.
 
 PDF yang belum menjadi artifact masuk melalui adapter transisi. Adapter tidak
 boleh menjadikan `document.src_name` atau physical path sebagai public identity.
@@ -374,7 +408,7 @@ Production harus mengonfirmasi:
 | Tahap | Pekerjaan | Outcome/gate | Status |
 |---:|---|---|---|
 | P0 | Kunci kontrak bisnis, default opt-in, invariant original/watermark, dan urutan rollout | Keputusan tidak ambigu dan konsisten lintas dokumentasi | Selesai 26 September 2026 |
-| P1 | Inventaris seluruh PDF response, URL, viewer, download, report, attachment, guest, dan legacy consumer | Matriks source/consumer/bypass lengkap; tidak ada mutation | Berikutnya |
+| P1 | Inventaris seluruh PDF response, URL, viewer, download, report, attachment, guest, dan legacy consumer | Matriks repository/route/database/filesystem lokal tersedia di `PDF_DELIVERY_R1_READ_ONLY_INVENTORY.md`; filesystem public dicatat parsial, deployment/external-consumer tetap gate decommission | Selesai 26 September 2026 |
 | P2 | Migration additive flag posisi default `false`, model default/cast, dan pemeriksaan schema | Seluruh posisi lama/baru tetap `false`; behavior runtime belum berubah | Belum |
 | P3 | Schema session/copy/access-event/verification, model, enum, relation, dan transition service | Persistence canonical siap tanpa mengubah route lama | Belum |
 | P4 | Source adapter dan current artifact resolver universal | Backend memperoleh exact source tanpa menerima path browser | Belum |

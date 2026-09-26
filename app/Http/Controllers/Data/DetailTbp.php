@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Data;
 
+use App\Enums\Esign\DocumentArtifactType;
 use App\Http\Controllers\Controller;
 use App\Models\Document;
 use App\Models\UserPosition;
+use App\Services\Document\DocumentDetailContractBuilder;
 use App\Services\Document\DocumentOrganizationScope;
 use App\Services\User\ActivePositionService;
 use App\Services\User\PositionIdentityResolver;
@@ -21,6 +23,7 @@ class DetailTbp extends Controller
     public function __construct(
         private readonly PositionIdentityResolver $positionIdentityResolver,
         private readonly DocumentOrganizationScope $documentOrganizationScope,
+        private readonly DocumentDetailContractBuilder $documentDetailContractBuilder,
     ) {}
 
     public function detail(Request $request, ActivePositionService $activePosition): JsonResponse
@@ -83,6 +86,7 @@ class DetailTbp extends Controller
         }
 
         $tbpQuery = Document::query()
+            ->with('pdfDeliveryArtifacts')
             ->join('unit_kerjas', 'unit_kerjas.id', '=', 'document.id_unit_kerja')
             ->where('document.src_type', 'TBP')
             ->where('document.payment_type', $document->payment_type)
@@ -90,10 +94,49 @@ class DetailTbp extends Controller
             ->whereYear('document.created_at', $selectedYear)
             ->whereNull('document.deleted_at')
             ->select('document.*', 'unit_kerjas.nama as unit_kerja')
+            ->selectRaw('(
+                SELECT COUNT(*)
+                FROM document_artifacts AS detail_artifact_count
+                WHERE detail_artifact_count.document_id = document.id
+                  AND detail_artifact_count.is_current = 1
+                  AND detail_artifact_count.artifact_type IN (?, ?)
+            ) AS detail_artifact_count', [
+                DocumentArtifactType::BeforeSign->value,
+                DocumentArtifactType::AfterSign->value,
+            ])
+            ->selectRaw('(
+                SELECT MIN(detail_artifact.public_id)
+                FROM document_artifacts AS detail_artifact
+                WHERE detail_artifact.document_id = document.id
+                  AND detail_artifact.is_current = 1
+                  AND detail_artifact.artifact_type IN (?, ?)
+                HAVING COUNT(*) = 1
+            ) AS detail_artifact_public_id', [
+                DocumentArtifactType::BeforeSign->value,
+                DocumentArtifactType::AfterSign->value,
+            ])
+            ->selectRaw('(
+                SELECT MIN(detail_artifact_type.artifact_type)
+                FROM document_artifacts AS detail_artifact_type
+                WHERE detail_artifact_type.document_id = document.id
+                  AND detail_artifact_type.is_current = 1
+                  AND detail_artifact_type.artifact_type IN (?, ?)
+                HAVING COUNT(*) = 1
+            ) AS detail_artifact_type', [
+                DocumentArtifactType::BeforeSign->value,
+                DocumentArtifactType::AfterSign->value,
+            ])
             ->orderByDesc('document.created_at');
 
         return DataTables::of($tbpQuery)
             ->addIndexColumn()
+            ->addColumn('document_contract', function (Document $row) use ($position): array {
+                return $this->documentDetailContractBuilder->build(
+                    document: $row,
+                    legacyCanSign: false,
+                    canDownload: (string) $position->jabatan?->kode !== 'AUDITOR',
+                )->toArray();
+            })
             ->addColumn('action', function (object $row): string {
                 $url = ! is_null($row->status)
                     ? '/File_TBP/signs/'.$row->src_name

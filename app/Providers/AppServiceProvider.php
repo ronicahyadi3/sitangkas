@@ -2,7 +2,9 @@
 
 namespace App\Providers;
 
+use App\Contracts\Document\PdfDeliverySource;
 use App\Contracts\Esign\EsignGateway;
+use App\Services\Document\CompositePdfDeliverySource;
 use App\Services\Esign\BsreClient;
 use App\Services\Esign\BsreConfiguration;
 use App\Services\User\ActivePositionService;
@@ -28,6 +30,7 @@ class AppServiceProvider extends ServiceProvider
         });
 
         $this->app->bind(EsignGateway::class, BsreClient::class);
+        $this->app->bind(PdfDeliverySource::class, CompositePdfDeliverySource::class);
     }
 
     /**

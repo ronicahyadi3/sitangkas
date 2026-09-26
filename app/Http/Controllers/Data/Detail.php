@@ -8,7 +8,10 @@ use App\Enums\Esign\DocumentArtifactType;
 use App\Http\Controllers\Controller;
 use App\Models\Document;
 use App\Models\Esign\DocumentArtifact;
+use App\Models\User;
+use App\Services\Document\DocumentDetailContractBuilder;
 use App\Services\Document\DocumentOrganizationScope;
+use App\Services\Esign\LsSppSigningActionResolver;
 use App\Services\User\ActivePositionService;
 use App\Services\User\PositionIdentityResolver;
 use App\Support\EncryptedId;
@@ -26,6 +29,8 @@ class Detail extends Controller
     public function __construct(
         private readonly PositionIdentityResolver $positionIdentityResolver,
         private readonly DocumentOrganizationScope $documentOrganizationScope,
+        private readonly DocumentDetailContractBuilder $documentDetailContractBuilder,
+        private readonly LsSppSigningActionResolver $lsSppSigningActionResolver,
     ) {}
 
     public function detail(Request $request, ActivePositionService $user): JsonResponse
@@ -57,6 +62,14 @@ class Detail extends Controller
                 'status' => 422,
                 'message' => 'ID Dokumen tidak valid',
             ], 422);
+        }
+
+        $actor = $request->user();
+        if (! $actor instanceof User) {
+            return response()->json([
+                'status' => 401,
+                'message' => 'Sesi pengguna tidak valid',
+            ], 401);
         }
 
         $userData = $user->get();
@@ -371,7 +384,40 @@ class Detail extends Controller
             });
 
         $dataQuery = (clone $accessibleQuery)
+            ->with('pdfDeliveryArtifacts')
             ->select('document.*', 'unit_kerjas.nama as unit_kerja')
+            ->selectRaw('(
+                SELECT COUNT(*)
+                FROM document_artifacts AS detail_artifact_count
+                WHERE detail_artifact_count.document_id = document.id
+                  AND detail_artifact_count.is_current = 1
+                  AND detail_artifact_count.artifact_type IN (?, ?)
+            ) AS detail_artifact_count', [
+                DocumentArtifactType::BeforeSign->value,
+                DocumentArtifactType::AfterSign->value,
+            ])
+            ->selectRaw('(
+                SELECT MIN(detail_artifact.public_id)
+                FROM document_artifacts AS detail_artifact
+                WHERE detail_artifact.document_id = document.id
+                  AND detail_artifact.is_current = 1
+                  AND detail_artifact.artifact_type IN (?, ?)
+                HAVING COUNT(*) = 1
+            ) AS detail_artifact_public_id', [
+                DocumentArtifactType::BeforeSign->value,
+                DocumentArtifactType::AfterSign->value,
+            ])
+            ->selectRaw('(
+                SELECT MIN(detail_artifact_type.artifact_type)
+                FROM document_artifacts AS detail_artifact_type
+                WHERE detail_artifact_type.document_id = document.id
+                  AND detail_artifact_type.is_current = 1
+                  AND detail_artifact_type.artifact_type IN (?, ?)
+                HAVING COUNT(*) = 1
+            ) AS detail_artifact_type', [
+                DocumentArtifactType::BeforeSign->value,
+                DocumentArtifactType::AfterSign->value,
+            ])
             ->selectRaw('EXISTS (
                 SELECT 1
                 FROM document_artifacts AS current_artifact
@@ -386,6 +432,20 @@ class Detail extends Controller
                   AND billing_attachment.source_reference_type = ?
                   AND billing_attachment.source_reference_id = ?
             ) AS has_billing_attachment', [
+                DocumentArtifactType::Attachment->value,
+                DocumentArtifact::SOURCE_REFERENCE_DOCUMENT_ATTACHMENT,
+                DocumentArtifact::ATTACHMENT_BILLING,
+            ])
+            ->selectRaw('(
+                SELECT detail_billing_artifact.public_id
+                FROM document_artifacts AS detail_billing_artifact
+                WHERE detail_billing_artifact.document_id = document.id
+                  AND detail_billing_artifact.artifact_type = ?
+                  AND detail_billing_artifact.source_reference_type = ?
+                  AND detail_billing_artifact.source_reference_id = ?
+                ORDER BY detail_billing_artifact.version DESC, detail_billing_artifact.id DESC
+                LIMIT 1
+            ) AS detail_billing_artifact_public_id', [
                 DocumentArtifactType::Attachment->value,
                 DocumentArtifact::SOURCE_REFERENCE_DOCUMENT_ATTACHMENT,
                 DocumentArtifact::ATTACHMENT_BILLING,
@@ -409,8 +469,34 @@ class Detail extends Controller
             'duration_ms' => (int) round((microtime(true) - $startedAt) * 1000),
         ]);
 
+        $canonicalCapabilities = $this->lsSppSigningActionResolver
+            ->capabilitiesForDocumentIds(
+                $dataQuery->pluck('id')->map(static fn (mixed $id): int => (int) $id)->all(),
+                $actor,
+            );
+
+        $dataQuery->each(static function (Document $document) use ($canonicalCapabilities): void {
+            $capabilities = $canonicalCapabilities[(int) $document->id] ?? [];
+            $document->setAttribute(
+                'esign_step_public_id',
+                $capabilities['step_public_id'] ?? null,
+            );
+        });
+
         return DataTables::of($dataQuery)
             ->addIndexColumn()
+            ->addColumn('document_contract', function (Document $data) use ($userLevel): array {
+                $authority = $this->findTypeFiles($data);
+
+                return $this->documentDetailContractBuilder->build(
+                    document: $data,
+                    legacyCanSign: $this->canUseLegacySigning($userLevel, $data, $authority),
+                    canDownload: $userLevel !== 13,
+                    stepPublicId: is_string($data->esign_step_public_id ?? null)
+                        ? $data->esign_step_public_id
+                        : null,
+                )->toArray();
+            })
             ->addColumn('status', function ($data) use ($userLevel, $userData) {
                 return $this->generateButtonTTE($userLevel, $data, $userData);
             })
@@ -660,6 +746,26 @@ class Detail extends Controller
         }
 
         return array_values(array_filter(explode(',', $csv), fn ($v) => $v !== ''));
+    }
+
+    /**
+     * @param  array{id_jabatan: list<int>, path: string}  $authority
+     */
+    private function canUseLegacySigning(int $positionId, object $document, array $authority): bool
+    {
+        if (! in_array($positionId, $authority['id_jabatan'], true)) {
+            return false;
+        }
+
+        $hasLegacyStatus = ($document->status ?? null) !== null;
+        $assignedTo = $this->csvToArray($document->assigned_to ?? null);
+        $submit = $this->csvToArray($document->submit ?? null);
+        $status = $this->csvToArray($document->status ?? null);
+
+        return (! in_array((string) $positionId, $submit, true)
+                && ! in_array((string) $positionId, $status, true)
+                && in_array((string) $positionId, $assignedTo, true))
+            || ! $hasLegacyStatus;
     }
 
     private function applyLsParentUnitDetailScope($query, int $userLevel, ?int $scopeUnitId): void

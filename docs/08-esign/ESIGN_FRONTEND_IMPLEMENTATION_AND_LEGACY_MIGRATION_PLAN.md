@@ -1392,6 +1392,33 @@ Hasil: tidak ada big-bang deployment dan rollback dapat dilakukan per workflow.
 Selama rollout, legacy dan canonical boleh hidup pada halaman/payment berbeda,
 tetapi tidak boleh menangani tombol yang sama.
 
+### 12.0 Boundary entry point hasil keputusan R0
+
+Keputusan R0 tanggal 26 September 2026 menetapkan:
+
+1. main table payment hanya mempunyai action paket/alur dan pintu
+   `Detail Dokumen`;
+2. `Tampilkan PDF`, validasi tanda tangan BSrE, dan TTE dirender per row
+   dokumen di modal detail bersama;
+3. tombol `verify_data` yang merupakan verifikasi proses bisnis tetap merupakan
+   action paket dan tidak sama dengan validasi kriptografis BSrE;
+4. general viewer menjadi satu-satunya surface view/verification/download;
+5. editor TTE menjadi satu-satunya surface placement/prepare/passphrase/sign;
+6. direct download pada modal detail baru dihapus untuk tipe dokumen yang sudah
+   mempunyai replacement viewer/delivery terotorisasi;
+7. LS SPP menjadi pilot pemindahan canonical pertama, tetapi action lama pada
+   tipe dokumen lain tetap dipertahankan sampai workflow canonical tipe itu
+   siap;
+8. ketika viewer/editor dibuka dari modal detail, modal detail disembunyikan
+   sementara. Setelah child surface ditutup atau TTE selesai, detail dibuka
+   kembali dan DataTable detail di-refresh tanpa reload halaman penuh.
+
+Konsekuensinya, adapter canonical LS SPP yang saat ini muncul pada main table
+adalah kondisi transisi, bukan lokasi final. Ia tidak boleh dihapus pada R0;
+penghapusan dilakukan setelah action row modal detail lulus controlled
+acceptance. Main table dan modal detail juga tidak boleh sama-sama menerbitkan
+intent sign untuk step yang sama setelah cutover.
+
 Aturan:
 
 1. row canonical memakai `data-esign-action` dan `data-esign-step`;

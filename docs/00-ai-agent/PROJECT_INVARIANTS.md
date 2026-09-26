@@ -440,6 +440,25 @@ Ini ringkasan aturan yang tidak boleh dilanggar lintas domain.
 - Frontend TTE/validasi memakai Svelte sebagai island dalam halaman Blade dan
   dibangun dengan Vite yang sudah ada; jangan mengubah aplikasi menjadi SPA
   penuh atau memakai SvelteKit tanpa keputusan baru.
+- Boundary entry point dokumen dikunci sebagai berikut: main table payment
+  hanya menangani aksi paket/alur dan satu pintu `Detail Dokumen`; aksi
+  `Tampilkan PDF`, validasi tanda tangan BSrE, dan TTE berada pada row dokumen
+  di modal detail bersama yang bersumber dari `Data\Detail`/adapter detail
+  khusus. Main table tidak boleh menjadi sumber capability TTE per dokumen.
+- General secure PDF viewer adalah satu-satunya UI untuk view, ringkasan
+  validasi BSrE, dan download terotorisasi. Tombol download langsung, raw
+  `/File_{TYPE}` path, atau arbitrary `data-url` tidak boleh menjadi kontrak
+  akhir. Editor TTE tetap terpisah dan hanya mengelola placement QR/footer,
+  prepared rendition, passphrase, attempt, progress, resume, dan hasil TTE.
+- Pemindahan action dilakukan per `payment_type:src_type` dengan
+  expand-migrate-contract. Selama transisi, action legacy dan canonical boleh
+  hidup pada tipe dokumen berbeda, tetapi tidak boleh menangani row dokumen
+  yang sama. Tombol lama baru boleh dilepas setelah pengganti view/TTE untuk
+  tipe tersebut lulus acceptance dan rollback path tersedia.
+- Dari modal detail, viewer/editor boleh menggantikan tampilan modal detail
+  sementara, tetapi Bootstrap modal tidak boleh ditumpuk tanpa coordinator.
+  Setelah viewer/editor ditutup atau TTE sukses, modal detail dibuka kembali
+  dan hanya read model terkait yang di-refresh.
 - Implementasi eSign wajib backend-first. Jangan memasang dependency Svelte atau
   membangun modal eSign sebelum Phase 0-7 dan Backend Ready Gate pada
   `../08-esign/ESIGN_V2_IMPLEMENTATION_PLAN.md` selesai.

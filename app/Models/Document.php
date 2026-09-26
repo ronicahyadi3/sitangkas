@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Enums\Esign\DocumentArtifactType;
 use App\Models\Esign\DocumentArtifact;
 use App\Models\Esign\DocumentSigningWorkflow;
 use App\Models\Esign\EsignAttempt;
@@ -136,6 +137,33 @@ class Document extends Model
     public function artifacts(): HasMany
     {
         return $this->hasMany(DocumentArtifact::class, 'document_id');
+    }
+
+    public function pdfDeliveryArtifacts(): HasMany
+    {
+        return $this->hasMany(DocumentArtifact::class, 'document_id')
+            ->where(function (Builder $deliveryArtifacts): void {
+                $deliveryArtifacts
+                    ->where(function (Builder $currentDocument): void {
+                        $currentDocument->where('is_current', true)
+                            ->whereIn('artifact_type', [
+                                DocumentArtifactType::BeforeSign->value,
+                                DocumentArtifactType::AfterSign->value,
+                            ]);
+                    })
+                    ->orWhere(function (Builder $attachments): void {
+                        $attachments
+                            ->where('artifact_type', DocumentArtifactType::Attachment->value)
+                            ->where(
+                                'source_reference_type',
+                                DocumentArtifact::SOURCE_REFERENCE_DOCUMENT_ATTACHMENT,
+                            )
+                            ->whereIn('source_reference_id', [
+                                DocumentArtifact::ATTACHMENT_BILLING,
+                                DocumentArtifact::ATTACHMENT_SPJ_FUNCTIONAL,
+                            ]);
+                    });
+            });
     }
 
     public function signingWorkflows(): HasMany
