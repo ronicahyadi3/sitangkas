@@ -82,7 +82,6 @@
     @include('components.informations.detail')
     @include('components.informations.history')
     @unless ($isAuditor)
-        @include('components.esign.esign')
         @include('components.confirmations.denied')
         @include('components.confirmations.delete')
         @include('components.confirmations.submit', [

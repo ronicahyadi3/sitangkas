@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Data;
 
-use App\Enums\Esign\DocumentArtifactType;
 use App\Http\Controllers\Controller;
 use App\Models\Document;
 use App\Models\User;
@@ -96,45 +95,12 @@ class DetailTbp extends Controller
 
         $tbpQuery = Document::query()
             ->with('pdfDeliveryArtifacts')
-            ->join('unit_kerjas', 'unit_kerjas.id', '=', 'document.id_unit_kerja')
             ->where('document.src_type', 'TBP')
             ->where('document.payment_type', $document->payment_type)
             ->where('document.parent_id', $lpjId)
             ->whereYear('document.created_at', $selectedYear)
             ->whereNull('document.deleted_at')
-            ->select('document.*', 'unit_kerjas.nama as unit_kerja')
-            ->selectRaw('(
-                SELECT COUNT(*)
-                FROM document_artifacts AS detail_artifact_count
-                WHERE detail_artifact_count.document_id = document.id
-                  AND detail_artifact_count.is_current = 1
-                  AND detail_artifact_count.artifact_type IN (?, ?)
-            ) AS detail_artifact_count', [
-                DocumentArtifactType::BeforeSign->value,
-                DocumentArtifactType::AfterSign->value,
-            ])
-            ->selectRaw('(
-                SELECT MIN(detail_artifact.public_id)
-                FROM document_artifacts AS detail_artifact
-                WHERE detail_artifact.document_id = document.id
-                  AND detail_artifact.is_current = 1
-                  AND detail_artifact.artifact_type IN (?, ?)
-                HAVING COUNT(*) = 1
-            ) AS detail_artifact_public_id', [
-                DocumentArtifactType::BeforeSign->value,
-                DocumentArtifactType::AfterSign->value,
-            ])
-            ->selectRaw('(
-                SELECT MIN(detail_artifact_type.artifact_type)
-                FROM document_artifacts AS detail_artifact_type
-                WHERE detail_artifact_type.document_id = document.id
-                  AND detail_artifact_type.is_current = 1
-                  AND detail_artifact_type.artifact_type IN (?, ?)
-                HAVING COUNT(*) = 1
-            ) AS detail_artifact_type', [
-                DocumentArtifactType::BeforeSign->value,
-                DocumentArtifactType::AfterSign->value,
-            ])
+            ->select('document.*')
             ->orderByDesc('document.created_at');
 
         return DataTables::of($tbpQuery)
@@ -145,26 +111,6 @@ class DetailTbp extends Controller
                     actor: $actor,
                 )->toArray();
             })
-            ->addColumn('action', function (object $row): string {
-                $url = ! is_null($row->status)
-                    ? '/File_TBP/signs/'.$row->src_name
-                    : '/File_TBP/'.$row->src_name;
-                $downloadName = $row->unit_kerja.' - '.str_replace('/', '|', (string) $row->nomor).' - '.optional($row->created_at)->format('Y-m-d').'.pdf';
-
-                return '<button type="button" class="btn btn-sm btn-success view-pdf"'
-                    .' data-url="'.e($url).'"'
-                    .' data-files="'.e($row->src_name).'"'
-                    .' data-wenk="Klik untuk menampilkan dokumen"'
-                    .' data-wenk-color="green">'
-                    .'<i class="fa-solid fa-eye"></i> Tampilkan</button>'
-                    .' <a href="'.e($url).'" class="btn btn-sm btn-primary"'
-                    .' download="'.e($downloadName).'"'
-                    .' target="_blank"'
-                    .' data-wenk="Download"'
-                    .' data-wenk-color="blue">'
-                    .'<i class="fas fa-file-download"></i> Download</a>';
-            })
-            ->rawColumns(['action'])
             ->make(true);
     }
 

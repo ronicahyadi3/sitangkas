@@ -69,7 +69,6 @@ final class DocumentActionResolver
             && $source->artifactPublicId !== null
             && $this->config->get('esign.frontend.enabled') === true;
         $canSign = $this->canSign(
-            $document,
             $actor,
             $resourceKey,
             $sourceState,
@@ -110,7 +109,6 @@ final class DocumentActionResolver
     }
 
     private function canSign(
-        Document $document,
         User $actor,
         string $resourceKey,
         DocumentDetailSourceState $sourceState,

@@ -76,7 +76,6 @@
     @include('components.informations.history')
     @unless ($isAuditor)
         @include('components.informations.pdfview')
-        @include('components.esign.esign')
         @include('components.confirmations.delete')
         @include('components.confirmations.submit', [
             'url' => route('gu-uk.spp.submit'),

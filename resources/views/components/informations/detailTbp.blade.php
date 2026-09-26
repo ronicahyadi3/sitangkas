@@ -109,7 +109,7 @@
                     defaultContent: '-',
                 },
                 {
-                    data: 'action',
+                    data: 'document_contract',
                     className: 'text-center',
                     orderable: false,
                     searchable: false,

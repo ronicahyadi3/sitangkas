@@ -81,7 +81,6 @@
     @unless ($isAuditor)
         @if (Route::has('esign.validate'))
              @include('components.informations.pdfview')
-            @include('components.esign.esign')
         @endif
         @include('components.confirmations.denied')
         @include('components.confirmations.delete')

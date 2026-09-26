@@ -141,7 +141,6 @@
     @include('components.informations.detail')
     @include('components.informations.history')
     @unless ($isAuditor)
-        @include('components.esign.esign')
         @include('components.confirmations.submit', [
             'url' => route('kkpd.lpj.submit'),
         ])

@@ -94,7 +94,6 @@
 
     @unless ($isAuditor)
         @include('components.informations.pdfview')
-        @include('components.esign.esign')
         @include('components.confirmations.denied')
         @include('components.confirmations.delete')
         @include('components.confirmations.verify')

@@ -1406,9 +1406,10 @@ Keputusan R0 tanggal 26 September 2026 menetapkan:
 5. editor TTE menjadi satu-satunya surface placement/prepare/passphrase/sign;
 6. direct download pada modal detail baru dihapus untuk tipe dokumen yang sudah
    mempunyai replacement viewer/delivery terotorisasi;
-7. LS SPP menjadi pilot pemindahan canonical pertama, tetapi action lama pada
-   tipe dokumen lain tetap dipertahankan sampai workflow canonical tipe itu
-   siap;
+7. LS SPP menjadi pilot pemindahan canonical pertama. Berdasarkan keputusan
+   cutover R6 tanggal 26 September 2026, action TTE lama pada tipe dokumen lain
+   tidak dipertahankan; tipe yang belum mempunyai workflow canonical bersifat
+   fail-closed untuk TTE sambil tetap dapat memakai viewer transisi;
 8. ketika viewer/editor dibuka dari modal detail, modal detail disembunyikan
    sementara. Setelah child surface ditutup atau TTE selesai, detail dibuka
    kembali dan DataTable detail di-refresh tanpa reload halaman penuh.
@@ -1419,19 +1420,23 @@ penghapusan dilakukan setelah action row modal detail lulus controlled
 acceptance. Main table dan modal detail juga tidak boleh sama-sama menerbitkan
 intent sign untuk step yang sama setelah cutover.
 
-Aturan:
+Keputusan sebelumnya yang membolehkan editor legacy hidup per payment telah
+digantikan oleh cutover R6. Aturan runtime sekarang:
 
 1. row canonical memakai `data-esign-action` dan `data-esign-step`;
-2. row legacy tetap memakai `.signModal` sampai payment tersebut dicutover;
-3. component legacy `components.esign.esign` hanya di-include bila halaman masih
-   mempunyai action legacy;
-4. halaman canonical memuat satu Svelte root, bukan `bundle.js`;
-5. feature flag menentukan renderer action backend, bukan JavaScript menebak
+2. row noncanonical tidak menerbitkan action TTE dan tidak memakai
+   `.signModal`;
+3. component `components.esign.esign`, bundle editor lama, dan `signed.js`
+   tidak lagi dimuat oleh halaman payment;
+4. halaman memuat satu Svelte root, bukan `bundle.js`;
+5. backend menentukan capability action; JavaScript tidak menebak
    jenis workflow;
 6. rollback mengembalikan flag/payment adapter, bukan mengubah data attempt yang
    sudah tercatat;
 7. attempt yang sudah 202 tetap diselesaikan/reconcile meskipun UI feature flag
-   kemudian dimatikan.
+   kemudian dimatikan;
+8. `legacy_transition` hanya menyatakan asal source PDF untuk view/mapping dan
+   tidak pernah berarti legacy signing diizinkan.
 
 ## 13. Checklist Definition of Done frontend LS SPP
 

@@ -1261,9 +1261,9 @@ R4 action/capability resolver universal selesai di source pada 26 September
 untuk `view`, `download`, `verify`, dan `sign` pada dokumen utama, Billing, serta
 SPJ Fungsional. Resolver memakai source R3, authorization delivery yang sama
 dengan endpoint binary, user/posisi/tahun aktif, status acting, feature flag,
-exact canonical `step_public_id`, dan registry aturan signer legacy. Admin Super
-dalam konteks acting selalu memperoleh `sign.allowed=false`; attachment tidak
-pernah signable.
+dan exact canonical `step_public_id`. Setelah cutover R6, TTE tidak lagi memakai
+registry aturan signer legacy. Admin Super dalam konteks acting selalu
+memperoleh `sign.allowed=false`; attachment tidak pernah signable.
 
 `document_contract` tetap mempertahankan `capabilities`, `delivery`, dan
 `disabled_reasons` versi transisi, tetapi sekarang juga memuat objek `actions`
@@ -1274,9 +1274,10 @@ Tidak ada disk/path fisik yang diserialisasi. `Data\Detail` dan
 `canDownload` ke builder; keduanya memberikan actor dan resolver menghitung
 keputusan sendiri.
 
-R4 belum memindahkan tombol atau menghapus HTML legacy. Matriks numeric jabatan
-legacy tetap transitional di `LegacyDocumentSigningRuleRegistry`, sedangkan
-canonical signing action yang benar-benar lengkap masih LS SPP.
+Mode top-level `legacy_transition` tetap dipakai untuk menandai bahwa sumber PDF
+masih dibaca dari fallback legacy-private/legacy-public. Mode tersebut bukan
+izin TTE: `actions.sign.mode` selalu `none` untuk source noncanonical. Canonical
+signing action yang benar-benar lengkap saat ini masih LS SPP.
 
 R5 general secure PDF viewer selesai di source pada 26 September 2026 sebagai
 Svelte island read-only yang terpisah dari state machine editor TTE. Island
@@ -1300,27 +1301,41 @@ row Detail/DetailTbp. Integrasi trigger, modal coordinator, dan cutover bertahap
 tetap R6 dan seterusnya agar layanan lama tidak terputus sebelum replacement
 terhubung.
 
-R6 integrasi action row Detail Dokumen selesai di source pada 26 September
-2026. `detail.blade.php` dan `detailTbp.blade.php` sekarang merender kolom
-status/action dari `document_contract` R4 melalui satu renderer frontend.
-Dokumen utama, Billing, dan SPJ Fungsional membuka secure viewer R5 memakai
-payload terenkode yang divalidasi ulang oleh action bridge. Tombol download
-langsung tidak lagi dirender pada row canonical/contract-ready karena download
-hanya tersedia di dalam viewer sesuai `actions.download`.
+R6 integrasi dan cutover action row Detail Dokumen selesai di source pada 26
+September 2026. `detail.blade.php` dan `detailTbp.blade.php` sekarang merender
+kolom status/action hanya dari `document_contract` R4 melalui satu renderer
+frontend. Dokumen utama, Billing, dan SPJ Fungsional membuka secure viewer R5
+memakai payload terenkode yang divalidasi ulang oleh action bridge. Tombol
+download langsung tidak lagi dirender pada row karena download hanya tersedia
+di dalam viewer sesuai `actions.download`.
 
-Action TTE canonical hanya dirender bila backend mengirim
-`sign.allowed=true`, `mode=canonical`, dan `step_public_id`; kliknya memakai
-bridge editor TTE yang sudah ada. Untuk source `legacy_transition`, renderer
-hanya mempertahankan tombol `.signModal` lama bila action sign authoritative
-memang mengizinkan. Jika `document_contract` belum ada atau tidak dikenali,
-seluruh HTML lama dipertahankan sebagai fallback rollout agar pelayanan tidak
-terputus. Kedua tabel ikut refresh tanpa reset halaman setelah event TTE sukses.
+Action TTE hanya dirender bila backend mengirim `sign.allowed=true`,
+`mode=canonical`, dan exact `step_public_id`; kliknya memakai bridge editor TTE
+baru. Source `legacy_transition` tetap dapat dibaca untuk kebutuhan view, tetapi
+selalu memperoleh `actions.sign.mode=none`. Bila kontrak row hilang atau rusak,
+renderer menampilkan kondisi aman dan tidak menghidupkan kembali HTML lama.
+Kedua tabel ikut refresh tanpa reset halaman setelah event TTE sukses.
+
+Seluruh 30 include `components.esign.esign` pada halaman payment telah dilepas.
+Blade editor lama, bundle PDF editor lama, source map-nya, dan `signed.js` telah
+dihapus dari runtime. `Data\Detail` tidak lagi membuat HTML `.signModal`, URL
+`/File_*`, atau matriks numeric signer; `Data\DetailTbp` juga tidak lagi membuat
+view/download public langsung. Query kedua controller memakai eager-loaded
+`pdfDeliveryArtifacts` tanpa subquery alias lama yang tidak lagi dikonsumsi.
+
+Konsekuensi fail-closed yang disengaja: tipe dokumen/payment yang belum memiliki
+artifact, workflow, step, serta assignment canonical tetap dapat memakai viewer
+transisi bila source-nya tersedia, tetapi belum dapat melakukan TTE. Saat ini
+capability step canonical dari modal Detail baru lengkap untuk LS SPP. Rollout
+tipe lain harus menambah provisioning/workflow canonical, bukan mengaktifkan
+kembali editor legacy.
 
 R6 belum menjadi modal coordinator. Pada R7, modal Detail harus disembunyikan
 sebelum secure viewer/editor dibuka, context paket disimpan, lalu Detail dibuka
 kembali dan direfresh setelah surface anak ditutup atau TTE selesai. Cutover
-`.view-pdf` di luar Detail/DetailTbp serta penghapusan response HTML legacy
-tetap dilakukan bertahap setelah gate tiap payment lulus.
+`.view-pdf` di luar Detail/DetailTbp tetap dilakukan bertahap setelah gate tiap
+payment lulus. `pdfview.blade.php` tetap dipertahankan sementara hanya untuk
+surface view PDF di luar Detail; ia bukan lagi jalur TTE.
 
 Pilot real, aktivasi feature flag operasional, public verification, dan rollout
 tetap menunggu gate backend terkait. Urutan rinci berada di
