@@ -1,14 +1,17 @@
 # Urutan Implementasi Frontend TTE dan Migrasi dari UI Legacy
 
 Tanggal keputusan: **24 September 2026**. Snapshot implementasi diperbarui
-**26 September 2026**.
+**27 September 2026**.
 
 Status: **F0-F13 selesai di source untuk vertical slice LS SPP**. Signing
 session/API, binary viewer, editor multi-QR/footer, prepared confirmation,
 submit asynchronous, polling/resume/result, dan modal validasi canonical sudah
-terhubung. Feature flag operasional tetap `false`; acceptance manual F14,
-production worker/shared cache, public verify/result delivery, secure general
-PDF viewer/watermark, dan rollout payment belum selesai.
+terhubung. Pada snapshot konfigurasi lokal, frontend dan multi-operation aktif;
+acceptance manual F14, production worker/shared cache, public verify/result
+delivery, watermark derivative, dan rollout payment belum selesai. Pernyataan
+flag `false` di catatan fase historis di bawah hanya menggambarkan kondisi saat
+fase tersebut selesai dan tidak mengalahkan snapshot ini atau
+`AI_AGENT_CURRENT_HANDOFF.md`.
 
 Dokumen ini adalah source of truth operasional untuk membangun frontend TTE dan
 validasi baru. Dokumen ini menggabungkan keputusan pengguna, kontrak backend
@@ -1214,7 +1217,9 @@ Setelah F13 selesai, source menerima penyempurnaan yang wajib dipertahankan:
     Browser tidak memperbaiki payload diam-diam dan tidak retry otomatis.
 
 Penyempurnaan di atas sudah ada di source, tetapi belum berarti acceptance F14
-lulus. Feature flag tetap `false`.
+lulus. Snapshot runtime lokal 27 September 2026 mengaktifkan frontend dan
+multi-operation; capability backend serta workflow canonical tetap menjadi
+gate authoritative.
 
 ### Tahap F14 - Pilot manual LS SPP BP/BPP
 
@@ -1498,7 +1503,8 @@ baru. Urutannya:
 5. [SELESAI DI SOURCE] Tahap F4: shell modal lengkap, state visual, stepper,
    accessibility dasar, dan responsive layout Bootstrap/Argon;
 6. [SELESAI DI SOURCE] Tahap F5: typed API client, error normalization, dan
-   signing-session state; feature flag tetap `false` sampai acceptance manual;
+   signing-session state; feature frontend sekarang aktif pada snapshot lokal,
+   tetapi rollout tetap dibatasi workflow/capability dan acceptance manual;
 7. [SELESAI DI SOURCE] Tahap F6: PDF viewer binary, lazy PDF.js worker,
    virtualized thumbnail, navigasi, zoom, dan deterministic cleanup;
 8. [SELESAI DI SOURCE] Tahap F7: transform canonical, constraint, validasi

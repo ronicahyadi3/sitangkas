@@ -43,21 +43,22 @@ penandatanganan, Svelte, Vite, Bootstrap/Argon, main CSS, atau PDF viewer TTE,
 wajib baca:
 
 1. `08-esign/README.md`
-2. `08-esign/CURRENT_ESIGN_IMPLEMENTATION.md`
-3. `08-esign/PDF_DELIVERY_WATERMARK_AND_VERIFICATION.md` bila menyentuh
+2. `08-esign/AI_AGENT_CURRENT_HANDOFF.md`
+3. `08-esign/CURRENT_ESIGN_IMPLEMENTATION.md`
+4. `08-esign/PDF_DELIVERY_WATERMARK_AND_VERIFICATION.md` bila menyentuh
    `pdf_watermark_required`, preview/view/download, guest, COPY-ID, watermark,
    audit delivery, atau cache verifikasi BSrE
-4. `08-esign/ESIGN_V2_CONTRACT_AND_BACKEND.md`
-5. `08-esign/ESIGN_VISIBLE_EDITOR_AND_MULTI_QR_DESIGN.md` bila menyentuh
+5. `08-esign/ESIGN_V2_CONTRACT_AND_BACKEND.md`
+6. `08-esign/ESIGN_VISIBLE_EDITOR_AND_MULTI_QR_DESIGN.md` bila menyentuh
    source PDF editor, footer, placement, beberapa QR satu signer, operation
    checkpoint, partial resume, atau worker visible
-6. `08-esign/ESIGN_DOCUMENT_LIFECYCLE_AND_REPORTING_COMPATIBILITY.md` bila
+7. `08-esign/ESIGN_DOCUMENT_LIFECYCLE_AND_REPORTING_COMPATIBILITY.md` bila
    menyentuh lifecycle file, QR, storage, attempt/event, atau kompatibilitas
    `before_signs`/`after_signs`
-7. `08-esign/ESIGN_RESUMABLE_MIGRATION_RUNBOOK.md` bila menyentuh mapping
+8. `08-esign/ESIGN_RESUMABLE_MIGRATION_RUNBOOK.md` bila menyentuh mapping
    resumable, zero-downtime, queue/lease, pause/resume, recovery, atau cleanup
-8. `08-esign/ESIGN_V2_FRONTEND_MODAL.md`
-9. `08-esign/ESIGN_V2_IMPLEMENTATION_PLAN.md`
+9. `08-esign/ESIGN_V2_FRONTEND_MODAL.md`
+10. `08-esign/ESIGN_V2_IMPLEMENTATION_PLAN.md`
 
 Dokumen cluster tersebut adalah sumber keputusan integrasi baru. Kode project
 lama dan collection Postman hanya menjadi bukti referensi; jangan menyalin

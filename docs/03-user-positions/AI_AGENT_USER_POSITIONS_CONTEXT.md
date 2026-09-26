@@ -117,11 +117,18 @@ AI agent harus membedakan kebutuhan berikut:
 
 ### Critical rule: PDF watermark policy
 
-Target schema mempunyai tepat satu boolean pada posisi:
+Schema aktif mempunyai tepat satu boolean pada posisi:
 
 ```text
 user_positions.pdf_watermark_required BOOLEAN NOT NULL DEFAULT FALSE
 ```
+
+Kolom tersebut sudah diterapkan melalui migration additive
+`2026_09_26_183341_add_pdf_watermark_required_to_user_positions_table.php`
+pada batch 27. Snapshot database 27 September 2026 berisi 1.514 posisi dan
+seluruhnya masih bernilai `false`. Kontrol Management User untuk mengubah nilai
+menjadi `true`, audit before/after, serta renderer watermark masih harus
+diimplementasikan sebelum pilot watermark dapat diaktifkan.
 
 Kolom ini menentukan rendition PDF **setelah** Policy dokumen mengizinkan aksi;
 kolom ini bukan permission. Berlaku untuk seluruh preview, view, dan download:

@@ -2,13 +2,11 @@
 
 Tanggal rancangan: **26 September 2026**.
 
-Status: **rancangan implementasi resmi; belum diimplementasikan**. Fondasi yang
-sudah tersedia di source meliputi private canonical `document_artifacts`, current
-artifact resolver, integrity service, authenticated LS SPP content/download,
-PDF.js pada frontend eSign, `qpdf`, `pdfinfo`, serta verifikasi exact artifact.
-Kolom kebijakan posisi, delivery session universal, watermark derivative,
-COPY-ID, audit akses dokumen, viewer umum, dan persistent verification summary
-belum tersedia.
+Status: **implementasi bertahap sedang berjalan**. R0-R8 secure viewer/delivery
+ORIGINAL selesai di source dan R9 preflight LS SPP canonical sudah lulus.
+Migration flag posisi sudah diterapkan dengan seluruh posisi masih `false`.
+Persistent delivery session, watermark derivative, COPY-ID, audit akses,
+decision service watermark, dan persistent verification summary belum tersedia.
 
 Dokumen ini adalah rencana operasional untuk melaksanakan kebijakan final pada
 `PDF_DELIVERY_WATERMARK_AND_VERIFICATION.md`. Jika terjadi perbedaan:
@@ -410,14 +408,14 @@ Production harus mengonfirmasi:
 |---:|---|---|---|
 | P0 | Kunci kontrak bisnis, default opt-in, invariant original/watermark, dan urutan rollout | Keputusan tidak ambigu dan konsisten lintas dokumentasi | Selesai 26 September 2026 |
 | P1 | Inventaris seluruh PDF response, URL, viewer, download, report, attachment, guest, dan legacy consumer | Matriks repository/route/database/filesystem lokal tersedia di `PDF_DELIVERY_R1_READ_ONLY_INVENTORY.md`; filesystem public dicatat parsial, deployment/external-consumer tetap gate decommission | Selesai 26 September 2026 |
-| P2 | Migration additive flag posisi default `false`, model cast, dan pemeriksaan schema | Seluruh posisi lama/baru tetap `false` dari default database; behavior watermark belum diaktifkan | Selesai di source 27 September 2026; migration belum dijalankan/deploy |
+| P2 | Migration additive flag posisi default `false`, model cast, dan pemeriksaan schema | Seluruh posisi lama/baru tetap `false` dari default database; behavior watermark belum diaktifkan | Selesai 27 September 2026; migration batch 27, 1.514 posisi dan seluruhnya `false` |
 | P3 | Schema session/copy/access-event/verification, model, enum, relation, dan transition service | Persistence canonical siap tanpa mengubah route lama | Belum |
 | P4 | Source adapter dan current artifact resolver universal | Backend memperoleh exact source tanpa menerima path browser | Selesai di source 26 September 2026 |
 | P5 | Authorization dan delivery decision ORIGINAL/WATERMARK/DENIED | Authorization ORIGINAL sudah aktif pada bridge endpoint; flag posisi dan keputusan WATERMARK/DENIED belum diimplementasikan | Sebagian: bridge ORIGINAL |
 | P6 | Delivery session, audit append-only, opaque binding, content/download/status endpoint | Opaque direct content/download ORIGINAL tersedia tanpa path leak; persistent session, status, dan audit append-only belum tersedia | Sebagian: bridge ORIGINAL tanpa session |
 | P7 | Persistent asynchronous artifact verification | Viewer tidak tertahan latency BSrE | Belum |
 | P8 | Svelte secure viewer read-only dan cutover legacy `.view-pdf` | General viewer siap desktop/tablet/mobile | Selesai di source 27 September 2026: R5 viewer island, R6 row Detail/DetailTbp, R7 modal coordinator, dan R8 empat direct surface/history telah memakai opaque viewer contract; 30 include serta Blade viewer lama dicabut. Acceptance manual lintas payment masih menjadi gate operasional |
-| P9 | Pilot LS original dengan seluruh posisi masih `false` | Main viewer dan delivery contract terbukti sebelum watermark | Siap di source 27 September 2026: contract/header/log mode ORIGINAL dan command preflight canonical tersedia; migration serta acceptance manual user/posisi nyata belum dijalankan |
+| P9 | Pilot LS original dengan seluruh posisi masih `false` | Main viewer dan delivery contract terbukti sebelum watermark | Preflight source lulus 27 September 2026: canonical source/header/size/SHA-256 dan mode ORIGINAL sesuai; acceptance manual user/posisi nyata masih pending |
 | P10 | COPY-ID, profile, overlay renderer, qpdf validation, private storage | Satu derivative dapat dibuat tanpa mengubah original | Belum |
 | P11 | Cache fingerprint, lock, atomic publish, job, retry, dan cleanup | Concurrent generation idempotent dan resumable | Belum |
 | P12 | Management User toggle dan audit before/after | Posisi pilot dapat diaktifkan manual menjadi `true` | Belum |

@@ -1,18 +1,14 @@
 # Rencana Implementasi eSign Client 2.2.0
 
-Tanggal snapshot: **23 September 2026**.
+Tanggal snapshot tracker: **27 September 2026**.
 
-Status: **rencana kerja dan tracker. Kondisi source code aktual berada pada
-`CURRENT_ESIGN_IMPLEMENTATION.md`: Phase 2 selesai untuk scope awal, fondasi
-source Phase 3-5 sudah tersedia dan 13 tabel canonical sudah diterapkan pada
-database lokal. Dua migration index legacy masih `Pending`; source
-artifact/workflow/step provisioning dari upload payment sudah dibuat dan sudah
-dibuktikan secara lokal oleh dedicated worker melalui satu upload NPD
-`GU_SKPD`. Untuk LS SPP, lazy activation, submit gate, assignment/activation
-PPTK dan PA/KPA saat handoff sudah tersedia. Vertical slice sign masih belum
-lulus end-to-end, dan Phase 6-12 belum diimplementasikan. Desain approved untuk
-binary PDF editor, editable footer, serta multi-QR serial satu signer berada di
-`ESIGN_VISIBLE_EDITOR_AND_MULTI_QR_DESIGN.md`**.
+Status: **rencana kerja dan tracker historis**. Kondisi aktual wajib dibaca dari
+`AI_AGENT_CURRENT_HANDOFF.md` dan `CURRENT_ESIGN_IMPLEMENTATION.md`. Schema
+canonical/multi-operation sudah diterapkan, frontend F0-F13 dan R0-R8 secure
+viewer tersedia di source, serta R9 preflight LS SPP ORIGINAL sudah lulus.
+Full acceptance F14, production operational gate, public verification,
+watermark derivative, mapping resumable, dan rollout lintas payment masih
+belum selesai.
 
 Dokumen ini mengarahkan agent pada urutan kerja, dependency, acceptance, dan
 blocker. Baca `README.md`, `PDF_DELIVERY_WATERMARK_AND_VERIFICATION.md`, backend

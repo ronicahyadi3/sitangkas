@@ -3,13 +3,14 @@
 Tanggal keputusan: **23 September 2026**. Snapshot source diperbarui
 **26 September 2026**.
 
-Status: **desain disetujui; backend tahap 1-6 serta bagian runtime tahap 7-9
-tersedia di source, tetapi belum diaktifkan untuk layanan operasional**. Domain
+Status: **desain disetujui; backend tahap 1-9 dan frontend F0-F13 tersedia di
+source serta aktif terbatas pada konfigurasi lokal**. Domain
 placement/footer, prepared rendition, operation persistence, worker serial,
 intermediate artifact, final verification/promotion, partial resume, aktivasi
 public ID setelah sukses, compatibility projection aggregate, dan API polling
-tersedia. Feature flag multi-operation masih default `false`; public route
-`/verify/{public_id}`, reconciliation, dan operational gate belum selesai.
+tersedia. Snapshot lokal mengaktifkan multi-operation; public route
+`/verify/{public_id}`, reconciliation, full F14 acceptance, dan production
+operational gate belum selesai.
 Frontend F0-F13 sudah tersedia di source untuk LS SPP, termasuk editor
 multi-QR/footer selected-pages, prepared confirmation, progress/resume/result,
 dan validasi canonical. Kondisi aktual tetap harus dibaca dari

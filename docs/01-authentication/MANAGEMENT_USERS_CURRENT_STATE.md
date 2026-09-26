@@ -236,10 +236,14 @@ Form posisi sudah mendukung:
 - metadata dokumen SK;
 - upload file SK.
 
-Target berikutnya yang sudah diputuskan tetapi **belum diimplementasikan**:
+Kolom database `user_positions.pdf_watermark_required` sudah aktif melalui
+migration additive batch 27 dengan default `false`. Snapshot 27 September 2026
+menunjukkan seluruh 1.514 posisi masih `false`.
 
-- satu checkbox/field `pdf_watermark_required`, default `false`, pada create
-  dan edit posisi;
+Bagian Management User berikut sudah diputuskan tetapi **belum
+diimplementasikan**:
+
+- satu checkbox/field `pdf_watermark_required` pada create dan edit posisi;
 - hanya aktor yang lolos authorization pengelolaan posisi yang boleh mengubahnya;
 - audit harus menyimpan before/after, aktor, target posisi, alasan, dan waktu;
 - help text harus menjelaskan bahwa flag berlaku bagi seluruh preview/view/

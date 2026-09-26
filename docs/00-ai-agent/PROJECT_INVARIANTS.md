@@ -171,14 +171,13 @@ Ini ringkasan aturan yang tidak boleh dilanggar lintas domain.
   detail yang dirujuknya. Collection Postman 2.2.0-beta dan project lama hanya
   merupakan bukti referensi, bukan spesifikasi produksi yang lengkap.
 - Kondisi source/deployment terakhir wajib dibaca dari
-  `../08-esign/CURRENT_ESIGN_IMPLEMENTATION.md`. Pada snapshot 23 September
-  2026, fondasi source Phase 3-5 dan 13 tabel canonical sudah tersedia pada
-  database lokal. Dua migration index mapping legacy masih `Pending`;
-  provisioning serta dedicated worker sudah dibuktikan lokal. Vertical slice
-  LS SPP mempunyai lazy activation, submit gate, dan assignment/activation
-  signer saat handoff, tetapi belum lulus TTE end-to-end. Visible/public
-  verification, reconciliation, dan frontend belum ada.
-  Jangan menyamakan keberadaan class/route dengan fitur production-ready.
+  `../08-esign/AI_AGENT_CURRENT_HANDOFF.md` lalu
+  `../08-esign/CURRENT_ESIGN_IMPLEMENTATION.md`. Snapshot 27 September 2026
+  mempunyai schema canonical/multi-operation/index mapping aktif, frontend
+  F0-F13, secure viewer ORIGINAL R0-R8, dan R9 preflight LS SPP canonical yang
+  lulus. Full TTE F14, public verify, reconciliation, watermark derivative,
+  mapping resumable, dan rollout lintas payment belum selesai. Jangan
+  menyamakan keberadaan class/route atau preflight dengan production-ready.
 - Integrasi baru menargetkan eSign Client 2.2.0/API v2. Concrete service client
   wajib bernama `BsreClient`, bukan `BsreV22Client`.
 - Vertical slice pertama hanya mengimplementasikan signing NIK + passphrase.
@@ -198,15 +197,15 @@ Ini ringkasan aturan yang tidak boleh dilanggar lintas domain.
 - Boundary provider resmi adalah `App\Contracts\Esign\EsignGateway` dengan
   implementasi `App\Services\Esign\BsreClient`. Consumer bisnis tidak boleh
   bergantung langsung pada Laravel HTTP client atau response vendor.
-- Scope payload sign yang aktif hanya NIK+passphrase, invisible, dan tepat satu
-  PDF. `BsreClient` tidak melakukan auto-retry. Connection/5xx sign menjadi
-  `esign.outcome_unknown`; raw request/response dan exception transport tidak
-  boleh disimpan atau diteruskan.
-- Target visible/multi-QR yang sudah disetujui berada di
-  `../08-esign/ESIGN_VISIBLE_EDITOR_AND_MULTI_QR_DESIGN.md`, tetapi belum
-  diimplementasikan. Jangan menganggap target tersebut sebagai capability
-  source/schema saat ini dan jangan menghapus fail-closed visible sebelum
-  contract proof serta seluruh gate backend lulus.
+- Scope credential signer yang aktif hanya NIK+passphrase. Setiap request
+  provider memproses satu PDF/operation; multi-QR dicapai melalui operation
+  serial, bukan multi-file atau parallel sign. `BsreClient` tidak melakukan
+  auto-retry dan outcome ambigu menjadi `esign.outcome_unknown`.
+- Visible/multi-QR, prepared rendition, operation persistence, worker serial,
+  dan partial resume sudah tersedia di source/schema. Detail berada di
+  `../08-esign/ESIGN_VISIBLE_EDITOR_AND_MULTI_QR_DESIGN.md`. Jangan menganggap
+  source-ready sebagai production-ready sebelum acceptance F14 dan gate
+  operasional lulus.
 - Editor TTE tidak menerima upload atau path PDF dari browser. Backend harus
   resolve exact canonical artifact paket BP/BPP; browser memuat authorized
   binary `application/pdf`. Base64 hanya boleh dibuat pada boundary backend ke
@@ -224,12 +223,10 @@ Ini ringkasan aturan yang tidak boleh dilanggar lintas domain.
   `esign_attempts`, tetapi memiliki N operasi provider serial. Output operasi
   sebelumnya menjadi input berikutnya; jangan menjalankan paralel atau membuat
   attempt/event legacy per QR.
-- Target multi-QR memerlukan migration additive
-  `esign_signature_operations`, attempt progress counters, status
-  `partially_signed`, artifact `intermediate_sign`, dan
-  `document_artifact_decorations`. Migration canonical yang sudah diterapkan
-  tidak boleh diedit. Sampai target dibuat, status attempt aktif tetap matrix
-  minimum yang ada.
+- Multi-QR memakai migration additive `esign_signature_operations`, attempt
+  progress counters, status `partially_signed`, artifact `intermediate_sign`,
+  dan `document_artifact_decorations`; semuanya sudah diterapkan. Migration
+  tersebut tidak boleh diedit setelah deployment.
 - Step hanya selesai dan final artifact hanya current setelah semua operasi QR
   sukses serta final verify lulus. Operasi completed tidak boleh diulang.
   Partial yang aman melanjutkan attempt sama dari checkpoint; outcome ambigu
@@ -250,11 +247,11 @@ Ini ringkasan aturan yang tidak boleh dilanggar lintas domain.
 - Job sign memakai `tries=1` dan `BsreClient` tidak auto-retry sign. Timeout atau
   koneksi ambigu setelah request mungkin terkirim menjadi attempt `unknown` dan
   step `reconciliation_required`; sign baru dilarang sampai reconciliation.
-- Signing attempt mengikuti state minimum `prepared -> signing -> validating ->
-  succeeded|failed|unknown`. Timeout setelah request terkirim harus menjadi
-  `unknown`; jangan otomatis mengulangi sign karena dapat menghasilkan tanda
-  tangan ganda. Matrix ini menggambarkan implementasi saat ini; target multi-QR
-  menambahkan `partially_signed` melalui migration/enum/service additive.
+- Signing attempt mengikuti state
+  `prepared -> signing -> partially_signed -> validating ->
+  succeeded|failed|unknown` sesuai operasi yang selesai. Timeout setelah
+  request terkirim harus menjadi `unknown`; jangan otomatis mengulangi sign
+  karena dapat menghasilkan tanda tangan ganda.
 - Enum/state final berada di `app/Enums/Esign`: workflow
   `draft|active|completed|rejected|needs_review`; step
   `pending|active|signing|reconciliation_required|completed|rejected|skipped|needs_review`;
@@ -276,7 +273,7 @@ Ini ringkasan aturan yang tidak boleh dilanggar lintas domain.
   legacy, Base64/Blob, temporary URL, dan thumbnail/page-image berisi dokumen.
   Internal server-to-server sign/verify memakai original dan tidak boleh menjadi
   endpoint browser.
-- Hanya ada satu flag target pada posisi:
+- Hanya ada satu flag aktif pada posisi:
   `user_positions.pdf_watermark_required` dengan default `false` untuk seluruh
   posisi existing dan posisi baru. Jangan memecahnya menjadi flag view dan
   download karena byte yang dapat dilihat juga dapat disimpan. Nilai `true`

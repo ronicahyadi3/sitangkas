@@ -73,23 +73,24 @@ Untuk BSrE/eSign Client 2.2.0, TTE, validasi PDF, atau modal Svelte/Vite yang
 terintegrasi dengan Bootstrap/Argon, urutan baca wajib tambahan:
 
 1. `../08-esign/README.md`
-2. `../08-esign/CURRENT_ESIGN_IMPLEMENTATION.md`
-3. `../08-esign/PDF_DELIVERY_WATERMARK_AND_VERIFICATION.md` bila menyentuh
+2. `../08-esign/AI_AGENT_CURRENT_HANDOFF.md`
+3. `../08-esign/CURRENT_ESIGN_IMPLEMENTATION.md`
+4. `../08-esign/PDF_DELIVERY_WATERMARK_AND_VERIFICATION.md` bila menyentuh
    `pdf_watermark_required`, preview/view/download PDF, Admin Super acting,
    guest, watermark/COPY-ID, audit delivery, atau cache verifikasi BSrE
-4. `../08-esign/ESIGN_V2_CONTRACT_AND_BACKEND.md`
-5. `../08-esign/ESIGN_VISIBLE_EDITOR_AND_MULTI_QR_DESIGN.md` bila menyentuh
+5. `../08-esign/ESIGN_V2_CONTRACT_AND_BACKEND.md`
+6. `../08-esign/ESIGN_VISIBLE_EDITOR_AND_MULTI_QR_DESIGN.md` bila menyentuh
    PDF editor, footer editable, multi-QR satu signer, operation checkpoint,
    partial signing/resume, atau worker visible
-6. `../08-esign/ESIGN_AUTHORIZATION_AND_WORKFLOW_MATRIX.md` bila menyentuh
+7. `../08-esign/ESIGN_AUTHORIZATION_AND_WORKFLOW_MATRIX.md` bila menyentuh
    signer, Admin Super, QR/footer, workflow, pembatalan/retry, atau download
-7. `../08-esign/ESIGN_DOCUMENT_LIFECYCLE_AND_REPORTING_COMPATIBILITY.md` bila
+8. `../08-esign/ESIGN_DOCUMENT_LIFECYCLE_AND_REPORTING_COMPATIBILITY.md` bila
    menyentuh artifact, QR, storage, history attempt, tabel sign legacy, atau
    aplikasi laporan
-8. `../08-esign/ESIGN_RESUMABLE_MIGRATION_RUNBOOK.md` bila menyentuh mapping,
+9. `../08-esign/ESIGN_RESUMABLE_MIGRATION_RUNBOOK.md` bila menyentuh mapping,
    backfill, queue/lease, file migration, pause/resume, atau decommission
-9. `../08-esign/ESIGN_V2_FRONTEND_MODAL.md`
-10. `../08-esign/ESIGN_V2_IMPLEMENTATION_PLAN.md`
+10. `../08-esign/ESIGN_V2_FRONTEND_MODAL.md`
+11. `../08-esign/ESIGN_V2_IMPLEMENTATION_PLAN.md`
 
 Nama concrete client yang telah diputuskan adalah `BsreClient`. Jangan
 menghidupkan kembali nama `BsreV22Client`, credential legacy, atau request sign
@@ -100,8 +101,9 @@ selalu watermark untuk preview/view/download, `false` boleh original setelah
 authorization. Posisi existing dan posisi baru default `false`; nilai `true`
 hanya diaktifkan manual melalui Management User. Admin Super acting selalu
 efektif `false`; posisi bisnis nyata Admin Super mengikuti flag posisi tersebut;
-guest public selalu watermark. Flag ini bukan permission dan fitur masih berupa
-rancangan dokumentasi.
+guest public selalu watermark. Flag ini bukan permission. Migration flag sudah
+diterapkan dan seluruh posisi masih `false`; renderer/enforcement watermark
+serta toggle Management User belum tersedia.
 
 UI eSign wajib mengikuti main CSS Bootstrap 5 dan custom Argon Dashboard Pro 2.
 Jangan menggunakan Tailwind sebagai basis komponen eSign meskipun dependency

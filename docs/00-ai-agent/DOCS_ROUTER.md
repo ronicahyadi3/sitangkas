@@ -6,6 +6,7 @@ Gunakan file ini untuk menentukan dokumen mana yang perlu dibaca.
 
 | Kebutuhan kerja | Baca pertama | Lanjutkan ke |
 |---|---|---|
+| Kondisi eSign/TTE/PDF viewer paling baru, status R0-R9, runtime flag, migration watermark, blocker, dan urutan lanjut | `../08-esign/AI_AGENT_CURRENT_HANDOFF.md` | `../08-esign/CURRENT_ESIGN_IMPLEMENTATION.md`, lalu dokumen domain spesifik yang dirujuk handoff |
 | Login, logout, lock akun, reset password, session invalidation | `../01-authentication/README.md` | `AI_AGENT_DATABASE_CONTEXT.md`, lalu `USERS_TABLE.md` atau `LOGIN_EVENTS_TABLE.md` sesuai tabel |
 | Management Users, CRUD akun, encrypted URL user/posisi, DataTables users, keamanan akun, reset password Admin Super, reset MFA browser, lock/unlock dari UI, audit trail | `../01-authentication/README.md` | `MANAGEMENT_USERS_CURRENT_STATE.md`, `USERS_TABLE.md`, `LOGIN_EVENTS_TABLE.md`, lalu `../03-user-positions/README.md` bila menyentuh posisi dan `../04-year-permissions/README.md` bila menyentuh izin tahun historis |
 | Login context, post-login, Admin Super acting context, `auth/postLogin.blade.php` | `../01-authentication/README.md` | `AUTH_CONTEXT_DECISIONS.md`, `CURRENT_AUTH_CONTEXT_IMPLEMENTATION.md`, lalu `../03-user-positions/AI_AGENT_USER_POSITIONS_CONTEXT.md` dan `../02-master-data/AI_AGENT_MASTER_ORGANIZATION_CONTEXT.md` |

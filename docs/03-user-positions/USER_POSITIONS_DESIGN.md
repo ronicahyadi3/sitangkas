@@ -115,11 +115,19 @@ menyimpan metadata `is_initial_position`.
 
 ### Kebijakan watermark PDF per posisi
 
-Target schema menambahkan tepat satu kolom:
+Schema aktif mempunyai tepat satu kolom:
 
 ```text
 pdf_watermark_required BOOLEAN NOT NULL DEFAULT FALSE
 ```
+
+Migration additive
+`2026_09_26_183341_add_pdf_watermark_required_to_user_positions_table.php`
+sudah diterapkan pada batch 27. Snapshot database 27 September 2026 berisi
+1.514 posisi dan seluruh nilai flag masih `false`. Checkbox Management User,
+audit perubahan flag, dan renderer watermark masih merupakan pekerjaan lanjut;
+jangan mengaktifkan row menjadi `true` sebelum jalur delivery watermark bersifat
+fail-closed.
 
 Keputusan bisnisnya:
 

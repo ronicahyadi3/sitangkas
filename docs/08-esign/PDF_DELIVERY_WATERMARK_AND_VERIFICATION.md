@@ -1,14 +1,14 @@
 # Delivery PDF, Watermark Forensik, dan Cache Verifikasi BSrE
 
 Tanggal keputusan: **21 September 2026**. Kontrak default opt-in watermark dan
-rencana implementasi diselaraskan pada **26 September 2026**.
+rencana implementasi diselaraskan pada **27 September 2026**.
 
-Status: **kontrak arsitektur yang sudah disetujui pengguna; implementasi
-watermark belum dimulai**. Fondasi current canonical artifact, integrity
-service, authenticated LS SPP content/download, PDF.js, `qpdf`, `pdfinfo`, dan
-verifikasi exact artifact sudah ada di source. Kolom `pdf_watermark_required`,
-delivery session universal, derivative watermark, COPY-ID, audit akses, viewer
-umum, persistent verification summary, dan cleanup watermark belum ada.
+Status: **kontrak arsitektur disetujui dan fondasi ORIGINAL sedang aktif
+bertahap**. Migration `pdf_watermark_required` sudah diterapkan; seluruh posisi
+masih `false`. General secure viewer, universal source resolver, authorization,
+dan opaque binary delivery ORIGINAL sudah tersedia. Derivative watermark,
+COPY-ID, persistent delivery session, audit akses append-only, persistent
+verification summary, queue/cache/lock, dan cleanup watermark belum ada.
 Seluruh agent wajib membedakan keputusan target pada dokumen ini dari kondisi
 source aktual pada `CURRENT_ESIGN_IMPLEMENTATION.md`.
 
@@ -195,11 +195,18 @@ untuk semua action tersebut.
 
 ## 4. Perubahan `user_positions`
 
-Target schema:
+Schema aktif:
 
 ```text
 pdf_watermark_required BOOLEAN NOT NULL DEFAULT FALSE
 ```
+
+Migration additive
+`2026_09_26_183341_add_pdf_watermark_required_to_user_positions_table.php`
+sudah diterapkan pada batch 27. Snapshot 27 September 2026 menunjukkan 1.514
+row posisi dan semuanya masih `false`. Model sudah mempunyai boolean cast;
+kontrol Management User, audit perubahan flag, dan renderer watermark belum
+selesai.
 
 Default `false` adalah keputusan bisnis final untuk mempertahankan perilaku
 existing. Seluruh row lama dan posisi baru mulai dari `false`. Hanya posisi
@@ -881,28 +888,30 @@ Original leakage, authorization bypass, wrong-position cache, acting-context
 misattribution, fail-open fallback, atau original mutation adalah release
 blocker.
 
-## 20. Urutan implementasi yang direkomendasikan
+## 20. Urutan implementasi lanjutan
 
-1. finalisasi dokumentasi dan matrix nilai posisi existing;
-2. inventaris seluruh delivery PDF lintas domain dan tetapkan adapter source,
-   authorization subject, serta owner implementasinya;
-3. buat migration baru `pdf_watermark_required` dan audit perubahan flag;
-4. aktifkan/migrasikan schema canonical `document_artifacts` sesuai gate
-   existing;
-5. implement current artifact resolver, adapter PDF non-artifact, dan
-   `PdfDeliveryPolicy`;
-6. buat access audit append-only;
-7. tutup direct public/legacy exposure untuk pilot scope;
-8. pilih/install qpdf dan overlay generator setelah approval dependency;
-9. implement COPY-ID, overlay, cache, lock, atomic generation, dan cleanup;
-10. implement authenticated/public content route dan frontend viewer;
-11. tambahkan verification summary + unique asynchronous job;
-12. ubah signing preview agar mengikuti delivery decision tanpa mengubah sign
-    source;
-13. jalankan acceptance/security test dan benchmark;
-14. pilot satu document/payment family;
-15. rollout bertahap lintas payment, SK, laporan/export, attachment, dan legacy
-    path.
+Fondasi ORIGINAL R0-R8 sudah tersedia di source, migration flag sudah aktif,
+dan preflight R9 untuk LS SPP ORIGINAL sudah lulus. Urutan berikutnya adalah:
+
+1. selesaikan acceptance manual R9 untuk view, download, authorization,
+   refresh, multi-tab, dan audit log aplikasi;
+2. implementasikan checkbox Management User dan audit before/after flag tanpa
+   mengaktifkan nilai `true` terlebih dahulu;
+3. buat access audit append-only serta persistent delivery session;
+4. pilih/install qpdf dan overlay generator setelah approval dependency;
+5. implementasikan COPY-ID, overlay, cache, lock, atomic generation, cleanup,
+   dan fail-closed behavior;
+6. implementasikan delivery authenticated/public ber-watermark tanpa membuat
+   original bypass;
+7. tambahkan verification summary serta unique asynchronous job;
+8. ubah signing preview agar mengikuti delivery decision tanpa mengubah
+   canonical original sebagai input TTE;
+9. lakukan acceptance manual dan benchmark non-test-suite untuk pilot posisi
+   `true`;
+10. rollout bertahap lintas payment, SK, laporan/export, attachment, dan legacy
+    path;
+11. implementasikan mapping file legacy resumable sebelum folder lama dapat
+    didecommission.
 
 ## 21. Larangan untuk AI agent
 

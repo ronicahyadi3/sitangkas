@@ -1,13 +1,13 @@
 # Kondisi Implementasi eSign/TTE Saat Ini
 
-Tanggal snapshot kode dan dokumentasi: **26 September 2026**.
+Tanggal snapshot kode dan dokumentasi: **27 September 2026**.
 
 Status: **backend in progress**. Boundary provider, schema/model/state service,
 authorization, signing session, private artifact persistence, secret store,
 endpoint internal, dan asynchronous signing job sudah berada di working tree.
-Sebanyak 13 migration tabel canonical sudah diterapkan pada database lokal;
-dua migration index mapping legacy tetap `Pending` untuk deployment wave
-terpisah. Boundary upload controller payment umumnya mengantrekan provisioning
+Seluruh migration canonical, dua index mapping legacy, multi-operation,
+decoration, dan flag posisi PDF sudah diterapkan pada database lokal. Boundary
+upload controller payment umumnya mengantrekan provisioning
 source artifact/workflow/step setelah commit; `Payment\LS\SPP::store()` kini
 memprovisikan canonical workflow langsung di dalam transaksi vertical slice.
 Dedicated worker `signatures` sudah
@@ -16,8 +16,9 @@ upload NPD `GU_SKPD` terkontrol sudah membuktikan artifact, workflow, dua step,
 dan event benar-benar terbentuk. Ini belum berarti process manager production
 sudah dikonfigurasi. Visible QR/footer, prepared rendition, operation
 persistence, worker serial, partial resume, dan aktivasi public ID setelah final
-verify tersedia di source; public verification route belum dibuat dan feature
-flag multi-operation masih default nonaktif. Workflow hasil provisioning tetap
+verify tersedia di source; public verification route belum dibuat. Snapshot
+runtime lokal saat ini mengaktifkan frontend dan multi-operation, sedangkan
+contract proof live tetap nonaktif. Workflow hasil provisioning tetap
 `draft` dengan step pertama `pending` sampai
 signer BP/BPP membuka signing session. Untuk vertical slice **LS SPP jalur BP/BPP**,
 lazy activation signer pertama, submit gate, assignment signer berikutnya saat
@@ -35,8 +36,7 @@ mengisi UUID tersebut sebagai `original_name`; nilainya disimpan sebagai
 Desain visible terbaru sudah berada di source backend: editor membuka artifact
 melalui binary stream, footer editable hanya sebelum TTE pertama, prepared
 rendition exact, dan satu signer dapat mempunyai beberapa QR yang dieksekusi
-serial dalam satu attempt. Feature flag runtime masih default `false`, vertical
-slice operasional belum dijalankan, dan frontend Svelte F0-F13 sudah tersedia
+serial dalam satu attempt. Frontend Svelte F0-F13 sudah tersedia
 di source sampai progress authoritative, partial resume, terminal result, dan
 modal validasi canonical authenticated.
 Recovery attempt setelah full page reload masih menunggu endpoint discovery
@@ -47,18 +47,19 @@ Dokumen ini adalah handoff kondisi kode aktual. Untuk keputusan bisnis dan
 target final tetap baca:
 
 1. `README.md`;
-2. `PDF_DELIVERY_WATERMARK_AND_VERIFICATION.md`;
-3. `PDF_DELIVERY_WATERMARK_IMPLEMENTATION_PLAN.md` dan
+2. `AI_AGENT_CURRENT_HANDOFF.md`;
+3. `PDF_DELIVERY_WATERMARK_AND_VERIFICATION.md`;
+4. `PDF_DELIVERY_WATERMARK_IMPLEMENTATION_PLAN.md` dan
    `PDF_DELIVERY_WATERMARK_IMPLEMENTATION_APPENDICES.md` bila menyentuh secure
    viewer, delivery session, watermark, COPY-ID, access audit, atau persistent
    verification summary;
-4. `ESIGN_V2_CONTRACT_AND_BACKEND.md`;
-5. `ESIGN_VISIBLE_EDITOR_AND_MULTI_QR_DESIGN.md`;
-6. `ESIGN_AUTHORIZATION_AND_WORKFLOW_MATRIX.md`;
-7. `LEGACY_OPERATIONAL_TABLES_COMPATIBILITY.md`;
-8. `ESIGN_DOCUMENT_LIFECYCLE_AND_REPORTING_COMPATIBILITY.md`;
-9. `ESIGN_RESUMABLE_MIGRATION_RUNBOOK.md`;
-10. `ESIGN_V2_IMPLEMENTATION_PLAN.md`.
+5. `ESIGN_V2_CONTRACT_AND_BACKEND.md`;
+6. `ESIGN_VISIBLE_EDITOR_AND_MULTI_QR_DESIGN.md`;
+7. `ESIGN_AUTHORIZATION_AND_WORKFLOW_MATRIX.md`;
+8. `LEGACY_OPERATIONAL_TABLES_COMPATIBILITY.md`;
+9. `ESIGN_DOCUMENT_LIFECYCLE_AND_REPORTING_COMPATIBILITY.md`;
+10. `ESIGN_RESUMABLE_MIGRATION_RUNBOOK.md`;
+11. `ESIGN_V2_IMPLEMENTATION_PLAN.md`.
 
 Jika ada perbedaan antara tracker lama dan dokumen ini, verifikasi kode,
 migration status, dan route aktual. Jangan menganggap komponen sudah deployed
@@ -71,19 +72,20 @@ hanya karena class-nya tersedia di repository.
 | 0 | Sebagian selesai | Containment lokal selesai; rotasi/revoke credential eksternal tetap tanggung jawab pemilik/deployment. |
 | 1 | Minimum selesai | Invisible NIK+passphrase satu PDF dan verify minimum pernah dibuktikan; visible coordinate, limit, timeout matrix, encrypted PDF, dan multi-file belum final. |
 | 2 | Kode selesai untuk scope awal | `EsignGateway`, `BsreClient`, DTO, mapper, payload invisible satu file, error taxonomy, dan config tersedia. |
-| 3 | Schema aktif, provisioning runtime terbukti lokal | Sebanyak 13 tabel canonical, model, enum cast, transition/persistence, artifact storage, provider response, event, compatibility writer, dan job provisioning idempotent tersedia. Worker lokal dan satu upload terkontrol lulus; dua migration index mapping legacy, production process manager, mapping runner, dan reconciliation belum selesai. |
+| 3 | Schema aktif, provisioning runtime terbukti lokal | Schema canonical, index mapping legacy, multi-operation/decorations, model, enum cast, transition/persistence, artifact storage, provider response, event, compatibility writer, dan provisioning idempotent tersedia. Worker lokal dan satu upload terkontrol lulus; production process manager, mapping runner, dan reconciliation belum selesai. |
 | 4 | Kode LS SPP tersedia, belum lulus acceptance | Policy, authorization service, signer resolver, encrypted ephemeral session, context revalidation, private preview, definition registry, lazy activation BP/BPP, dan assignment PPTK/PA/KPA saat handoff tersedia. Workflow upload sengaja tetap draft sampai signing session pertama. |
-| 5 | Kode vertical slice dan multi-operation tersedia, belum lulus acceptance | Endpoint internal, encrypted secret TTL, `202 Accepted`, operation persistence, queue worker serial, final verify/promotion, partial resume, polling, aggregate legacy projection, submit gate, dan handoff canonical LS SPP tersedia. Feature flag multi-operation masih default nonaktif dan sign canonical belum diuji end-to-end. |
+| 5 | Kode vertical slice dan multi-operation tersedia, belum lulus acceptance | Endpoint internal, encrypted secret TTL, `202 Accepted`, operation persistence, queue worker serial, final verify/promotion, partial resume, polling, aggregate legacy projection, submit gate, dan handoff canonical LS SPP tersedia. Multi-operation aktif pada snapshot lokal, tetapi full canonical sign belum diterima end-to-end. |
 | 6 | Sebagian untuk LS SPP/visible backend | Authenticated current-artifact content/download, prepared rendition, QR authoritative, footer renderer, progress, resume, serta endpoint/modal validasi artifact tersedia. Formula hash path sudah konsisten, tetapi acceptance runtime belum dilakukan. Frontend F0-F13 tersedia di source; full-page active-attempt recovery masih menunggu endpoint backend. General delivery policy watermark/COPY-ID/audit, public verify route, guest delivery, dan legacy QR resolver belum dibuat. |
 | 7 | Belum lulus | Backend Ready Gate masih terhalang production process manager/shared cache, visible placement, acceptance end-to-end LS SPP, deployment index legacy, reconciliation, observability, performance proof, credential rotation, dan test yang diizinkan. |
-| 8-10 | Sebagian di source | Dependency dan frontend Svelte/Vite sampai modal validasi canonical F13 sudah dipasang; Backend Ready Gate, aktivasi feature flag, acceptance manual, dan rollout payment belum dilakukan. |
-| 11 | Belum dijalankan | Target pilot backend dipilih: LS SPP jalur BP -> PPTK -> PA. Belum diaktifkan untuk layanan operasional. |
+| 8-10 | Sebagian di source | Dependency dan frontend Svelte/Vite sampai modal validasi canonical F13 sudah dipasang dan frontend aktif pada snapshot lokal; Backend Ready Gate, acceptance manual, serta rollout payment belum selesai. |
+| 11 | Preflight ORIGINAL lulus; TTE pilot belum lengkap | Target pilot backend adalah LS SPP jalur BP -> PPTK -> PA. Source/checksum delivery ORIGINAL sudah dibuktikan; full signing vertical slice belum diterima operasional. |
 | 12 | Belum | Rollout, mapping legacy resumable, reporting cutover, dan decommission belum berjalan. |
 
-Kesimpulan posisi: dari sisi source code pekerjaan sudah mencapai **Phase 5
-parsial**. Dari sisi runtime lokal, provisioning Phase 3 sudah terbukti; dari
-sisi deployment production dan workflow yang benar-benar signable pekerjaan
-masih berada pada **Phase 4 menuju Phase 5**.
+Kesimpulan posisi: source backend visible/multi-operation, frontend F0-F13, dan
+viewer ORIGINAL R0-R9 sudah tersedia. Dari sisi runtime lokal, provisioning dan
+preflight delivery canonical sudah terbukti. Dari sisi production, pekerjaan
+masih tertahan pada acceptance F14/vertical slice nyata, process manager,
+reconciliation, observability, public verify, watermark, mapping, dan rollout.
 
 ## 2. Keputusan bisnis yang tetap berlaku
 
@@ -121,10 +123,12 @@ masih berada pada **Phase 4 menuju Phase 5**.
   default `false`; nilai `true` hanya diaktifkan manual melalui Management User.
   Guest public selalu watermark. Admin Super saat acting like diperlakukan
   sebagai `false`; posisi bisnis nyata miliknya mengikuti flag posisi tersebut.
-  Tahap P0 penguncian kontrak dokumentasi selesai 26 September 2026, sedangkan
-  implementasi runtime belum dimulai. Urutan operasional, schema target, kontrak
-  endpoint, transition, queue, frontend general viewer, rollout, dan acceptance
-  manual sudah dikunci di `PDF_DELIVERY_WATERMARK_IMPLEMENTATION_PLAN.md` serta
+  P0 penguncian kontrak dokumentasi selesai. R0-R8 secure viewer/delivery
+  ORIGINAL sudah tersedia di source, migration flag posisi sudah diterapkan,
+  dan preflight R9 LS SPP ORIGINAL lulus. Acceptance manual R9, kontrol
+  Management User, access audit persisten, watermark/COPY-ID, public delivery,
+  cache/queue/cleanup derivative, dan rollout lintas payment belum selesai.
+  Urutan lanjut berada di `PDF_DELIVERY_WATERMARK_IMPLEMENTATION_PLAN.md` serta
   `PDF_DELIVERY_WATERMARK_IMPLEMENTATION_APPENDICES.md`.
 - Frontend target adalah Svelte island melalui Vite pada Blade, bukan SPA dan
   bukan SvelteKit.
@@ -637,8 +641,9 @@ menyimpan filename output TTE. Perbedaan ini harus diputuskan sebagai adapter
 compatibility, bukan dengan mengubah artifact canonical.
 
 Model/tabel `esign_attempt_signature_properties` dan writer runtime placement
-sudah tersedia melalui persistence visible attempt. Flow produksi tetap belum
-aktif karena feature flag default `false` dan vertical slice belum diterima.
+sudah tersedia melalui persistence visible attempt. Feature frontend dan
+multi-operation aktif pada snapshot lokal, tetapi flow production rollout
+tetap belum diterima melalui vertical slice lengkap.
 
 Parity report canonical-versus-legacy belum dibuat. Compatibility writer sudah
 ada, tetapi belum dibuktikan melalui vertical slice meskipun tabel link sudah
@@ -760,12 +765,14 @@ nilai credential, passphrase, atau alamat internal deployment di file ini.
 - PHP lint lulus untuk file eSign terkait;
 - Laravel Pint lulus;
 - `git diff --check` lulus;
-- dry-run 13 migration canonical berhasil;
-- 13 migration tabel canonical berhasil diterapkan dalam batch 9-21;
+- dry-run dan deployment 13 migration canonical dasar berhasil;
+- migration index mapping legacy, multi-operation/decorations, dan flag posisi
+  PDF juga sudah diterapkan sampai batch 27;
 - schema aktif memiliki 48 foreign key; sebelum controlled proof seluruh tabel
   canonical masih kosong, lalu proof membuat satu artifact/workflow/event dan
   dua step;
-- dua migration index mapping legacy tetap `Pending` untuk wave terpisah.
+- schema `user_positions.pdf_watermark_required` aktif dengan 1.514 posisi
+  seluruhnya `false` pada snapshot 27 September 2026;
 - dedicated worker lokal `signatures` berhasil hidup dengan connection dan
   queue `signatures`, timeout 900 detik, serta `retry_after` 960 detik;
 - controlled upload NPD `GU_SKPD` melalui method `store()` controller asli
@@ -979,9 +986,9 @@ Tahap backend visible lanjutan sudah tersedia pada source:
 - QR authoritative dapat memakai profile berlogo Malang dan byte visual yang
   dipersistensikan dipakai sebagai input provider.
 
-Keberadaan source bukan bukti deployment. Feature flag masih default `false`,
-public verification resolver belum ada, dan controlled vertical slice belum
-dijalankan.
+Keberadaan source bukan bukti production readiness. Feature frontend dan
+multi-operation aktif pada snapshot lokal, tetapi public verification resolver
+belum ada dan controlled signing vertical slice belum selesai.
 
 ## 16E. Snapshot frontend dan failure semantics per 26 September 2026
 
@@ -1031,11 +1038,12 @@ batas berikut:
 - endpoint 422 prepared rendition tetap fail-closed dan frontend menampilkan
   normalized field error; frontend tidak mengubah plan atau retry otomatis;
 - modal validasi F13 memakai exact private artifact dan tidak upload ulang Blob,
-  tetapi action canonical masih LS SPP. Tahap P0 general secure PDF
-  viewer/watermark telah selesai sebagai kontrak dokumentasi; P1-P18 runtime
-  belum diimplementasikan.
+  tetapi action canonical masih LS SPP. Secure PDF delivery sudah mencapai
+  R0-R9/P0-P2/P4/P8 dan bridge sebagian P5-P6; watermark derivative P3/P7/
+  P10-P18 belum selesai.
 
-Feature flag tetap `false`. Perubahan source/UI di atas belum menggantikan
+Feature frontend dan multi-operation aktif pada snapshot lokal. Perubahan
+source/UI tersebut belum menggantikan
 acceptance manual F14, production worker/process manager, shared cache,
 observability, dan controlled end-to-end provider proof.
 
@@ -1134,8 +1142,9 @@ media, status attempt/operation, klasifikasi error, dan gap register dikunci di
 `resources/js/esign/types.ts`. F1 bridge action LS SPP juga selesai di source:
 capability signer dihitung tanpa N+1 oleh `LsSppSigningActionResolver`, row
 DataTable hanya membawa `step_public_id` dan boolean capability, serta delegated
-listener menerbitkan `sitangkas:esign:open`. Action masih tersembunyi karena
-`SIGNATURE_FRONTEND_ENABLED` default `false`. F2 juga sudah selesai di source:
+listener menerbitkan `sitangkas:esign:open`. Snapshot runtime lokal sekarang
+mengaktifkan `SIGNATURE_FRONTEND_ENABLED`; capability backend tetap menjadi
+gate authoritative. F2 juga sudah selesai di source:
 layout authenticated mempunyai satu root global, loader hanya mengimpor Svelte
 dan CSS eSign saat event open pertama, dan shell modal mengikuti Bootstrap 5 /
 Argon tanpa Tailwind. `pdfjs-dist` tersedia sebagai dependency tetapi belum
@@ -1166,7 +1175,8 @@ dengan polling authoritative, progress per operation, partial resume, terminal
 result, dan event refresh halaman. F13 menyediakan validasi artifact tanpa
 upload ulang beserta preview PDF private dan pembedaan invalid dari provider
 unavailable. Kembali ke editor atau menutup modal membuang prepared reference
-dan secret dari memory. Feature flag tetap `false`.
+dan secret dari memory. Feature frontend dan multi-operation aktif pada
+snapshot lokal; rollout tetap dibatasi capability backend dan acceptance.
 
 Audit lintas payment menegaskan bahwa editor/session contract bersifat generik,
 tetapi action resolver, activation/handoff, submit gate, dan compatibility
@@ -1371,17 +1381,17 @@ mode tersebut, response binary mengirim header
 tanpa path atau byte PDF. Enum delivery mode disiapkan mengikuti rancangan
 final, tetapi runtime R9 hanya boleh menerbitkan `original`.
 
-Prasyarat additive `user_positions.pdf_watermark_required` juga telah dibuat
-dengan `NOT NULL DEFAULT false`; model mempunyai cast boolean dan default row
-baru tetap berasal dari database agar deployment additive aman.
-Migration belum dijalankan otomatis. Command read-only
+Prasyarat additive `user_positions.pdf_watermark_required` telah diterapkan
+pada batch 27 dengan `NOT NULL DEFAULT false`; model mempunyai cast boolean dan
+default row baru berasal dari database. Snapshot read-only mencatat 1.514
+posisi dan semuanya masih `false`. Command read-only
 `php artisan pdf-delivery:pilot-ls-original` memblokir pilot bila kolom belum
 terpasang, ada satu saja posisi bernilai `true`, route utama hilang, source bukan
 artifact canonical LS SPP, atau SHA-256 byte tidak cocok. Command tidak menulis
-database dan tidak menampilkan path fisik. R9 baru boleh disebut lulus
-operasional setelah migration direview/deploy dan acceptance manual memakai
-user/posisi nyata mencakup view, validasi, download, serta penolakan lintas
-scope; acceptance tersebut belum diklaim oleh perubahan source ini.
+database dan tidak menampilkan path fisik. Command tersebut sudah lulus pada
+satu artifact canonical LS SPP. Acceptance manual memakai user/posisi nyata
+untuk view, validasi, download, serta penolakan lintas scope tetap belum
+diklaim.
 
 Selama renderer watermark belum tersedia, authorization bersifat fail-closed:
 posisi bisnis nyata dengan flag `true` ditolak dan tidak pernah memperoleh

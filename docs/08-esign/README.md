@@ -1,53 +1,19 @@
 # eSign Client 2.2.0 / TTE
 
-Tanggal snapshot: **26 September 2026**.
+Tanggal snapshot: **27 September 2026**.
 
-Status: **backend in progress; kontrak visible multi-QR tersedia di source tetapi
-belum diaktifkan untuk layanan operasional**. Boundary provider, migration,
-model, enum cast, transition/persistence service, policy, signing session,
-artifact storage, prepared rendition, operation checkpoint, partial resume,
-encrypted TTL secret store, compatibility writer, endpoint internal, serta job
-signing asynchronous serial sudah berada di working tree. Sebanyak 13
-migration tabel canonical sudah diterapkan pada database lokal; dua migration
-index mapping legacy tetap `Pending` untuk wave terpisah. Controller payment
-telah mempunyai hook upload after-commit untuk mengantrekan provisioning
-artifact/workflow/step. Worker `signatures` sudah ditambahkan ke
-`composer run dev`, dijalankan secara lokal, dan satu upload NPD `GU_SKPD`
-terkontrol berhasil membentuk artifact, workflow, dua step, serta event.
-Production process manager dan vertical slice signing canonical end-to-end
-belum selesai. Untuk LS SPP, first signer sekarang aktif secara lazy saat
-signer BP/BPP nyata membuka session; PPTK dan PA/KPA baru di-assign serta
-diaktifkan saat handoff setelah step sebelumnya terbukti completed. Submit gate
-menjaga projection legacy tidak melompat mendahului canonical proof. SPP LS
-sekarang mempunyai direct source artifact upload,
-replacement artifact berversi dengan draft-workflow rebind/revision cycle, dan
-authenticated delivery route khusus current artifact pada working tree.
-Formula `storage_path_sha256` persistence/integrity sudah disatukan; acceptance
-runtime delivery masih belum dilakukan. Create/update SPP sudah memakai
-protokol lock dan pemeriksaan ulang pagu yang sama di dalam transaksi. SPJ dan
-BMD LS sudah memakai direct private artifact dan authenticated delivery route.
-Billing tetap merupakan kolom pada row SPJ, tidak dibuat sebagai `src_type`
-baru, dan upload/replacement baru memakai private attachment artifact. Public
-storage hanya menjadi fallback Billing historis sebelum backfill.
-Reconciliation dan public verification belum dibuat. Mapping runner juga belum
-dibuat dan implementasi/eksekusinya sedang ditunda sampai Payment LS dapat
-digunakan sesuai
-`../99-legacy/PAYMENT_LS_MIGRATION_MAPPING_DECISION.md`. Audit
-frontend-backend F0 sudah selesai: endpoint aktif, response,
-binary media, error class, serta typed contract dikunci di
-`ESIGN_FRONTEND_BACKEND_CONTRACT_V1.md` dan `resources/js/esign/types.ts`.
-Bridge action LS SPP F1 dan frontend F2-F13 tersedia di source: Svelte island,
-event bridge, modal Bootstrap/Argon, typed signing session/API, binary PDF.js
-viewer, geometry canonical, editor multi-QR/footer, prepared confirmation,
-submit `202`, polling/progress, partial resume, terminal result, dan modal
-validasi exact artifact sudah tersambung. Penyempurnaan editor 25-26 September
-menambahkan seluruh halaman lazy, aktivasi halaman langsung dari workspace,
-penempatan QR di pusat viewport yang terlihat, kontrol hapus pada overlay,
-footer selected-pages berteks rata tengah, layout responsive, dan tombol
-`Selesai` pada body hasil sukses. `SIGNATURE_FRONTEND_ENABLED` dan feature flag
-multi-operation tetap default `false`; source belum berarti pilot LS SPP atau
-rollout payment sudah lulus operasional. Baca `CURRENT_ESIGN_IMPLEMENTATION.md`
-untuk kondisi kode aktual dan batas operasionalnya.
+Status: **backend, frontend F0-F13, visible multi-QR, dan secure viewer ORIGINAL
+tersedia di source; rollout operasional masih bertahap**. Seluruh migration
+canonical, index mapping, multi-operation/decorations, serta
+`pdf_watermark_required` sudah diterapkan pada database lokal. Frontend dan
+multi-operation aktif pada snapshot konfigurasi lokal, sedangkan contract proof
+live nonaktif. R0-R8 relokasi action/viewer selesai di source; R9 preflight LS
+SPP ORIGINAL sudah lulus pada artifact canonical dengan checksum sesuai.
+Worker/process manager production, acceptance manual LS SPP BP/BPP -> PPTK ->
+PA/KPA, reconciliation, public verification, mapping historis resumable, dan
+watermark derivative/COPY-ID/audit delivery masih belum selesai. Baca
+`AI_AGENT_CURRENT_HANDOFF.md` lebih dahulu, lalu
+`CURRENT_ESIGN_IMPLEMENTATION.md` untuk detail source dan batas operasional.
 
 Cluster ini adalah source of truth untuk perombakan proses Tanda Tangan
 Elektronik (TTE) SITANGKAS dari integrasi lama menuju eSign Client `2.2.0`
@@ -59,11 +25,12 @@ Agent yang menyentuh TTE, validasi PDF, modal eSign, file hasil sign, atau
 integrasi BSrE wajib membaca berurutan:
 
 1. dokumen ini;
-2. [kondisi implementasi aktual](CURRENT_ESIGN_IMPLEMENTATION.md);
-3. [kontrak frontend-backend V1](ESIGN_FRONTEND_BACKEND_CONTRACT_V1.md) bila
+2. [handoff aktual untuk AI agent](AI_AGENT_CURRENT_HANDOFF.md);
+3. [kondisi implementasi aktual](CURRENT_ESIGN_IMPLEMENTATION.md);
+4. [kontrak frontend-backend V1](ESIGN_FRONTEND_BACKEND_CONTRACT_V1.md) bila
    menyentuh endpoint internal, type TypeScript, request/response, binary media,
    error normalization, polling, action capability, atau gap frontend;
-4. [kebijakan delivery PDF, watermark, dan cache verifikasi](PDF_DELIVERY_WATERMARK_AND_VERIFICATION.md)
+5. [kebijakan delivery PDF, watermark, dan cache verifikasi](PDF_DELIVERY_WATERMARK_AND_VERIFICATION.md)
    bila menyentuh `pdf_watermark_required`, preview/view/download PDF, guest,
    Admin Super acting, COPY-ID, cache derivative, atau cache verifikasi BSrE;
    untuk implementasi lanjutkan ke
@@ -73,44 +40,44 @@ integrasi BSrE wajib membaca berurutan:
    serta baca
    [inventaris read-only R1](PDF_DELIVERY_R1_READ_ONLY_INVENTORY.md) sebelum
    mengubah entry point, route, source resolver, atau fallback legacy;
-5. [kontrak dan arsitektur backend](ESIGN_V2_CONTRACT_AND_BACKEND.md);
-6. [desain editor visible dan multi-QR satu signer](ESIGN_VISIBLE_EDITOR_AND_MULTI_QR_DESIGN.md)
+6. [kontrak dan arsitektur backend](ESIGN_V2_CONTRACT_AND_BACKEND.md);
+7. [desain editor visible dan multi-QR satu signer](ESIGN_VISIBLE_EDITOR_AND_MULTI_QR_DESIGN.md)
    bila menyentuh source PDF editor, binary preview, placement, footer,
    beberapa QR dalam satu step, worker sequential, partial signing, atau
    frontend Svelte;
-7. [matriks authorization dan workflow TTE](ESIGN_AUTHORIZATION_AND_WORKFLOW_MATRIX.md)
+8. [matriks authorization dan workflow TTE](ESIGN_AUTHORIZATION_AND_WORKFLOW_MATRIX.md)
    bila menyentuh signer, Admin Super, posisi aktif, penempatan QR/footer,
    urutan TTE, pembatalan/retry, atau akses view/download;
-8. [kontrak enam tabel operasional legacy dan audit canonical](LEGACY_OPERATIONAL_TABLES_COMPATIBILITY.md)
+9. [kontrak enam tabel operasional legacy dan audit canonical](LEGACY_OPERATIONAL_TABLES_COMPATIBILITY.md)
    bila menyentuh `document`, `document_process`, `anggaran_kegiatan`,
    `anggaran_kegiatan_temp`, `before_signs`, `after_signs`, dual-write, atau
    compatibility ledger;
-9. [lifecycle dokumen, QR, storage, dan kompatibilitas laporan](ESIGN_DOCUMENT_LIFECYCLE_AND_REPORTING_COMPATIBILITY.md)
+10. [lifecycle dokumen, QR, storage, dan kompatibilitas laporan](ESIGN_DOCUMENT_LIFECYCLE_AND_REPORTING_COMPATIBILITY.md)
    bila menyentuh file sebelum/sesudah TTE, `document_artifacts`, attempt/event,
    URL verifikasi, `before_signs`/`after_signs`, backfill, atau aplikasi laporan;
-10. [runbook mapping resumable dan zero-downtime](ESIGN_RESUMABLE_MIGRATION_RUNBOOK.md)
+11. [runbook mapping resumable dan zero-downtime](ESIGN_RESUMABLE_MIGRATION_RUNBOOK.md)
    bila menyentuh backfill, file copy, queue mapping, checkpoint, lease,
    pause/resume, throttling, catch-up, recovery, atau decommission;
-11. [rancangan frontend modal](ESIGN_V2_FRONTEND_MODAL.md) bila menyentuh Blade,
+12. [rancangan frontend modal](ESIGN_V2_FRONTEND_MODAL.md) bila menyentuh Blade,
     Svelte, Vite, PDF viewer, koordinat, atau UX;
-12. [urutan implementasi frontend dan migrasi dari UI legacy](ESIGN_FRONTEND_IMPLEMENTATION_AND_LEGACY_MIGRATION_PLAN.md)
+13. [urutan implementasi frontend dan migrasi dari UI legacy](ESIGN_FRONTEND_IMPLEMENTATION_AND_LEGACY_MIGRATION_PLAN.md)
     bila menyentuh `.sign`/`.signModal`, `esign.blade.php`, `signed.js`,
     `bundle.js`, bridge DataTable, state modal, atau cutover frontend;
-13. [rancangan visual dan interaksi frontend](ESIGN_FRONTEND_VISUAL_AND_INTERACTION_DESIGN.md)
+14. [rancangan visual dan interaksi frontend](ESIGN_FRONTEND_VISUAL_AND_INTERACTION_DESIGN.md)
     bila menyentuh layout editor, prepared confirmation, passphrase, progress,
     notifikasi, hasil TTE, validasi, responsive UI, atau accessibility;
-14. [rencana implementasi](ESIGN_V2_IMPLEMENTATION_PLAN.md);
-15. [laporan Phase 0](PHASE_0_SECURITY_CONTAINMENT_REPORT.md) sebelum memakai
+15. [rencana implementasi](ESIGN_V2_IMPLEMENTATION_PLAN.md);
+16. [laporan Phase 0](PHASE_0_SECURITY_CONTAINMENT_REPORT.md) sebelum memakai
     credential atau memulai sandbox;
-16. [laporan Phase 1](PHASE_1_SANDBOX_CONTRACT_REPORT.md) sebelum mengunci
+17. [laporan Phase 1](PHASE_1_SANDBOX_CONTRACT_REPORT.md) sebelum mengunci
     response decoder, error mapping, koordinat, limit, atau multi-file;
-17. `../00-ai-agent/PROJECT_INVARIANTS.md`;
-18. `../01-authentication/AUTH_CONTEXT_DECISIONS.md` dan
+18. `../00-ai-agent/PROJECT_INVARIANTS.md`;
+19. `../01-authentication/AUTH_CONTEXT_DECISIONS.md` dan
     `../01-authentication/CURRENT_AUTH_CONTEXT_IMPLEMENTATION.md` bila menyentuh
     signer, posisi aktif, atau Admin Super acting context;
-19. `../06-migrations/FRESH_INSTALL_READINESS.md` sebelum membuat atau mengubah
+20. `../06-migrations/FRESH_INSTALL_READINESS.md` sebelum membuat atau mengubah
     migration;
-20. `../99-legacy/OLD_PROJECT_REFERENCE.md` hanya untuk memahami perilaku lama.
+21. `../99-legacy/OLD_PROJECT_REFERENCE.md` hanya untuk memahami perilaku lama.
 
 Jika TTE dipanggil dari payment LS, baca juga:
 
@@ -322,13 +289,14 @@ Jika TTE dipanggil dari payment LS, baca juga:
     Bootstrap modal pasif. Detail disembunyikan sementara, lalu dibuka kembali
     dan read model terkait di-refresh setelah child surface ditutup/selesai.
 
-Status frontend 25 September 2026: F0-F5 selesai di source. Svelte island,
+Catatan historis frontend 25 September 2026: F0-F5 selesai di source. Svelte island,
 event bridge, adapter refresh opt-in, serta shell modal Bootstrap/Argon empat
 tahap sudah tersedia. Typed API client dan signing-session state sudah
 terhubung. F6 PDF viewer binary dengan worker lokal, thumbnail bertahap,
 navigasi, zoom, dan cleanup resource juga selesai di source. F7 geometry
-canonical adalah pekerjaan berikutnya. Feature flag frontend tetap `false`;
-belum ada rollout operasional.
+canonical adalah pekerjaan berikutnya. Pada tanggal catatan ini feature flag
+frontend masih `false`; kondisi runtime lokal terkini tercatat pada bagian
+status paling atas dan `AI_AGENT_CURRENT_HANDOFF.md`.
 
 ## Batas keputusan
 
