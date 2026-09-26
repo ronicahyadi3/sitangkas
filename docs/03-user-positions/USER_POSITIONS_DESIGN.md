@@ -118,7 +118,7 @@ menyimpan metadata `is_initial_position`.
 Target schema menambahkan tepat satu kolom:
 
 ```text
-pdf_watermark_required BOOLEAN NOT NULL DEFAULT TRUE
+pdf_watermark_required BOOLEAN NOT NULL DEFAULT FALSE
 ```
 
 Keputusan bisnisnya:
@@ -130,8 +130,9 @@ Keputusan bisnisnya:
 - flag hanya memilih rendition dan tidak memberi capability akses;
 - tidak ada flag view/download terpisah dan tidak ada endpoint original bypass
   untuk posisi berflag `true`;
-- posisi baru default `true`, sedangkan backfill seluruh posisi lama harus
-  eksplisit, reviewable, dan teraudit;
+- posisi existing dan posisi baru default `false`;
+- nilai `true` hanya diaktifkan manual melalui Management User untuk posisi
+  terpilih setelah enforcement watermark siap;
 - perubahan flag wajib melalui flow management terotorisasi dengan reason dan
   audit before/after.
 

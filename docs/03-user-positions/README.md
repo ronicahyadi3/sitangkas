@@ -28,8 +28,10 @@ Cluster ini menjelaskan posisi pengguna, dokumen SK, dan aturan pemilihan posisi
   `../01-authentication/CURRENT_AUTH_CONTEXT_IMPLEMENTATION.md` sebelum memakai
   `CurrentUserContext::activePosition()->id`.
 - Target schema menambahkan satu boolean `pdf_watermark_required` pada
-  `user_positions`, default aman `true`. Kolom ini belum terdapat pada migration
-  awal dan harus dibuat melalui migration additive baru saat implementasi.
+  `user_positions`, default `false` untuk posisi existing maupun posisi baru.
+  Kolom ini belum terdapat pada migration awal dan harus dibuat melalui
+  migration additive baru saat implementasi. Nilai `true` hanya diaktifkan
+  manual melalui Management User untuk posisi terpilih.
 - Flag tersebut berlaku sama untuk seluruh preview/view/download PDF setelah
   authorization lulus: `true` selalu watermark server-side, `false` boleh exact
   original canonical. Jangan membuat flag view dan download terpisah.

@@ -277,10 +277,11 @@ Ini ringkasan aturan yang tidak boleh dilanggar lintas domain.
   Internal server-to-server sign/verify memakai original dan tidak boleh menjadi
   endpoint browser.
 - Hanya ada satu flag target pada posisi:
-  `user_positions.pdf_watermark_required` dengan default aman `true`. Jangan
-  memecahnya menjadi flag view dan download karena byte yang dapat dilihat juga
-  dapat disimpan. Backfill posisi existing wajib diputuskan eksplisit dan
-  teraudit, bukan tersirat dari default migration.
+  `user_positions.pdf_watermark_required` dengan default `false` untuk seluruh
+  posisi existing dan posisi baru. Jangan memecahnya menjadi flag view dan
+  download karena byte yang dapat dilihat juga dapat disimpan. Nilai `true`
+  hanya diaktifkan manual per posisi melalui Management User dan wajib
+  teraudit.
 - Untuk authenticated user dengan posisi nyata aktif dan flag `true`, setiap
   preview/view/download PDF wajib berupa derivative watermark server-side;
   tidak ada endpoint, range request, temporary URL, atau fallback yang boleh

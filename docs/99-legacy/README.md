@@ -10,6 +10,7 @@ Cluster ini menjelaskan pemetaan data lama ke struktur SITANGKAS baru.
 | Mapping dump lama ke master baru | `LEGACY_MAPPING.md` |
 | Import `users.sql` menjadi akun distinct NIK dan posisi dengan ID legacy | [LEGACY_USERS_IMPORT_DECISIONS.md](LEGACY_USERS_IMPORT_DECISIONS.md) |
 | Kondisi kode, private artifact, delivery, TTE, blocker, dan handoff Payment LS terbaru | [PAYMENT_LS_CURRENT_IMPLEMENTATION.md](PAYMENT_LS_CURRENT_IMPLEMENTATION.md) |
+| Keputusan menunda migrasi/mapping historis sampai Payment LS dapat digunakan | [PAYMENT_LS_MIGRATION_MAPPING_DECISION.md](PAYMENT_LS_MIGRATION_MAPPING_DECISION.md) |
 | Analisis migrasi payment LS, dependensi, alur, dan temuan kode | [PAYMENT_LS_ANALYSIS.md](PAYMENT_LS_ANALYSIS.md) |
 | Melanjutkan implementasi LS, keputusan terbuka, dan kriteria selesai | [PAYMENT_LS_IMPLEMENTATION_PLAN.md](PAYMENT_LS_IMPLEMENTATION_PLAN.md) |
 | Seeder master data hasil mapping | `../02-master-data/AI_AGENT_MASTER_DATA_SEEDERS.md` |
@@ -85,7 +86,9 @@ Pengguna memprioritaskan implementasi LS sebelum payment lain. Snapshot analisis
 8 September 2026 tetap menjadi baseline historis. Kondisi 26 September 2026
 sudah bergerak ke implementasi SPP: route/menu/model/request store/controller
 shared tersedia, upload SPP utama sudah menjadi canonical private artifact, dan
-delivery route khusus LS SPP sudah dibuat. Mulai dari
+delivery route khusus LS SPP sudah dibuat. Migrasi/mapping massal dokumen
+historis secara eksplisit ditunda sampai Payment LS dapat digunakan; baca
+[catatan keputusan](PAYMENT_LS_MIGRATION_MAPPING_DECISION.md). Mulai dari
 [kondisi implementasi aktual](PAYMENT_LS_CURRENT_IMPLEMENTATION.md), lalu baca
 [hasil analisis awal](PAYMENT_LS_ANALYSIS.md) dan
 [rencana implementasi](PAYMENT_LS_IMPLEMENTATION_PLAN.md). Jangan menganggap

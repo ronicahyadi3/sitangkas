@@ -426,8 +426,9 @@ Implementasikan seluruh capability yang diperlukan UI sebelum UI dibuat:
   8 signature memerlukan sekitar 40-43 detik sehingga request view/delivery
   tidak boleh menunggu BSrE;
 - migration additive `user_positions.pdf_watermark_required BOOLEAN NOT NULL
-  DEFAULT TRUE`, explicit audited backfill posisi existing, management UI/API
-  terotorisasi, serta audit perubahan before/after;
+  DEFAULT FALSE`; seluruh posisi existing dan posisi baru tetap `false`, nilai
+  `true` hanya diaktifkan manual melalui Management User/API terotorisasi, serta
+  audit perubahan before/after;
 - satu delivery policy untuk preview/view/download: posisi nyata `true` selalu
   watermark, posisi nyata `false` boleh original, Admin Super acting selalu
   efektif `false`, Admin Super pada posisi nyata mengikuti flag posisi itu, dan

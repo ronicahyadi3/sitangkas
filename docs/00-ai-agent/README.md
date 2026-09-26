@@ -97,9 +97,11 @@ queued yang membawa passphrase.
 
 Kebijakan PDF memakai tepat satu flag posisi `pdf_watermark_required`: `true`
 selalu watermark untuk preview/view/download, `false` boleh original setelah
-authorization. Admin Super acting selalu efektif `false`; posisi bisnis nyata
-Admin Super mengikuti flag posisi tersebut; guest public selalu watermark.
-Flag ini bukan permission dan fitur masih berupa rancangan dokumentasi.
+authorization. Posisi existing dan posisi baru default `false`; nilai `true`
+hanya diaktifkan manual melalui Management User. Admin Super acting selalu
+efektif `false`; posisi bisnis nyata Admin Super mengikuti flag posisi tersebut;
+guest public selalu watermark. Flag ini bukan permission dan fitur masih berupa
+rancangan dokumentasi.
 
 UI eSign wajib mengikuti main CSS Bootstrap 5 dan custom Argon Dashboard Pro 2.
 Jangan menggunakan Tailwind sebagai basis komponen eSign meskipun dependency

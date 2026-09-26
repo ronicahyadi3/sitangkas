@@ -13,6 +13,8 @@ Dokumen ini tidak menetapkan schema atau aturan bisnis baru secara final.
 
 Kondisi kode dan blocker terbaru wajib dibaca pada
 [PAYMENT_LS_CURRENT_IMPLEMENTATION.md](PAYMENT_LS_CURRENT_IMPLEMENTATION.md).
+Keputusan aktif tentang penundaan migrasi/mapping historis wajib dibaca pada
+[PAYMENT_LS_MIGRATION_MAPPING_DECISION.md](PAYMENT_LS_MIGRATION_MAPPING_DECISION.md).
 
 ## 0. Kemajuan aktual 26 September 2026
 
@@ -58,6 +60,9 @@ Kondisi kode dan blocker terbaru wajib dibaca pada
   additive tanpa row atau `src_type` baru.
 - [ ] Validasi runtime upload, rollback, delivery, provisioning, dan TTE LS.
 - [ ] Review dan selesaikan SPM, SP2D, bank, serta penyelesaian LS.
+- [x] Keputusan hold migrasi/mapping massal dan backfill historis sudah dicatat;
+  jangan mulai sebelum Payment LS dapat digunakan dan pengguna memberi
+  instruksi eksplisit.
 
 ## 1. Arah pekerjaan yang diminta pengguna
 
@@ -74,7 +79,8 @@ diaktifkan atau direfaktor.
 
 1. Baca `AGENTS.md`, [invariant project](../00-ai-agent/PROJECT_INVARIANTS.md),
    [kondisi implementasi aktual](PAYMENT_LS_CURRENT_IMPLEMENTATION.md), lalu
-   [hasil analisis awal](PAYMENT_LS_ANALYSIS.md).
+   [keputusan hold migrasi/mapping](PAYMENT_LS_MIGRATION_MAPPING_DECISION.md)
+   dan [hasil analisis awal](PAYMENT_LS_ANALYSIS.md).
 2. Periksa `git status` dan perubahan terkini tanpa me-reset pekerjaan pengguna.
 3. Cocokkan kembali dependensi, route, schema database aktif, dan layanan konteks
    dengan snapshot; jangan mengulang audit seluruh payment bila tidak berubah.
@@ -91,9 +97,10 @@ replacement canonical SPP, locking pagu, lazy activation, submit gate, serta
 assignment signer pada handoff sudah dikerjakan. Direct private create,
 replacement, dan delivery SPJ/BMD/Billing juga sudah tersedia dengan cutover per
 row untuk data historis. Billing memakai artifact type `attachment` tanpa row
-atau `src_type` baru. Hasil berikutnya adalah backend visible
-placement/controlled signing LS SPP atau backfill attachment historis sesuai
-prioritas aktif.
+atau `src_type` baru. Hasil berikutnya adalah menuntaskan kesiapan runtime dan
+backend visible placement/controlled signing LS SPP. Backfill attachment dan
+migrasi historis ditunda sampai pengguna memberi instruksi eksplisit setelah
+Payment LS dapat digunakan.
 
 ## 3. Keputusan yang belum ditetapkan
 

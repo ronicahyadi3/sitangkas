@@ -65,6 +65,8 @@ tidak pernah memakai derivative watermark sebagai sumber.
 2. Watermark adalah derivative private dan bukan `document_artifacts` baru.
 3. Satu flag posisi `user_positions.pdf_watermark_required` berlaku seragam
    untuk view, download, dan signing preview.
+   Default posisi lama dan baru adalah `false`; nilai `true` hanya diaktifkan
+   manual melalui Management User untuk posisi terpilih.
 4. Backend menentukan mode; frontend tidak dapat memilih original/watermark.
 5. Authorization dokumen diperiksa sebelum mode delivery.
 6. COPY-ID adalah identitas forensik, bukan authorization secret.
@@ -142,9 +144,11 @@ tidak diedit.
 
 ### 6.1 `user_positions.pdf_watermark_required`
 
-Boolean non-null dengan default aman `true`. Model harus mempunyai default
+Boolean non-null dengan default `false`. Model harus mempunyai default
 attribute, fillable, dan boolean cast. Perubahan administratif flag dicatat
-melalui audit management user yang sudah ada.
+melalui audit management user yang sudah ada. Seluruh row existing tetap
+`false`; tidak ada backfill massal ke `true`. Toggle `true` baru boleh digunakan
+setelah enforcement watermark untuk scope terkait siap tanpa original bypass.
 
 ### 6.2 `document_pdf_delivery_sessions`
 
@@ -367,22 +371,27 @@ Production harus mengonfirmasi:
 
 ## 13. Urutan implementasi final
 
-| Tahap | Pekerjaan | Outcome/gate |
-|---:|---|---|
-| P0 | Inventaris seluruh PDF response, URL, viewer, download, report, attachment, guest, dan legacy consumer | Matriks source/consumer/bypass lengkap; tidak ada mutation |
-| P1 | Kunci config, enum, state, error, schema dan index | Migration dapat dipretend; desain tidak ambigu |
-| P2 | Migration additive, model, cast, relation, transition service | Persistence siap tanpa mengubah behavior runtime |
-| P3 | Source adapter, current resolver, authorization, delivery decision | Backend dapat menentukan source dan ORIGINAL/WATERMARK/DENIED |
-| P4 | Delivery session, audit append-only, opaque route binding | Browser tidak memakai path; setiap request traceable |
-| P5 | COPY-ID, profile, overlay renderer, qpdf validation, private storage | Satu derivative dapat dibuat tanpa mengubah original |
-| P6 | Cache fingerprint, lock, atomic publish, job, retry, cleanup | Concurrent generation idempotent dan resumable |
-| P7 | Content/download/status endpoint dan security headers | Authorized binary delivery berjalan fail-closed |
-| P8 | Persistent asynchronous artifact verification | Viewer tidak tertahan latency BSrE |
-| P9 | Svelte secure viewer dan legacy trigger bridge | General viewer siap desktop/tablet/mobile |
-| P10 | Pilot LS SPP terkontrol | Matrix true/false, signed/unsigned, view/download lulus |
-| P11 | Rollout payment dan non-payment bertahap | Setiap source dipindahkan tanpa downtime |
-| P12 | Signing preview mengikuti delivery decision | Preview aman; canonical sign source tidak berubah |
-| P13 | Tutup direct/legacy bypass dan operasionalisasi monitoring | Tidak ada arbitrary URL/public original bypass |
+| Tahap | Pekerjaan | Outcome/gate | Status |
+|---:|---|---|---|
+| P0 | Kunci kontrak bisnis, default opt-in, invariant original/watermark, dan urutan rollout | Keputusan tidak ambigu dan konsisten lintas dokumentasi | Selesai 26 September 2026 |
+| P1 | Inventaris seluruh PDF response, URL, viewer, download, report, attachment, guest, dan legacy consumer | Matriks source/consumer/bypass lengkap; tidak ada mutation | Berikutnya |
+| P2 | Migration additive flag posisi default `false`, model default/cast, dan pemeriksaan schema | Seluruh posisi lama/baru tetap `false`; behavior runtime belum berubah | Belum |
+| P3 | Schema session/copy/access-event/verification, model, enum, relation, dan transition service | Persistence canonical siap tanpa mengubah route lama | Belum |
+| P4 | Source adapter dan current artifact resolver universal | Backend memperoleh exact source tanpa menerima path browser | Belum |
+| P5 | Authorization dan delivery decision ORIGINAL/WATERMARK/DENIED | Mode ditentukan server dari policy dan posisi terbaru | Belum |
+| P6 | Delivery session, audit append-only, opaque binding, content/download/status endpoint | Authorized original delivery dapat dipilotkan tanpa path leak | Belum |
+| P7 | Persistent asynchronous artifact verification | Viewer tidak tertahan latency BSrE | Belum |
+| P8 | Svelte secure viewer read-only dan legacy `.view-pdf` bridge | General viewer siap desktop/tablet/mobile | Belum |
+| P9 | Pilot LS original dengan seluruh posisi masih `false` | Main viewer dan delivery contract terbukti sebelum watermark | Belum |
+| P10 | COPY-ID, profile, overlay renderer, qpdf validation, private storage | Satu derivative dapat dibuat tanpa mengubah original | Belum |
+| P11 | Cache fingerprint, lock, atomic publish, job, retry, dan cleanup | Concurrent generation idempotent dan resumable | Belum |
+| P12 | Management User toggle dan audit before/after | Posisi pilot dapat diaktifkan manual menjadi `true` | Belum |
+| P13 | Enforcement watermark pada delivery decision | Posisi `true` selalu watermark dan gagal secara fail-closed | Belum |
+| P14 | Tutup direct/legacy original bypass pada scope termigrasi | Route lama tidak dapat melewati flag posisi | Belum |
+| P15 | Pilot watermark LS untuk matrix `false`/`true`, signed/unsigned, view/download | Kebijakan opt-in terbukti end-to-end | Belum |
+| P16 | Signing preview mengikuti delivery decision | Preview aman; canonical sign source tidak berubah | Belum |
+| P17 | Rollout payment dan non-payment bertahap | Setiap source dipindahkan tanpa downtime | Belum |
+| P18 | Operasionalisasi monitoring, recovery, dan capacity | Anomali original untuk posisi `true` terdeteksi sebagai critical | Belum |
 
 Urutan rollout domain yang disarankan: LS SPP, keluarga LS, TU, GU SKPD, GU UK,
 UP, KKPD, dokumen non-payment, laporan/export, attachment, lalu jalur guest dan
@@ -434,4 +443,3 @@ Fitur baru hanya dinyatakan selesai ketika:
 10. signing preview tidak mengubah source TTE;
 11. pilot dan rollout disertai recovery/rollback operasional;
 12. dokumentasi kondisi aktual diperbarui setelah setiap implementasi nyata.
-

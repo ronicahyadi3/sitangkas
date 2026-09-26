@@ -956,9 +956,10 @@ terkontrol per explicit path, bukan recursive glob luas.
    dibuat pada source dan menunggu runtime proof.
 7. Compatibility writer legacy sudah dibuat; inventaris consumer dan parity
    report belum selesai.
-8. Implementasikan migration/backfill/management `pdf_watermark_required`,
-   renderer/COPY-ID, audit akses append-only, cache derivative 12 jam, cleanup,
-   dan delivery policy fail-closed.
+8. Implementasikan migration additive `pdf_watermark_required` default `false`,
+   aktivasi manual teraudit melalui Management User, renderer/COPY-ID, audit
+   akses append-only, cache derivative 12 jam, cleanup, dan delivery policy
+   fail-closed untuk posisi yang diaktifkan `true`.
 9. Implementasikan legacy URL resolver, route public `/verify/{public_id}` dan
    route delivery `/verify/{public_id}/download` dengan public/auth policy serta
    rendition resolver yang sama.

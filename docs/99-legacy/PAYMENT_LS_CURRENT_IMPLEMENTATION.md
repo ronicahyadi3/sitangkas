@@ -16,15 +16,17 @@ aktual harus dibaca dari file ini dan diverifikasi terhadap working tree.
 
 1. `../00-ai-agent/PROJECT_INVARIANTS.md`.
 2. Dokumen ini.
-3. `PAYMENT_LS_ANALYSIS.md` untuk temuan awal dan risiko LS-01 sampai LS-08.
-4. `PAYMENT_LS_IMPLEMENTATION_PLAN.md` untuk urutan implementasi keseluruhan.
-5. `../08-esign/CURRENT_ESIGN_IMPLEMENTATION.md` bila menyentuh artifact, TTE,
+3. `PAYMENT_LS_MIGRATION_MAPPING_DECISION.md` untuk batas aktif yang menunda
+   migrasi/mapping historis sampai Payment LS dapat digunakan.
+4. `PAYMENT_LS_ANALYSIS.md` untuk temuan awal dan risiko LS-01 sampai LS-08.
+5. `PAYMENT_LS_IMPLEMENTATION_PLAN.md` untuk urutan implementasi keseluruhan.
+6. `../08-esign/CURRENT_ESIGN_IMPLEMENTATION.md` bila menyentuh artifact, TTE,
    delivery PDF, atau compatibility ledger.
-6. `../08-esign/LEGACY_OPERATIONAL_TABLES_COMPATIBILITY.md` bila menyentuh
+7. `../08-esign/LEGACY_OPERATIONAL_TABLES_COMPATIBILITY.md` bila menyentuh
    `document`, `document_process`, anggaran, `before_signs`, atau `after_signs`.
-7. `../08-esign/ESIGN_DOCUMENT_LIFECYCLE_AND_REPORTING_COMPATIBILITY.md` bila
+8. `../08-esign/ESIGN_DOCUMENT_LIFECYCLE_AND_REPORTING_COMPATIBILITY.md` bila
    menyentuh file sebelum/sesudah TTE, version chain, atau migrasi file legacy.
-8. `../01-authentication/CURRENT_AUTH_CONTEXT_IMPLEMENTATION.md`,
+9. `../01-authentication/CURRENT_AUTH_CONTEXT_IMPLEMENTATION.md`,
    `../03-user-positions/AI_AGENT_USER_POSITIONS_CONTEXT.md`, dan
    `../04-year-permissions/AI_AGENT_YEAR_PERMISSION_CONTEXT.md` bila menyentuh
    authorization, posisi, acting context, atau tahun.
@@ -36,6 +38,13 @@ Jangan menyalin credential, URL publik, atau aturan akses lama tanpa adaptasi.
 
 - Prioritas pengguna tetap Payment LS, dimulai dari SPP. Payment lain menunggu
   LS stabil.
+- Migrasi/mapping massal, backfill dokumen historis, dan decommission folder
+  `public/File_*` sedang ditunda. Keberadaan runbook global bukan izin untuk
+  mengimplementasikan atau menjalankannya. Detail keputusan ada pada
+  `PAYMENT_LS_MIGRATION_MAPPING_DECISION.md`.
+- Upload/replacement runtime baru tetap memakai canonical private artifact.
+  Dokumen historis tetap memakai fallback; provisioning terbatas ketika satu
+  dokumen lama diganti adalah operasi on-demand, bukan migrasi massal.
 - `document` tetap operational projection bersama untuk semua payment. Modelnya
   tidak dibuat khusus LS.
 - `document_process` tetap histori kompatibilitas bersama untuk semua payment.
@@ -554,7 +563,8 @@ vertical slice ini. Jangan menganggap siap hanya karena halaman atau route
 terdaftar. Sebelum mengaktifkan operasional:
 
 - periksa seluruh Form Request yang di-import benar-benar tersedia;
-- migrasikan semua file terkait ke canonical private artifact;
+- arahkan upload dan replacement baru ke canonical private artifact tanpa
+  memulai migrasi massal file historis;
 - pastikan family reference dan pilihan dokumen pendahulu benar;
 - tegakkan scope role/unit/tahun dan state transition;
 - hubungkan TTE, delivery, penolakan, verifikasi, serta bank sesuai matrix;
@@ -571,22 +581,22 @@ Urutan prioritas blocker saat snapshot:
    setiap batas transaksi.
 3. Siapkan worker `signatures` production dan shared cache sesuai topology
    server; worker lokal bukan bukti availability production.
-4. Backfill 31.927 Billing LS historis ke mapping attachment private, lalu
-   verifikasi coverage dan integritas sebelum menutup `/File_Billing`.
-5. Tutup seluruh URL langsung `public/File_*` untuk LS setelah setiap tipe
-   mempunyai delivery resolver/policy canonical.
+4. Validasi runtime delivery SPP/SPJ/BMD/Billing untuk upload baru dan fallback
+   historis tanpa menjalankan backfill.
+5. Pertahankan URL fallback `public/File_*` bagi data historis selama hold
+   migrasi/mapping masih aktif.
 6. Review kebutuhan indeks komposit anggaran berdasarkan query plan dan volume
    produksi sebelum membuat migration indeks.
 7. Review SPM lalu SP2D sebagai vertical slice terpisah.
 
 Risiko tambahan:
 
-- resolver current sengaja tidak memakai fallback file legacy; backfill
-  diperlukan untuk dokumen historis;
+- resolver current sengaja tidak memakai fallback file legacy; controller
+  delivery/detail tetap memilih fallback historis selama hold migrasi aktif;
 - delivery SPP saat ini belum menerapkan watermark/COPY-ID/audit delivery yang
   dirancang untuk sistem e-sign umum;
-- migration folder legacy tetap harus copy-verify-activate dan tidak boleh
-  langsung dipindah/dihapus;
+- migration folder legacy kelak tetap harus copy-verify-activate dan tidak boleh
+  langsung dipindah/dihapus; pekerjaan tersebut saat ini ditunda;
 - perubahan dalam snapshot ini masih berada di working tree dan belum boleh
   dianggap deployed hanya karena route/class tersedia.
 
@@ -598,14 +608,17 @@ Risiko tambahan:
    submit gate, assignment event, legacy projection, dan current artifact.
 3. Konfigurasikan shared cache, production process manager, health/heartbeat,
    dan recovery worker `signatures`.
-4. Backfill Billing, SPJ, dan BMD historis; hentikan URL public per tipe setelah
-   coverage canonical serta integritas file terverifikasi.
-5. Pertahankan mapping Billing pada artifact type `attachment` dan kolom
+4. Pertahankan mapping Billing pada artifact type `attachment` dan kolom
    `document.billing`; jangan membuat row document/`src_type` baru.
-6. Validasi runtime delivery SPP/SPJ/BMD/Billing dengan policy dan scope tahun.
-7. Selesaikan delivery policy LS SPP/SPJ/BMD, termasuk watermark/audit bila scope fase
+5. Validasi runtime delivery SPP/SPJ/BMD/Billing dengan policy, scope tahun,
+   dan fallback file historis.
+6. Selesaikan delivery policy LS SPP/SPJ/BMD, termasuk watermark/audit bila scope fase
    tersebut sudah diaktifkan.
-8. Baru lanjutkan SPM dan SP2D, lalu bank/penyelesaian LS.
+7. Baru lanjutkan SPM dan SP2D, lalu bank/penyelesaian LS.
+
+Migration runner, bulk mapping, backfill historis, dan penutupan URL public
+tidak termasuk urutan aktif ini. Semua pekerjaan tersebut tetap ditunda sesuai
+`PAYMENT_LS_MIGRATION_MAPPING_DECISION.md`.
 
 ## 14. Verifikasi yang sudah dan belum dilakukan
 

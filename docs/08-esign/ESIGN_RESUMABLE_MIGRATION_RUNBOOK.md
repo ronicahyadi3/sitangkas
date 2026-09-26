@@ -16,6 +16,13 @@ lama. Agent wajib membaca
 `ESIGN_V2_CONTRACT_AND_BACKEND.md`, dan
 `ESIGN_DOCUMENT_LIFECYCLE_AND_REPORTING_COMPATIBILITY.md` lebih dahulu.
 
+> **Operational hold — 26 September 2026:** implementasi dan eksekusi migration
+> runner, mapping massal, serta backfill dokumen historis ditunda. Prioritas aktif
+> adalah membuat Payment LS dapat digunakan. Rancangan dalam runbook ini tetap
+> menjadi sumber desain masa depan, tetapi bukan otorisasi eksekusi. Pekerjaan
+> hanya dilanjutkan setelah instruksi eksplisit pengguna. Lihat
+> `../99-legacy/PAYMENT_LS_MIGRATION_MAPPING_DECISION.md`.
+
 ## 1. Keputusan yang dikunci
 
 1. SITANGKAS adalah aplikasi layanan yang harus tetap berjalan selama mapping.

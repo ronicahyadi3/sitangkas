@@ -60,8 +60,9 @@ Catatan Management Users:
   filter pada `users` dan `user_positions` untuk endpoint Yajra DataTables.
 - Jangan mengedit migration awal `create_user_positions_table` untuk menambahkan
   `pdf_watermark_required` pada database yang mungkin telah berjalan. Buat
-  migration additive `BOOLEAN NOT NULL DEFAULT TRUE`, lalu lakukan backfill
-  posisi existing secara eksplisit dan teraudit. Pengecualian Admin Super acting
+  migration additive `BOOLEAN NOT NULL DEFAULT FALSE`; seluruh posisi existing
+  dan posisi baru tetap `false`, sedangkan nilai `true` hanya diaktifkan manual
+  dan teraudit melalui Management User. Pengecualian Admin Super acting
   adalah resolver runtime (`false`), bukan row acting baru atau mutasi flag real.
 
 ## Keputusan yang harus dibuat sebelum migrate

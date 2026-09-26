@@ -1,7 +1,7 @@
 # Delivery PDF, Watermark Forensik, dan Cache Verifikasi BSrE
 
-Tanggal keputusan: **21 September 2026**. Rencana implementasi diselaraskan
-pada **26 September 2026**.
+Tanggal keputusan: **21 September 2026**. Kontrak default opt-in watermark dan
+rencana implementasi diselaraskan pada **26 September 2026**.
 
 Status: **kontrak arsitektur yang sudah disetujui pengguna; implementasi
 watermark belum dimulai**. Fondasi current canonical artifact, integrity
@@ -112,6 +112,10 @@ URL `.pdf`, generator laporan, dan static/legacy path lulus tanpa bypass.
 12. Watermark adalah forensic marking dan deterrence, bukan DRM. Jangan
     mengklaim watermark mencegah seluruh penyalinan atau penghapusan oleh pihak
     yang menguasai file.
+13. Kolom `pdf_watermark_required` memakai default `false` untuk posisi lama
+    maupun posisi baru. Watermark authenticated bersifat **opt-in per posisi**;
+    hanya posisi yang diaktifkan manual melalui Management User yang bernilai
+    `true`.
 
 Keputusan di atas menggantikan rancangan awal yang mengharuskan watermark untuk
 semua user normal atau memisahkan normal download dan explicit original
@@ -194,22 +198,24 @@ untuk semua action tersebut.
 Target schema:
 
 ```text
-pdf_watermark_required BOOLEAN NOT NULL DEFAULT TRUE
+pdf_watermark_required BOOLEAN NOT NULL DEFAULT FALSE
 ```
 
-Rekomendasi default `true` berlaku untuk posisi baru agar kesalahan konfigurasi
-tidak otomatis memberi akses original. Fakta bahwa tidak semua posisi wajib
-watermark diwujudkan dengan backfill/setting eksplisit `false`, bukan dengan
-default tidak aman.
+Default `false` adalah keputusan bisnis final untuk mempertahankan perilaku
+existing. Seluruh row lama dan posisi baru mulai dari `false`. Hanya posisi
+tertentu yang diaktifkan manual menjadi `true` melalui Management User. Begitu
+bernilai `true`, seluruh jalur browser wajib fail closed: kegagalan atau cache
+miss watermark tidak boleh mengirim original.
 
 Aturan migration dan rollout:
 
 1. migration `user_positions` yang sudah deployed tidak boleh diedit; buat
    migration baru melalui Artisan;
-2. inventaris seluruh posisi existing dan tetapkan nilai secara eksplisit
-   berdasarkan keputusan bisnis;
-3. jangan menyisipkan backfill besar ke migration DDL; gunakan command/batch
-   terkontrol bila volume membutuhkan;
+2. migration additive menggunakan `NOT NULL DEFAULT FALSE`, sehingga seluruh
+   row existing dan row baru bernilai `false` tanpa data backfill terpisah;
+3. nilai `true` hanya ditetapkan manual untuk posisi terpilih melalui Management
+   User setelah renderer, queue, dan seluruh route delivery untuk scope pilot
+   sudah siap;
 4. model `UserPosition` harus mempunyai default/cast boolean yang konsisten;
 5. Form Request Management Users hanya menerima boolean yang tervalidasi;
 6. hanya actor berwenang yang boleh mengubah flag;
@@ -228,6 +234,10 @@ Aturan migration dan rollout:
 11. perubahan `false -> true` segera menghentikan original pada request baru;
 12. derivative lama boleh menunggu cleanup tetapi tidak boleh memengaruhi
     keputusan delivery.
+
+Management User tidak boleh mengaktifkan nilai `true` sebelum enforcement
+watermark untuk scope tersebut siap. Setelah diaktifkan, route baru maupun route
+legacy tidak boleh mempunyai original fallback.
 
 Flag ini bukan pengganti authorization view/download. Nilai `false` tidak
 memberi akses ke semua dokumen; flag hanya menentukan bentuk byte setelah

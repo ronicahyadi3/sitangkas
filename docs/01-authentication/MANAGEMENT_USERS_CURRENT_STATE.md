@@ -238,7 +238,7 @@ Form posisi sudah mendukung:
 
 Target berikutnya yang sudah diputuskan tetapi **belum diimplementasikan**:
 
-- satu checkbox/field `pdf_watermark_required`, default aman `true`, pada create
+- satu checkbox/field `pdf_watermark_required`, default `false`, pada create
   dan edit posisi;
 - hanya aktor yang lolos authorization pengelolaan posisi yang boleh mengubahnya;
 - audit harus menyimpan before/after, aktor, target posisi, alasan, dan waktu;
@@ -475,7 +475,9 @@ Skenario prioritas:
 - deactivation wajib alasan;
 - grant izin historis wajib metadata dasar;
 - revoke izin historis membuat akses tulis tidak berlaku.
-- create posisi baru default `pdf_watermark_required=true`;
+- create posisi baru default `pdf_watermark_required=false`;
+- posisi existing juga mulai dari `false`; nilai `true` hanya diaktifkan manual
+  untuk posisi terpilih setelah enforcement watermark siap;
 - update flag yang diizinkan mencatat audit before/after dan reason;
 - aktor tanpa scope ditolak mengubah flag;
 - perubahan flag tidak mengubah Policy akses dokumen;

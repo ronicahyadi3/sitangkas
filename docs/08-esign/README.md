@@ -29,7 +29,10 @@ BMD LS sudah memakai direct private artifact dan authenticated delivery route.
 Billing tetap merupakan kolom pada row SPJ, tidak dibuat sebagai `src_type`
 baru, dan upload/replacement baru memakai private attachment artifact. Public
 storage hanya menjadi fallback Billing historis sebelum backfill.
-Reconciliation, public verification, dan mapping runner belum dibuat. Audit
+Reconciliation dan public verification belum dibuat. Mapping runner juga belum
+dibuat dan implementasi/eksekusinya sedang ditunda sampai Payment LS dapat
+digunakan sesuai
+`../99-legacy/PAYMENT_LS_MIGRATION_MAPPING_DECISION.md`. Audit
 frontend-backend F0 sudah selesai: endpoint aktif, response,
 binary media, error class, serta typed contract dikunci di
 `ESIGN_FRONTEND_BACKEND_CONTRACT_V1.md` dan `resources/js/esign/types.ts`.
@@ -246,9 +249,10 @@ Jika TTE dipanggil dari payment LS, baca juga:
     watermark server-side tanpa original bypass; `false` berarti exact original
     canonical boleh dikirim setelah authorization dokumen lulus. Flag tidak
     memberi hak akses dan tidak menggantikan Policy.
-40. Nilai aman untuk posisi baru adalah `pdf_watermark_required=true`. Backfill
-    posisi existing harus eksplisit dan teraudit; jangan mengandalkan default
-    migration untuk menetapkan kebijakan bisnis seluruh row lama.
+40. Nilai default posisi existing dan posisi baru adalah
+    `pdf_watermark_required=false`. Watermark authenticated bersifat opt-in;
+    hanya posisi terpilih yang diubah manual menjadi `true` melalui Management
+    User dan perubahan tersebut wajib teraudit.
 41. Admin Super yang benar-benar berada pada mode **acting like** selalu
     diperlakukan sebagai `pdf_watermark_required=false`, sehingga menerima exact
     original setelah authorization lulus. Jika Admin Super memilih posisi bisnis

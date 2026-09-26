@@ -169,11 +169,11 @@ Tambahan:
 
 | Kolom | Tipe | Aturan |
 |---|---|---|
-| `pdf_watermark_required` | boolean | non-null, default `true`, indexed hanya jika query management memerlukannya |
+| `pdf_watermark_required` | boolean | non-null, default `false`, indexed hanya jika query management memerlukannya |
 
-Backfill dilakukan terpisah dari DDL jika ada pengecualian posisi yang harus
-`false`. Default aman tetap `true`; jangan menanam pengecualian bisnis dalam
-migration schema.
+Seluruh row existing dan posisi baru bernilai `false`. Tidak ada backfill massal
+ke `true`; posisi terpilih diaktifkan manual melalui Management User setelah
+enforcement watermark pada scope tersebut siap.
 
 ### D.2 `document_pdf_delivery_sessions`
 
@@ -808,7 +808,8 @@ keputusan baru sebelum coding tahap terkait.
 
 | Keputusan | Rekomendasi |
 |---|---|
-| Existing position default | `pdf_watermark_required=true` |
+| Existing dan posisi baru default | `pdf_watermark_required=false` |
+| Aktivasi watermark authenticated | Manual per posisi melalui Management User |
 | Derivative file TTL | 12 jam fixed, bukan sliding |
 | Delivery session TTL | 60 menit |
 | View dan download session | Boleh memakai derivative/COPY-ID yang sama dalam session |
@@ -839,4 +840,3 @@ Sebelum bekerja:
 11. implementasikan satu phase/gate secara koheren;
 12. perbarui `CURRENT_ESIGN_IMPLEMENTATION.md` setelah source benar-benar
     berubah dan acceptance yang relevan dijalankan.
-

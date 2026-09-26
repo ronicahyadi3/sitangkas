@@ -117,12 +117,14 @@ masih berada pada **Phase 4 menuju Phase 5**.
 - URL QR target adalah `/verify/{public_id}` untuk exact immutable artifact.
 - Target delivery PDF memakai satu flag posisi `pdf_watermark_required` untuk
   seluruh preview/view/download. Flag `true` selalu watermark; `false` boleh
-  exact original setelah authorization. Guest public selalu watermark. Admin
-  Super saat acting like diperlakukan sebagai `false`; posisi bisnis nyata
-  miliknya mengikuti flag posisi tersebut. Seluruh rancangan ini belum
-  diimplementasikan. Urutan operasional, schema target, kontrak endpoint,
-  transition, queue, frontend general viewer, rollout, dan acceptance manual
-  sudah dikunci di `PDF_DELIVERY_WATERMARK_IMPLEMENTATION_PLAN.md` serta
+  exact original setelah authorization. Seluruh posisi existing dan posisi baru
+  default `false`; nilai `true` hanya diaktifkan manual melalui Management User.
+  Guest public selalu watermark. Admin Super saat acting like diperlakukan
+  sebagai `false`; posisi bisnis nyata miliknya mengikuti flag posisi tersebut.
+  Tahap P0 penguncian kontrak dokumentasi selesai 26 September 2026, sedangkan
+  implementasi runtime belum dimulai. Urutan operasional, schema target, kontrak
+  endpoint, transition, queue, frontend general viewer, rollout, dan acceptance
+  manual sudah dikunci di `PDF_DELIVERY_WATERMARK_IMPLEMENTATION_PLAN.md` serta
   `PDF_DELIVERY_WATERMARK_IMPLEMENTATION_APPENDICES.md`.
 - Frontend target adalah Svelte island melalui Vite pada Blade, bukan SPA dan
   bukan SvelteKit.
@@ -1029,8 +1031,9 @@ batas berikut:
 - endpoint 422 prepared rendition tetap fail-closed dan frontend menampilkan
   normalized field error; frontend tidak mengubah plan atau retry otomatis;
 - modal validasi F13 memakai exact private artifact dan tidak upload ulang Blob,
-  tetapi action canonical masih LS SPP. General secure PDF viewer/watermark
-  adalah workstream P0-P13 terpisah dan belum diimplementasikan.
+  tetapi action canonical masih LS SPP. Tahap P0 general secure PDF
+  viewer/watermark telah selesai sebagai kontrak dokumentasi; P1-P18 runtime
+  belum diimplementasikan.
 
 Feature flag tetap `false`. Perubahan source/UI di atas belum menggantikan
 acceptance manual F14, production worker/process manager, shared cache,
@@ -1046,7 +1049,7 @@ observability, dan controlled end-to-end provider proof.
    TTE, submit ke PPTK, TTE PPTK, submit ke PA, TTE PA, sampai handoff final;
 3. implementasikan reconciliation attempt `unknown`, stuck recovery, cleanup,
    dan observability;
-4. mulai P0 secure PDF delivery: inventaris seluruh view/download/report/
+4. mulai P1 secure PDF delivery: inventaris seluruh view/download/report/
    attachment/direct URL sebelum membuat migration watermark;
 5. implementasikan `/verify/{public_id}` dan policy result delivery; endpoint
    validasi exact artifact authenticated F13 sudah tersedia;

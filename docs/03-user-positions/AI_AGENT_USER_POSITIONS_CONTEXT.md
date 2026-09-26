@@ -120,12 +120,14 @@ AI agent harus membedakan kebutuhan berikut:
 Target schema mempunyai tepat satu boolean pada posisi:
 
 ```text
-user_positions.pdf_watermark_required BOOLEAN NOT NULL DEFAULT TRUE
+user_positions.pdf_watermark_required BOOLEAN NOT NULL DEFAULT FALSE
 ```
 
 Kolom ini menentukan rendition PDF **setelah** Policy dokumen mengizinkan aksi;
 kolom ini bukan permission. Berlaku untuk seluruh preview, view, dan download:
 
+- seluruh posisi existing dan posisi baru default `false`;
+- nilai `true` hanya diaktifkan manual melalui Management User;
 - posisi nyata aktif dengan nilai `true`: hanya derivative watermark server-side;
 - posisi nyata aktif dengan nilai `false`: exact original canonical boleh dikirim;
 - Admin Super dalam mode **acting like**: selalu efektif `false`, terlepas dari
@@ -137,9 +139,9 @@ kolom ini bukan permission. Berlaku untuk seluruh preview, view, dan download:
 
 Jangan membuat `pdf_view_watermark_required` atau
 `pdf_download_watermark_required`. Byte PDF yang tampil di viewer dapat disimpan,
-sehingga kedua jalur wajib memakai resolver yang sama. Nilai default `true`
-berlaku untuk posisi baru; posisi existing harus dibackfill berdasarkan keputusan
-bisnis eksplisit dan hasilnya diaudit. Detail delivery, COPY-ID, cache, dan audit
+sehingga kedua jalur wajib memakai resolver yang sama. Nilai default `false`
+berlaku untuk posisi existing dan posisi baru; aktivasi `true` dilakukan manual
+per posisi dan hasilnya diaudit. Detail delivery, COPY-ID, cache, dan audit
 berada di `../08-esign/PDF_DELIVERY_WATERMARK_AND_VERIFICATION.md`.
 
 ---
